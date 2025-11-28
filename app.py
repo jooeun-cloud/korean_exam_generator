@@ -259,6 +259,11 @@ if 'manual_passage_input' not in st.session_state:
 if 'app_mode' not in st.session_state:
     st.session_state.app_mode = "비문학 문제 제작" # 기본값
 
+# **[수정 추가] st.radio 오류 방지를 위한 Session State 강제 초기화**
+# 기존 세션에 잘못된 값이 남아있는 경우를 대비하여 기본값으로 강제 설정
+st.session_state['app_mode'] = "⚡ 비문학 문제 제작" 
+
+
 def request_generation():
     # 모든 요청 시, 세션 상태를 True로 설정
     st.session_state.generation_requested = True
@@ -282,7 +287,7 @@ st.markdown("""
     .stNumberInput input { text-align: center; }
     
     /* 앱 모드 선택 라디오 버튼 컨테이너 스타일 강조 (수정 반영) */
-    div[data-testid="stForm"] > div > div[role="radiogroup"] {
+    div[role="radiogroup"] {
         border: 3px solid #2e8b57; 
         padding: 15px 10px;        
         border-radius: 10px;       
@@ -421,7 +426,7 @@ def non_fiction_app():
     # [AI 생성 및 출력 메인 로직]
     # --------------------------------------------------------------------------
 
-    if st.session_state.generation_requested and st.session_state.app_mode == "비문학 문제 제작":
+    if st.session_state.generation_requested and st.session_state.app_mode == "⚡ 비문학 문제 제작":
         
         # 입력 값들을 Session State에서 다시 가져옵니다
         current_d_mode = st.session_state.domain_mode_select
@@ -881,7 +886,7 @@ def fiction_app():
     # [AI 생성 및 출력 메인 로직]
     # --------------------------------------------------------------------------
 
-    if st.session_state.generation_requested and st.session_state.app_mode == "문학 문제 제작":
+    if st.session_state.generation_requested and st.session_state.app_mode == "📖 문학 문제 제작":
         
         # Session state에서 값들을 가져올 때, fiction_ 접두사를 사용합니다.
         current_work_name = st.session_state.fiction_work_name_input
@@ -1124,7 +1129,7 @@ def fiction_app():
 
 
             except Exception as e:
-                status.error(f"오류 발생: {e}. API 키와 입력값을 확인해주세요.")
+                status.error(f"오류 발생: {e}")
                 st.session_state.generation_requested = False
 
 
@@ -1137,6 +1142,7 @@ st.title("📚 사계국어 AI 모의고사 제작 시스템")
 st.markdown("---")
 
 # 1. 문제 유형 선택
+# **[수정 반영] st.radio 항목에 이모지 추가**
 problem_type = st.radio(
     "출제할 문제 유형을 선택해주세요:",
     ["⚡ 비문학 문제 제작", "📖 문학 문제 제작"],
@@ -1144,16 +1150,10 @@ problem_type = st.radio(
     index=0 
 )
 
-# 2. 선택에 따른 화면 분기 (세션 상태 초기화 추가로 키 충돌 방지)
-if problem_type == "비문학 문제 제작":
+# 2. 선택에 따른 화면 분기 (세션 상태 초기화 코드는 맨 위에서 수행됨)
+if problem_type == "⚡ 비문학 문제 제작":
     st.header("⚡ 비문학 모의평가 출제")
-    if st.session_state.app_mode != "비문학 문제 제작":
-        st.session_state.app_mode = "비문학 문제 제작"
-        st.session_state.generation_requested = False
     non_fiction_app()
-elif problem_type == "문학 문제 제작":
+elif problem_type == "📖 문학 문제 제작":
     st.header("📖 문학 심층 분석 콘텐츠 제작")
-    if st.session_state.app_mode != "문학 문제 제작":
-        st.session_state.app_mode = "문학 문제 제작"
-        st.session_state.generation_requested = False
     fiction_app()
