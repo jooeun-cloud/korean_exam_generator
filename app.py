@@ -257,11 +257,11 @@ if 'd_mode' not in st.session_state:
 if 'manual_passage_input' not in st.session_state:
     st.session_state.manual_passage_input = ""
 if 'app_mode' not in st.session_state:
-    st.session_state.app_mode = "비문학 문제 제작" # 기본값
+    st.session_state.app_mode = "⚡ 비문학 문제 제작" # 기본값
 
-# **[수정 추가] st.radio 오류 방지를 위한 Session State 강제 초기화**
-# 기존 세션에 잘못된 값이 남아있는 경우를 대비하여 기본값으로 강제 설정
-st.session_state['app_mode'] = "⚡ 비문학 문제 제작" 
+# **[수정 반영] st.radio 오류 방지를 위한 Session State 강제 초기화 제거 및 안전한 초기값 설정**
+if st.session_state.app_mode not in ["⚡ 비문학 문제 제작", "📖 문학 문제 제작"]:
+     st.session_state['app_mode'] = "⚡ 비문학 문제 제작" 
 
 
 def request_generation():
@@ -286,7 +286,7 @@ st.markdown("""
     .stButton>button { width: 100%; background-color: #2e8b57; color: white; height: 3em; font-size: 20px; border-radius: 10px; }
     .stNumberInput input { text-align: center; }
     
-    /* 앱 모드 선택 라디오 버튼 컨테이너 스타일 강조 (수정 반영) */
+    /* 앱 모드 선택 라디오 버튼 컨테이너 스타일 강조 */
     div[role="radiogroup"] {
         border: 3px solid #2e8b57; 
         padding: 15px 10px;        
@@ -296,32 +296,36 @@ st.markdown("""
         margin-bottom: 30px;
     }
     
-    /* 앱 모드 선택 라디오 버튼 개별 라벨 스타일 (수정 반영) */
+    /* 앱 모드 선택 라디오 버튼 개별 라벨 스타일 (크기 확대 및 강조) */
     div[role="radiogroup"] > label {
-        padding: 10px 20px;
-        border: 1px solid #ccc;
-        border-radius: 8px;
-        margin-right: 15px;
-        font-size: 18px !important; 
-        font-weight: bold;          
-        transition: background-color 0.3s;
+        padding: 15px 30px; /* 내부 여백을 늘려 크기 확대 */
+        border: 2px solid #ccc; /* 테두리 강조 */
+        border-radius: 12px;
+        margin: 10px; /* 선택지 사이 간격 확대 */
+        font-size: 22px !important; /* 글씨 크기 대폭 확대 */
+        font-weight: 800;          
+        transition: background-color 0.3s, border-color 0.3s;
+        min-width: 250px; /* 최소 너비 설정 */
+        text-align: center; /* 텍스트 중앙 정렬 */
+        cursor: pointer;
     }
 
-    /* 선택된 라디오 버튼 배경색 변경 (수정 반영) */
+    /* 선택된 라디오 버튼 배경색 변경 및 테두리 두께 강조 */
     div[role="radiogroup"] > label[data-baseweb="radio"] input[type="radio"]:checked + div {
         background-color: #e0f7e9; 
         border-color: #2e8b57;     
+        border-width: 3px; 
     }
     
-    /* 앱 모드 선택 상단 제목 (출제할 문제 유형을 선택해주세요) 스타일 (수정 반영) */
-    div[data-testid="stVerticalBlock"] > div:nth-child(1) > div:nth-child(3) > div:nth-child(1) > label {
+    /* 앱 모드 선택 상단 제목 스타일 */
+    label[data-testid="stWidgetLabel"] {
         font-size: 24px;         
         font-weight: 800;        
         color: #00008b;          
         text-align: center;
         width: 100%;
         display: block;
-        margin-bottom: 10px;
+        margin-bottom: 15px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -1129,7 +1133,7 @@ def fiction_app():
 
 
             except Exception as e:
-                status.error(f"오류 발생: {e}")
+                status.error(f"오류 발생: {e}. API 키와 입력값을 확인해주세요.")
                 st.session_state.generation_requested = False
 
 
@@ -1142,15 +1146,16 @@ st.title("📚 사계국어 AI 모의고사 제작 시스템")
 st.markdown("---")
 
 # 1. 문제 유형 선택
-# **[수정 반영] st.radio 항목에 이모지 추가**
 problem_type = st.radio(
     "출제할 문제 유형을 선택해주세요:",
     ["⚡ 비문학 문제 제작", "📖 문학 문제 제작"],
     key="app_mode",
+    # index=0 은 "⚡ 비문학 문제 제작"을 기본값으로 설정
     index=0 
 )
 
-# 2. 선택에 따른 화면 분기 (세션 상태 초기화 코드는 맨 위에서 수행됨)
+# 2. 선택에 따른 화면 분기 (Session State 강제 초기화 제거)
+# st.radio가 이미 Session State를 관리하므로, 이 분기 코드는 그대로 유지하며 작동합니다.
 if problem_type == "⚡ 비문학 문제 제작":
     st.header("⚡ 비문학 모의평가 출제")
     non_fiction_app()
