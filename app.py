@@ -231,8 +231,8 @@ HTML_TAIL = """
 def get_best_model():
     """API 환경에서 유효한 최신 Gemini 모델 ID를 찾아서 반환합니다."""
     if "DUMMY_API_KEY_FOR_LOCAL_TEST" in GOOGLE_API_KEY or "APIKEY" in GOOGLE_API_KEY:
-         return 'gemini-2.5-flash'
-         
+          return 'gemini-2.5-flash'
+          
     try:
         genai.configure(api_key=GOOGLE_API_KEY)
         models = [m.name for m in genai.list_models()]
@@ -257,7 +257,7 @@ if 'd_mode' not in st.session_state:
 if 'manual_passage_input' not in st.session_state:
     st.session_state.manual_passage_input = ""
 if 'app_mode' not in st.session_state:
-     st.session_state.app_mode = "비문학 문제 제작" # 기본값
+    st.session_state.app_mode = "비문학 문제 제작" # 기본값
 
 def request_generation():
     # 모든 요청 시, 세션 상태를 True로 설정
@@ -375,7 +375,7 @@ def non_fiction_app():
     if current_d_mode == '직접 입력':
         st.subheader("📝 직접 입력 지문")
         manual_passage = st.text_area("분석할 지문 텍스트", height=400, key="manual_passage_input",
-                                      placeholder="여기에 비문학 지문을 직접 붙여넣어 주세요. (최소 5문단 권장)")
+                                     placeholder="여기에 비문학 지문을 직접 붙여넣어 주세요. (최소 5문단 권장)")
     else:
         st.subheader(f"AI 생성 지문 (선택 영역: {current_domain})")
         st.caption("출제하기 버튼을 누르면 AI가 지문을 생성합니다.")
@@ -567,7 +567,7 @@ def non_fiction_app():
                         **모든 문제는 <div class='question-box'> 안에 번호. <b>문제 발문</b> 태그를 사용하여 출제할 것.**
                     </div>
                     """)
-                
+                    
                 if select_t3 and count_t3 > 0: 
                     reqs.append(f"""
                     <div class="type-box">
@@ -575,7 +575,7 @@ def non_fiction_app():
                         - [유형3] 핵심 빈칸 채우기 {count_t3}문제. **각 문항은 문장 안에 <span class='blank'></span> 태그를 삽입하여 출제할 것.** **모든 문제는 <div class="question-box"> 안에 번호. <b>문제 발문</b> 태그를 사용하여 출제할 것.**
                     </div>
                     """)
-                
+                    
                 if select_t4 and count_t4 > 0: 
                         reqs.append(f"""
                     <div class="type-box">
@@ -594,7 +594,7 @@ def non_fiction_app():
                         **모든 문제는 <div class="question-box"> 안에 번호. <b>문제 발문</b>과 선지 목록(<div class='choices'>)을 사용하여 출제할 것.**
                     </div>
                     """)
-                
+                    
                 if select_t6 and count_t6 > 0: 
                     reqs.append(f"""
                     <div class="type-box">
@@ -604,7 +604,7 @@ def non_fiction_app():
                         **모든 문제는 <div class="question-box"> 안에 번호. <b>문제 발문</b>과 선지 목록(<div class='choices'>)을 사용하여 출제할 것.**
                     </div>
                     """)
-                
+                    
                 if select_t7 and count_t7 > 0: 
                     reqs.append(f"""
                     <div class="type-box">
@@ -688,11 +688,10 @@ def non_fiction_app():
                 total_objective_count = count_t5 + count_t6 + count_t7
                 
                 if total_objective_count > 0:
-                    # f-string 결합을 단순화하여 Raw String을 안전하게 연결
-                    prompt_answer_obj = (
-                        objective_rule_text_nonfiction +
-                        f"{str(total_objective_count)}문항의 정답(번호) 및 상세 해설(정답 풀이, 오답 풀이)을 작성. 각 문제 해설 사이에 <br><br><br> 태그를 사용하여 충분히 간격을 확보할 것.<br><br>"
-                    )
+                    # **수정된 부분: f-string 내 백슬래시 오류 방지를 위해 Raw String과 f-string 분리**
+                    rule_text = objective_rule_text_nonfiction
+                    count_text = f"{total_objective_count}문항의 정답(번호) 및 상세 해설(정답 풀이, 오답 풀이)을 작성. 각 문제 해설 사이에 <br><br><br> 태그를 사용하여 충분히 간격을 확보할 것.<br><br>"
+                    prompt_answer_obj = rule_text + count_text
                 
                 # 3. 프롬프트 최종 마침 부분
                 prompt_end = """
@@ -845,8 +844,8 @@ def fiction_app():
     st.subheader("📖 분석할 소설 텍스트 입력")
     # key 충돌 방지를 위해 fiction_ 접두사를 사용합니다.
     novel_text_input = st.text_area("소설 텍스트 (발췌분도 가능)", height=400, 
-                                    placeholder="여기에 소설 텍스트 전체(또는 발췌분)를 붙여넣어 주세요.", 
-                                    key="fiction_novel_text_input_area")
+                                     placeholder="여기에 소설 텍스트 전체(또는 발췌분)를 붙여넣어 주세요.", 
+                                     key="fiction_novel_text_input_area")
 
     st.markdown("---")
 
@@ -895,6 +894,7 @@ def fiction_app():
                 # [핵심 프롬프트 구성]
                 # --------------------------------------------------
                 reqs = []
+                current_question_number = 1 # 문제 번호 카운터
 
                 # 1. 유형 1: 어휘 문제 (단답형)
                 if current_count_t1 > 0:
@@ -1045,11 +1045,12 @@ def fiction_app():
                     prompt_answer_content += f"<h4>유형 2. 서술형 심화 문제 모범 답안 ({current_count_t2}문항)</h4><br>[지시]: {current_count_t2}문항의 모범 답안을 상세하게 작성하되, **각 문제의 모범 답안이 끝날 때마다 <br><br><br> 태그를 사용하여 충분히 간격을 확보하여 분리할 것.**<br><br>"
 
                 if current_count_t3 > 0:
-                    # **[f-string 오류 해결] 중첩된 f-string 대신 외부 변수와 문자열 결합**
-                    rule_block = (
-                        objective_rule_text_fiction +
-                        f"{current_count_t3}문항의 정답(번호) 및 상세 해설(정답 풀이, 오답 풀이)을 작성. 각 문제 해설 사이에 <br><br><br> 태그를 사용하여 충분히 간격을 확보할 것.<br><br>"
-                    )
+                    # **수정된 부분: f-string 내 백슬래시 오류 방지를 위해 Raw String과 f-string 분리**
+                    rule_text = objective_rule_text_fiction
+                    count_text = f"{current_count_t3}문항의 정답(번호) 및 상세 해설(정답 풀이, 오답 풀이)을 작성. 각 문제 해설 사이에 <br><br><br> 태그를 사용하여 충분히 간격을 확보할 것.<br><br>"
+                    
+                    rule_block = rule_text + count_text
+                    
                     prompt_answer_content += f"<h4>유형 3. 객관식 문제 정답 및 해설 ({current_count_t3}문항)</h4><br>[지시]: {rule_block}"
                 
                 if select_t4:
