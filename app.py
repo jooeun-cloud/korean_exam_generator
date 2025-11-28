@@ -634,14 +634,10 @@ def non_fiction_app():
                     reqs.append(rec_prompt)
                 
                 # --- 객관식 해설 규칙 텍스트 (비문학용) ---
-                # Raw String (r"""...""") 사용으로 f-string 내 백슬래시 문제를 근본적으로 방지
-                objective_rule_text_nonfiction = r"""
-[객관식 해설 작성 규칙 (중복 금지, 줄바꿈 필수)]
-1. <b>[n번] 정답: ③</b> <br> (바로 줄바꿈)
-2. <b>[정답 풀이]</b> <br> (줄바꿈 후 내용 작성. '[정답 풀이]' 텍스트 반복 금지)
-3. <br><b>[오답 풀이]</b> <br>
-<div>① (오답 이유)</div>
-<div>② (오답 이유)</div>""" # 마지막 줄 공백 제거하여 오류 재발 방지
+                # **[최종 수정] Raw String을 포기하고 단일 문자열로 변경하여 백슬래시 오류를 원천 차단**
+                # ------------------------------------------------------------------------------------------------
+                objective_rule_text_nonfiction = '[객관식 해설 작성 규칙 (중복 금지, 줄바꿈 필수)]<br>1. <b>[n번] 정답: ③</b> <br> (바로 줄바꿈)<br>2. <b>[정답 풀이]</b> <br> (줄바꿈 후 내용 작성. \'[정답 풀이]\' 텍스트 반복 금지)<br>3. <br><b>[오답 풀이]</b> <br><div>① (오답 이유)</div><div>② (오답 이유)</div>'
+                # ------------------------------------------------------------------------------------------------
                 
                 # 5. 최종 프롬프트 구성 및 AI 호출
                 
@@ -682,12 +678,12 @@ def non_fiction_app():
                 
                 """
                 
-                # 2. 객관식 해설 부분 (조건부 연결 - f-string 중첩 오류 해결)
+                # 2. 객관식 해설 부분 (조건부 연결)
                 prompt_answer_obj = ""
                 total_objective_count = count_t5 + count_t6 + count_t7
                 
                 if total_objective_count > 0:
-                    # **Raw String과 f-string 분리하여 오류 방지**
+                    # **Raw String이 아닌 일반 문자열을 f-string과 결합**
                     rule_text = objective_rule_text_nonfiction
                     count_text = f"{total_objective_count}문항의 정답(번호) 및 상세 해설(정답 풀이, 오답 풀이)을 작성. 각 문제 해설 사이에 <br><br><br> 태그를 사용하여 충분히 간격을 확보할 것.<br><br>"
                     prompt_answer_obj = rule_text + count_text
@@ -997,14 +993,8 @@ def fiction_app():
                 """
                 
                 # --- 객관식 해설 규칙 텍스트 (문학용) ---
-                # Raw String (r"""...""") 사용으로 f-string 내 백슬래시 문제를 근본적으로 방지
-                objective_rule_text_fiction = r"""
-[객관식 해설 작성 규칙 (중복 금지, 줄바꿈 필수)]
-1. <b>[n번] 정답: ③</b> <br> (바로 줄바꿈)
-2. <b>[정답 풀이]</b> <br> (줄바꿈 후 내용 작성. '[정답 풀이]' 텍스트 반복 금지)
-3. <br><b>[오답 풀이]</b> <br>
-<div>① (오답 이유)</div>
-<div>② (오답 이유)</div>""" # 마지막 줄 공백 제거하여 오류 재발 방지
+                # **[최종 수정] Raw String을 포기하고 단일 문자열로 변경하여 백슬래시 오류를 원천 차단**
+                objective_rule_text_fiction = '[객관식 해설 작성 규칙 (중복 금지, 줄바꿈 필수)]<br>1. <b>[n번] 정답: ③</b> <br> (바로 줄바꿈)<br>2. <b>[정답 풀이]</b> <br> (줄바꿈 후 내용 작성. \'[정답 풀이]\' 텍스트 반복 금지)<br>3. <br><b>[오답 풀이]</b> <br><div>① (오답 이유)</div><div>② (오답 이유)</div>'
 
                 # 1. 프롬프트 시작 부분 (정답지 시작 태그까지)
                 prompt_start = f"""
@@ -1043,7 +1033,7 @@ def fiction_app():
                     prompt_answer_content += f"<h4>유형 2. 서술형 심화 문제 모범 답안 ({current_count_t2}문항)</h4><br>[지시]: {current_count_t2}문항의 모범 답안을 상세하게 작성하되, **각 문제의 모범 답안이 끝날 때마다 <br><br><br> 태그를 사용하여 충분히 간격을 확보하여 분리할 것.**<br><br>"
 
                 if current_count_t3 > 0:
-                    # **Raw String과 f-string 분리하여 오류 방지**
+                    # **Raw String이 아닌 일반 문자열을 f-string과 결합**
                     rule_text = objective_rule_text_fiction
                     count_text = f"{current_count_t3}문항의 정답(번호) 및 상세 해설(정답 풀이, 오답 풀이)을 작성. 각 문제 해설 사이에 <br><br><br> 태그를 사용하여 충분히 간격을 확보할 것.<br><br>"
                     
