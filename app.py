@@ -980,6 +980,17 @@ def fiction_app():
                 
                 req_all = "\n".join(reqs)
 
+                # 지문 및 작품 정보 구성
+                passage_instruction = f"""
+                <div class="passage">
+                    <b>[분석 텍스트]</b><br>
+                    {current_novel_text}
+                </div>
+                <div class="source-info">
+                    {current_work_name} - {current_author_name}
+                </div>
+                """
+                
                 # --- 객관식 해설 규칙 텍스트 (비문학용) ---
                 # **[긴급 수정: 오류 블록을 빈 문자열로 대체]**
                 objective_rule_text_nonfiction = ''
