@@ -634,12 +634,15 @@ def non_fiction_app():
                     reqs.append(rec_prompt)
                 
                 # --- 객관식 해설 규칙 텍스트 (비문학용) ---
-                # **[긴급 수정: 오류 블록을 빈 문자열로 대체]**
+                # **[오류 회피를 위해 빈 문자열로 대체]**
                 objective_rule_text_nonfiction = ''
                 # ------------------------------------------------------------------------------------------------
                 
                 # 5. 최종 프롬프트 구성 및 AI 호출
                 
+                # **[핵심 수정] f-string 내부에서 '\n'.join(reqs) 사용을 피하기 위해 미리 문자열로 합칩니다.**
+                reqs_content = "\n".join(reqs)
+
                 # 1. 프롬프트 시작 부분 (정답지 시작 태그까지)
                 prompt_start = f"""
                 당신은 대한민국 최고의 수능 국어 출제 위원(평가원장급)입니다.
@@ -658,7 +661,7 @@ def non_fiction_app():
                 3. 문제 출제 (유형별 묶음):
                 - **[핵심]** 문제 유형을 **<div class="type-box">**로 묶고, 그 안에 **'유형 제목(<h3>)'**과 **'해당 유형의 모든 문제들'**을 넣으시오.
                 - 전체 문제 번호는 1번부터 연속되게 매기시오.
-                {"\n".join(reqs)}
+                {reqs_content}  <-- **(수정 반영)**
                 
                 [태그 및 레이아웃 규칙 (엄수)]
                 - **문제의 발문(질문) 부분만 <b> 태그로 굵게.** (선지는 굵게 X)
@@ -978,7 +981,8 @@ def fiction_app():
                     """
                     reqs.append(req_type8)
                 
-                req_all = "\n".join(reqs)
+                # **[핵심 수정] f-string 외부에서 reqs 리스트를 문자열로 합칩니다.**
+                reqs_content = "\n".join(reqs)
 
                 # 지문 및 작품 정보 구성
                 passage_instruction = f"""
@@ -1013,7 +1017,7 @@ def fiction_app():
                 {passage_instruction}
                 
                 3. 분석 콘텐츠 생성 (선택된 유형만 순서 및 태그 엄수):
-                {req_all}
+                {reqs_content}  <-- **(수정 반영)**
                 
                 ---
                 
@@ -1081,7 +1085,7 @@ def fiction_app():
                     with col1:
                         st.button("🔄 다시 생성하기 (같은 내용으로 재요청)", on_click=request_generation)
                     with col2:
-                        st.download_button("📥 학습지 다운로드 (HTML)", full_html, f"사계국어_모의고사.html", "text/html")
+                        st.download_button("📥 학습지 다운로드 (HTML)", full_html, f"{current_work_name}_분석_학습지.html", "text/html")
 
                     st.components.v1.html(full_html, height=800, scrolling=True)
 
@@ -1089,7 +1093,7 @@ def fiction_app():
 
 
             except Exception as e:
-                status.error(f"오류 발생: {e}")
+                status.error(f"오류 발생: {e}. API 키와 입력값을 확인해주세요.")
                 st.session_state.generation_requested = False
 
 
