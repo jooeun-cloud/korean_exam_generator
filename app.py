@@ -258,6 +258,10 @@ if 'd_mode' not in st.session_state:
     st.session_state.d_mode = 'AI 생성'
 if 'manual_passage_input' not in st.session_state:
     st.session_state.manual_passage_input = ""
+if 'manual_passage_input_a' not in st.session_state: # (가) 지문 입력 상태 추가
+    st.session_state.manual_passage_input_a = ""
+if 'manual_passage_input_b' not in st.session_state: # (나) 지문 입력 상태 추가
+    st.session_state.manual_passage_input_b = ""
 if 'app_mode' not in st.session_state:
     st.session_state.app_mode = "⚡ 비문학 문제 제작" # 기본값
 
@@ -290,10 +294,7 @@ st.markdown("""
     
     /* 앱 모드 선택 라디오 버튼 컨테이너 스타일 (초록색 박스 제거) */
     div[role="radiogroup"] {
-        /* border: 3px solid #2e8b57; */
         padding: 0px; 
-        /* border-radius: 10px; */
-        /* box-shadow: 0 4px 8px rgba(0,0,0,0.1); */
         justify-content: center;   
         margin-bottom: 30px;
     }
@@ -414,14 +415,33 @@ def non_fiction_app():
         use_recommendation = st.checkbox(f"🌟 영역 맞춤 추천 문제 추가", value=False, key="select_recommendation")
 
     # 2. 텍스트 입력 (메인 화면)
+    
+    # **[수정 반영] 직접 입력 모드일 때, 지문 유형에 따라 입력창 분리**
     if current_d_mode == '직접 입력':
         st.subheader("📝 직접 입력 지문")
-        manual_passage = st.text_area("분석할 지문 텍스트", height=400, key="manual_passage_input",
-                                     placeholder="여기에 비문학 지문을 직접 붙여넣어 주세요. (최소 5문단 권장)")
-    else:
+        
+        current_manual_mode = st.session_state.get("manual_mode", "단일 지문") # 현재 직접 입력 모드 확인
+        
+        if current_manual_mode == "단일 지문":
+            # 단일 지문일 경우: 하나의 입력창 사용
+            st.text_area("분석할 지문 텍스트", height=400, key="manual_passage_input",
+                                         placeholder="여기에 비문학 지문을 직접 붙여넣어 주세요. (최소 5문단 권장)")
+            
+        elif current_manual_mode == "주제 통합 (가) + (나)":
+            # 주제 통합일 경우: (가)와 (나) 지문 분리하여 입력받음
+            col_a, col_b = st.columns(2)
+            with col_a:
+                st.text_area("🅰️ (가) 지문 텍스트", height=400, key="manual_passage_input_a",
+                                         placeholder="(가) 지문의 내용을 입력하세요.")
+            with col_b:
+                st.text_area("🅱️ (나) 지문 텍스트", height=400, key="manual_passage_input_b",
+                                         placeholder="(나) 지문의 내용을 입력하세요.")
+            
+        # 모든 입력 값은 Session State에 저장되므로, 아래 로직에서는 이것들을 사용합니다.
+        
+    else: # AI 생성 모드
         st.subheader(f"AI 생성 지문 (선택 영역: {current_domain})")
         st.caption("출제하기 버튼을 누르면 AI가 지문을 생성합니다.")
-        manual_passage = "" 
 
     # 3. 메인 실행 버튼
     if st.button("🚀 모의평가 출제하기 (클릭)", key="non_fiction_run_btn"):
@@ -437,7 +457,18 @@ def non_fiction_app():
         # 입력 값들을 Session State에서 다시 가져옵니다
         current_d_mode = st.session_state.domain_mode_select
         current_mode = st.session_state.get("ai_mode", st.session_state.get("manual_mode", "단일 지문 (기본)"))
-        current_manual_passage = st.session_state.get("manual_passage_input", "")
+        
+        # **[수정 반영] 직접 입력 모드일 때 지문 내용 결합**
+        if current_d_mode == '직접 입력':
+            if current_mode == '단일 지문':
+                current_manual_passage = st.session_state.get("manual_passage_input", "")
+            else: # 주제 통합 (가) + (나)
+                passage_a = st.session_state.get("manual_passage_input_a", "")
+                passage_b = st.session_state.get("manual_passage_input_b", "")
+                # 지문 분석 프롬프트에 전달할 때 사용하기 위해 결합
+                current_manual_passage = f"[가] 지문:\n{passage_a}\n\n[나] 지문:\n{passage_b}" 
+        else:
+            current_manual_passage = "" # AI 생성 모드일 때는 지문 생성을 모델에게 맡김
 
         current_topic = st.session_state.get("topic_input", "사용자 입력 지문")
         current_difficulty = st.session_state.get("difficulty_select", "사용자 지정")
@@ -481,7 +512,7 @@ def non_fiction_app():
         if current_d_mode == 'AI 생성' and (current_mode == "단일 지문 (기본)" and not current_topic):
             st.warning("⚠️ AI 생성 모드에서는 주제를 입력해주세요!")
             st.session_state.generation_requested = False
-        elif current_d_mode == '직접 입력' and not current_manual_passage:
+        elif current_d_mode == '직접 입력' and not current_manual_passage.strip(): # 수정: 입력된 지문이 비어있는지 확인
             st.warning("⚠️ 직접 입력 모드에서는 지문을 입력해주세요!")
             st.session_state.generation_requested = False
         elif "DUMMY_API_KEY_FOR_LOCAL_TEST" in GOOGLE_API_KEY:
@@ -507,37 +538,92 @@ def non_fiction_app():
                 passage_instruction = ""
                 summary_passage_inst = "" 
                 summary_answer_inst = "" 
-                manual_passage_content = current_manual_passage
+                manual_passage_content = current_manual_passage # 직접 입력 시 이미 결합된 상태
+
                 
                 if current_d_mode == '직접 입력':
                     
                     # --- 직접 입력 지문 포맷팅 ---
-                    if use_summary:
-                        re_prompt_summary = f"""
-                        사용자 입력 지문을 분석하여 문단별로 <p> 태그와 </p> 태그를 정확히 사용하고, 각 </p> 태그 바로 다음에 <div class='summary-blank'>📝 문단 요약 : </div> 태그를 삽입하시오. **결과는 오직 HTML 태그와 지문 내용으로만 출력해야 합니다.**
-                        [텍스트]: {current_manual_passage}
-                        """
-                        summary_response = model.generate_content(re_prompt_summary, generation_config=GenerationConfig(temperature=0.0, max_output_tokens=4000))
-                        manual_passage_content = summary_response.text.replace("```html", "").replace("```", "").strip()
+                    if current_mode == "단일 지문":
+                         # 단일 지문 처리 (기존 로직 유지)
                         
-                        summary_answer_inst = """
-                        - 정답지 맨 앞부분에 **[지문 문단별 핵심 요약 정답]** 섹션을 만드시오.
-                        - 각 문단의 요약 정답을 <div class='summary-answer'> 태그 안에 작성하시오.
-                        """
-                    else:
-                        re_prompt_p_tag = f"""
-                        사용자 입력 지문을 분석하여 문단별로 <p> 태그와 </p> 태그를 정확히 사용하여 HTML 형식으로 출력하시오. **결과는 오직 HTML 태그와 지문 내용으로만 출력해야 합니다.**
-                        [텍스트]: {current_manual_passage}
-                        """
-                        p_tag_response = model.generate_content(re_prompt_p_tag, generation_config=GenerationConfig(temperature=0.0, max_output_tokens=4000))
-                        manual_passage_content = p_tag_response.text.replace("```html", "").replace("```", "").strip()
+                        if use_summary:
+                            re_prompt_summary = f"""
+                            사용자 입력 지문을 분석하여 문단별로 <p> 태그와 </p> 태그를 정확히 사용하고, 각 </p> 태그 바로 다음에 <div class='summary-blank'>📝 문단 요약 : </div> 태그를 삽입하시오. **결과는 오직 HTML 태그와 지문 내용으로만 출력해야 합니다.**
+                            [텍스트]: {current_manual_passage}
+                            """
+                            summary_response = model.generate_content(re_prompt_summary, generation_config=GenerationConfig(temperature=0.0, max_output_tokens=4000))
+                            manual_passage_content = summary_response.text.replace("```html", "").replace("```", "").strip()
+                            
+                            summary_answer_inst = """
+                            - 정답지 맨 앞부분에 **[지문 문단별 핵심 요약 정답]** 섹션을 만드시오.
+                            - 각 문단의 요약 정답을 <div class='summary-answer'> 태그 안에 작성하시오.
+                            """
+                        else:
+                            re_prompt_p_tag = f"""
+                            사용자 입력 지문을 분석하여 문단별로 <p> 태그와 </p> 태그를 정확히 사용하여 HTML 형식으로 출력하시오. **결과는 오직 HTML 태그와 지문 내용으로만 출력해야 합니다.**
+                            [텍스트]: {current_manual_passage}
+                            """
+                            p_tag_response = model.generate_content(re_prompt_p_tag, generation_config=GenerationConfig(temperature=0.0, max_output_tokens=4000))
+                            manual_passage_content = p_tag_response.text.replace("```html", "").replace("```", "").strip()
 
 
-                    passage_instruction = f"""
-                        2. [사용자 입력 지문]:
-                        - **[지시]**: 아래에 출력될 사용자 입력 지문을 분석하여 문제를 생성하시오. 지문을 다시 출력하지 마시오.
-                        """
+                        passage_instruction = f"""
+                            2. [사용자 입력 지문]:
+                            - **[지시]**: 아래에 출력될 사용자 입력 지문을 분석하여 문제를 생성하시오. 지문을 다시 출력하지 마시오.
+                            """
                     
+                    elif current_mode == "주제 통합 (가) + (나)":
+                        # 통합 지문 처리 (프롬프트에 결합된 current_manual_passage 사용)
+                        passage_instruction = f"""
+                            2. [사용자 입력 지문 (가) + (나)]:
+                            - **[지시]**: 아래에 출력될 사용자 입력 지문(가), (나)를 분석하여 문제를 생성하시오. 지문을 다시 출력하지 마시오.
+                            """
+                        
+                        # 지문 포맷팅: (가), (나) 라벨과 <div class="passage">를 Python에서 수동으로 생성
+                        # AI에게는 지문 포맷팅을 맡기지 않고 순수 텍스트만 전달
+                        
+                        passage_a_text = st.session_state.get("manual_passage_input_a", "")
+                        passage_b_text = st.session_state.get("manual_passage_input_b", "")
+                        
+                        formatted_passage = ""
+                        
+                        # (가) 지문 포맷팅
+                        if passage_a_text:
+                            p_tag_response_a = model.generate_content(
+                                f"입력된 텍스트를 분석하여 문단별로 <p> 태그와 </p> 태그를 사용하여 HTML 형식으로 출력하시오. [텍스트]: {passage_a_text}",
+                                generation_config=GenerationConfig(temperature=0.0, max_output_tokens=2000)
+                            )
+                            formatted_text_a = p_tag_response_a.text.replace("```html", "").replace("```", "").strip()
+                            
+                            formatted_passage += f"""
+                            <div class="passage">
+                            <span class="passage-label">(가)</span><br>
+                            {formatted_text_a}
+                            </div>
+                            """
+                        
+                        # (나) 지문 포맷팅
+                        if passage_b_text:
+                            p_tag_response_b = model.generate_content(
+                                f"입력된 텍스트를 분석하여 문단별로 <p> 태그와 </p> 태그를 사용하여 HTML 형식으로 출력하시오. [텍스트]: {passage_b_text}",
+                                generation_config=GenerationConfig(temperature=0.0, max_output_tokens=2000)
+                            )
+                            formatted_text_b = p_tag_response_b.text.replace("```html", "").replace("```", "").strip()
+                            
+                            formatted_passage += f"""
+                            <div class="passage">
+                            <span class="passage-label">(나)</span><br>
+                            {formatted_text_b}
+                            </div>
+                            """
+                        
+                        # 메인 출력에 사용될 내용
+                        manual_passage_content = formatted_passage
+                        
+                        # AI에게 전달할 지문 텍스트는 이미 위에서 current_manual_passage에 저장됨
+                        
+                        
                 else: # AI 생성 모드
                     difficulty_guide = f"""
                     - **[난이도]**: {current_difficulty} 난이도
@@ -765,18 +851,23 @@ def non_fiction_app():
                         full_html += clean_content
                         
                 # 직접 입력 모드일 경우: Python이 제목/시간 박스 및 포맷팅된 지문을 수동으로 추가
-                elif current_d_mode == '직접 입력' and current_manual_passage:
+                elif current_d_mode == '직접 입력':
                     
                     # 1. 제목/시간 박스를 수동으로 추가 (단 한 번 출력)
                     full_html += f"<h1>사계국어 비문학 스펙트럼</h1><h2>[{current_domain} 영역: {current_topic}]</h2>"
                     full_html += f"<div class='time-box'> ⏱️ 실제 소요 시간: <span class='time-blank'></span> 분 </div>"
                     
                     # 2. 지문 본문 (<div class="passage"> 태그로 감싸서 출력)
-                    full_html += f"""
-                    <div class="passage">
-                    {manual_passage_content}
-                    </div>
-                    """
+                    if current_mode == "단일 지문":
+                         # 단일 지문일 경우
+                         full_html += f"""
+                         <div class="passage">
+                         {manual_passage_content}
+                         </div>
+                         """
+                    else:
+                         # 주제 통합일 경우 (이미 위에서 HTML 포맷팅 됨)
+                         full_html += manual_passage_content
                     
                     # AI가 생성한 문제 내용 중 혹시라도 포함되었을 수 있는 제목/시간 박스 및 지문 관련 지시 부분을 제거
                     clean_content = re.sub(r'<h1>.*?<\/div>.*?<div class="time-box">.*?<\/div>|2\. \[.*?지문\]:.*?지시\]:.*?지문은 다시 출력하지 마시오\.', '', clean_content, 1, re.DOTALL)
@@ -817,6 +908,7 @@ def fiction_app():
     # --------------------------------------------------------------------------
     # [메인 UI 및 실행 로직]
     # --------------------------------------------------------------------------
+    st.subheader("📚 문학 심층 분석 콘텐츠 생성 시스템")
 
     # 1. 입력 설정 (사이드바)
     with st.sidebar:
@@ -1157,7 +1249,9 @@ problem_type = st.radio(
 # 2. 선택에 따른 화면 분기
 if problem_type == "⚡ 비문학 문제 제작":
     st.header("⚡ 비문학 모의평가 출제")
+    # 'app_mode'를 기준으로 분기되므로, '비문학' 선택 시 Session State의 'app_mode'도 자동으로 '⚡ 비문학 문제 제작'으로 설정됩니다.
     non_fiction_app()
 elif problem_type == "📖 문학 문제 제작":
-    st.header("📖 문학 모의평가 출제")
+    st.header("📖 문학 심층 분석 콘텐츠 제작")
+    # '문학' 선택 시 Session State의 'app_mode'도 자동으로 '📖 문학 문제 제작'으로 설정됩니다.
     fiction_app()
