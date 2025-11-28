@@ -1159,5 +1159,5 @@ if problem_type == "⚡ 비문학 문제 제작":
     st.header("⚡ 비문학 모의평가 출제")
     non_fiction_app()
 elif problem_type == "📖 문학 문제 제작":
-    st.header("📖 문학 심층 분석 콘텐츠 제작")
+    st.header("📖 문학 모의평가 출제")
     fiction_app()
