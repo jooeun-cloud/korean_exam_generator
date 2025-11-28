@@ -992,7 +992,7 @@ def fiction_app():
                 """
                 
                 # --- 객관식 해설 규칙 텍스트 (문학용) ---
-                # **[긴급 수정: 오류 블록을 빈 문자열로 대체]**
+                # **[오류 회피를 위해 빈 문자열로 대체]**
                 objective_rule_text_fiction = ''
                 # ------------------------------------------------------------------------------------------------
 
@@ -1081,7 +1081,7 @@ def fiction_app():
                     with col1:
                         st.button("🔄 다시 생성하기 (같은 내용으로 재요청)", on_click=request_generation)
                     with col2:
-                        st.download_button("📥 시험지 다운로드 (HTML)", full_html, f"사계국어_모의고사.html", "text/html")
+                        st.download_button("📥 학습지 다운로드 (HTML)", full_html, f"사계국어_모의고사.html", "text/html")
 
                     st.components.v1.html(full_html, height=800, scrolling=True)
 
@@ -1089,7 +1089,7 @@ def fiction_app():
 
 
             except Exception as e:
-                status.error(f"오류 발생: {e}. API 키와 입력값을 확인해주세요.")
+                status.error(f"오류 발생: {e}")
                 st.session_state.generation_requested = False
 
 
