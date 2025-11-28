@@ -634,7 +634,7 @@ def non_fiction_app():
                     reqs.append(rec_prompt)
                 
                 # --- 객관식 해설 규칙 텍스트 (비문학용) ---
-                objective_rule_text_nonfiction = """
+                objective_rule_text_nonfiction = r"""
                 [객관식 해설 작성 규칙 (중복 금지, 줄바꿈 필수)]
                 1. <b>[n번] 정답: ③</b> <br> (바로 줄바꿈)
                 2. <b>[정답 풀이]</b> <br> (줄바꿈 후 내용 작성. '[정답 풀이]' 텍스트 반복 금지)
@@ -642,6 +642,7 @@ def non_fiction_app():
                     <div>① (오답 이유)</div>
                     <div>② (오답 이유)</div>
                 """
+
                 
                 # 5. 최종 프롬프트 구성 및 AI 호출
                 
@@ -993,7 +994,7 @@ def fiction_app():
                 """
                 
                 # --- 객관식 해설 규칙 텍스트 (문학용) ---
-                objective_rule_text_fiction = """
+                objective_rule_text_fiction = r"""
                 [객관식 해설 작성 규칙 (중복 금지, 줄바꿈 필수)]
                 1. <b>[n번] 정답: ③</b> <br> (바로 줄바꿈)
                 2. <b>[정답 풀이]</b> <br> (줄바꿈 후 내용 작성. '[정답 풀이]' 텍스트 반복 금지)
