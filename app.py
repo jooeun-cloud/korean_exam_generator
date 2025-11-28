@@ -125,7 +125,8 @@ HTML_HEAD = """
             font-family: 'HanyangShinMyeongjo', 'Batang', serif;
         }
 
-        .source-info { /* 문학 작품명/작가명 표시용 */
+        /* 문학 작품명/작가명 표시용 */
+        .source-info { 
             text-align: right; font-size: 0.85em; color: #666; margin-bottom: 30px; 
             font-style: italic; font-family: 'HanyangShinMyeongjo', 'Batang', serif;
         }
@@ -143,7 +144,8 @@ HTML_HEAD = """
             margin-bottom: 5px;
         }
         
-        .example-box { /* 보기 박스 */
+        /* 보기 박스 */
+        .example-box { 
             border: 1px solid #333; padding: 15px; margin: 10px 0; 
             background-color: #f7f7f7; 
             font-size: 0.95em; font-weight: normal;
@@ -161,7 +163,7 @@ HTML_HEAD = """
             margin-bottom: 5px; 
         }
         
-        /* 서술 공간 (비문학: write-box, 문학: write-box) */
+        /* 서술 공간 */
         .write-box { 
             margin-top: 15px; margin-bottom: 10px; height: 150px; 
             border: 1px solid #777; 
@@ -259,7 +261,7 @@ if 'manual_passage_input' not in st.session_state:
 if 'app_mode' not in st.session_state:
     st.session_state.app_mode = "⚡ 비문학 문제 제작" # 기본값
 
-# **[수정 반영] st.radio 오류 방지를 위한 Session State 강제 초기화 제거 및 안전한 초기값 설정**
+# **[수정 반영] st.radio 오류 방지를 위한 안전한 초기값 설정 (문학 선택 오류 해결)**
 if st.session_state.app_mode not in ["⚡ 비문학 문제 제작", "📖 문학 문제 제작"]:
      st.session_state['app_mode'] = "⚡ 비문학 문제 제작" 
 
@@ -286,27 +288,27 @@ st.markdown("""
     .stButton>button { width: 100%; background-color: #2e8b57; color: white; height: 3em; font-size: 20px; border-radius: 10px; }
     .stNumberInput input { text-align: center; }
     
-    /* 앱 모드 선택 라디오 버튼 컨테이너 스타일 강조 */
+    /* 앱 모드 선택 라디오 버튼 컨테이너 스타일 (초록색 박스 제거) */
     div[role="radiogroup"] {
-        border: 3px solid #2e8b57; 
-        padding: 15px 10px;        
-        border-radius: 10px;       
-        box-shadow: 0 4px 8px rgba(0,0,0,0.1); 
+        /* border: 3px solid #2e8b57; */
+        padding: 0px; 
+        /* border-radius: 10px; */
+        /* box-shadow: 0 4px 8px rgba(0,0,0,0.1); */
         justify-content: center;   
         margin-bottom: 30px;
     }
     
     /* 앱 모드 선택 라디오 버튼 개별 라벨 스타일 (크기 확대 및 강조) */
     div[role="radiogroup"] > label {
-        padding: 15px 30px; /* 내부 여백을 늘려 크기 확대 */
-        border: 2px solid #ccc; /* 테두리 강조 */
+        padding: 15px 30px; 
+        border: 2px solid #ccc; 
         border-radius: 12px;
-        margin: 10px; /* 선택지 사이 간격 확대 */
-        font-size: 22px !important; /* 글씨 크기 대폭 확대 */
+        margin: 10px; 
+        font-size: 22px !important; 
         font-weight: 800;          
         transition: background-color 0.3s, border-color 0.3s;
-        min-width: 250px; /* 최소 너비 설정 */
-        text-align: center; /* 텍스트 중앙 정렬 */
+        min-width: 250px; 
+        text-align: center; 
         cursor: pointer;
     }
 
@@ -1125,7 +1127,7 @@ def fiction_app():
                     with col1:
                         st.button("🔄 다시 생성하기 (같은 내용으로 재요청)", on_click=request_generation)
                     with col2:
-                        st.download_button("📥 시험지 다운로드 (HTML)", full_html, f"사계국어_모의고사.html", "text/html")
+                        st.download_button("📥 학습지 다운로드 (HTML)", full_html, f"{current_work_name}_분석_학습지.html", "text/html")
 
                     st.components.v1.html(full_html, height=800, scrolling=True)
 
@@ -1150,12 +1152,10 @@ problem_type = st.radio(
     "출제할 문제 유형을 선택해주세요:",
     ["⚡ 비문학 문제 제작", "📖 문학 문제 제작"],
     key="app_mode",
-    # index=0 은 "⚡ 비문학 문제 제작"을 기본값으로 설정
     index=0 
 )
 
-# 2. 선택에 따른 화면 분기 (Session State 강제 초기화 제거)
-# st.radio가 이미 Session State를 관리하므로, 이 분기 코드는 그대로 유지하며 작동합니다.
+# 2. 선택에 따른 화면 분기
 if problem_type == "⚡ 비문학 문제 제작":
     st.header("⚡ 비문학 모의평가 출제")
     non_fiction_app()
