@@ -401,14 +401,14 @@ def non_fiction_app():
                 domain_b = st.selectbox("[(나) 영역]", domains, key="manual_dom_b", index=7)
                 
                 # AI 생성 프롬프트에 넘길 때 사용할 통합 영역/주제 설정 (실제 사용은 안 됨)
-                domain = f"{domain_a} + {domain_b}"
+                domain = f"({domain_a}) + ({domain_b})"
                 topic = "사용자 입력 통합 지문"
                 current_domain = domain
                 
             difficulty = "사용자 지정"
             current_topic = topic
             current_mode = st.session_state.manual_mode
-            # **[수정 끝]**
+        # **[수정 끝]**
 
         st.markdown("---")
         
@@ -1225,9 +1225,9 @@ with col_select:
 # 1.2. 지문 입력창 및 제목 출력 (오른쪽 컬럼)
 with col_input:
     current_app_mode = st.session_state.get('app_mode')
-    
-    # **[수정 반영] 비문학 머리말 출력**
+
     if current_app_mode == "⚡ 비문학 문제 제작":
+        # **[수정 반영] 머리말을 컬럼 맨 위에 출력**
         st.header("⚡ 비문학 모의평가 출제")
         
         current_d_mode = st.session_state.get('domain_mode_select', 'AI 생성')
@@ -1249,17 +1249,26 @@ with col_input:
                     st.text_area("🅱️ (나) 지문 텍스트", height=300, key="manual_passage_input_b",
                                  placeholder="(나) 지문의 내용을 입력하세요.")
         else:
+            # **[수정 반영] AI 생성 모드일 때 메시지 출력**
             st.caption("지문 입력 방식이 'AI 생성'으로 설정되어 있습니다. 사이드바 설정을 완료하고 아래 '모의평가 출제하기' 버튼을 눌러주세요.")
 
-    # **[수정 반영] 문학 머리말 및 입력창 출력**
+
     elif current_app_mode == "📖 문학 문제 제작":
+        # **[수정 반영] 머리말 및 입력창 출력**
         st.header("📖 문학 모의평가 출제")
+       
         
-        
-        # 문학 영역일 경우, 소설 텍스트를 입력받음 (키가 중복되지 않도록 함수 외부에서 사용)
+        # 문학 영역일 경우, 소설 텍스트를 입력받음
         st.text_area("소설 텍스트 (발췌분도 가능)", height=300, 
                     placeholder="[문학] 분석할 소설 텍스트 전체(또는 발췌분)를 여기에 붙여넣어 주세요.", 
                     key="fiction_novel_text_input_area")
+        
+
+    # 3. 메인 실행 버튼 (오른쪽 컬럼 맨 아래에 배치)
+    if current_app_mode == "⚡ 비문학 문제 제작" and st.button("🚀 모의평가 출제하기 (클릭)", key="non_fiction_run_btn_col"):
+        request_generation()
+    elif current_app_mode == "📖 문학 문제 제작" and st.button("🚀 문학 분석 자료 생성 요청", key="fiction_run_btn_col"):
+        request_generation()
 
 
 st.markdown("---") # 메인 콘텐츠 분할선
