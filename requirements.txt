@@ -1,2 +1,2 @@
 streamlit
-google-genai==1.52.0
+google-generativeai
