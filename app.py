@@ -380,16 +380,35 @@ def non_fiction_app():
             current_mode = st.session_state.ai_mode
             current_domain = domain
 
-        # 직접 입력 모드
-        else:
+        # 직접 입력 모드 **[수정 시작]**
+        else: 
             mode = st.radio("지문 구성 방식", ["단일 지문", "주제 통합 (가) + (나)"], index=0, key="manual_mode")
             domains = ["인문", "철학", "경제", "법률", "사회", "과학", "기술", "예술", "사용자 지정"]
-            domain = st.selectbox("문제 영역", domains, key="manual_domain_select")
-            topic = "사용자 입력 지문"
+            
+            if st.session_state.manual_mode == "단일 지문":
+                # 단일 지문일 경우
+                domain = st.selectbox("문제 영역", domains, key="manual_domain_select")
+                
+                # AI 생성 프롬프트에 넘길 때 사용할 더미 값 설정 (실제 사용은 안 됨)
+                topic = "사용자 입력 지문"
+                current_domain = domain
+            
+            else: # 주제 통합 (가) + (나)일 경우
+                st.markdown("#### 🅰️ (가) 지문 영역")
+                domain_a = st.selectbox("[(가) 영역]", domains, key="manual_dom_a")
+                
+                st.markdown("#### 🅱️ (나) 지문 영역")
+                domain_b = st.selectbox("[(나) 영역]", domains, key="manual_dom_b", index=7)
+                
+                # AI 생성 프롬프트에 넘길 때 사용할 통합 영역/주제 설정 (실제 사용은 안 됨)
+                domain = f"{domain_a} + {domain_b}"
+                topic = "사용자 입력 통합 지문"
+                current_domain = domain
+                
             difficulty = "사용자 지정"
             current_topic = topic
             current_mode = st.session_state.manual_mode
-            current_domain = domain
+            # **[수정 끝]**
 
         st.markdown("---")
         
@@ -416,7 +435,7 @@ def non_fiction_app():
         use_summary = st.checkbox("📌 지문 문단별 요약 훈련", value=False, key="select_summary")
         use_recommendation = st.checkbox(f"🌟 영역 맞춤 추천 문제 추가", value=False, key="select_recommendation")
 
-    # 이 함수는 UI를 출력하지 않고, 아래 메인 로직에서 처리합니다.
+    # 이 함수는 UI를 직접 출력하지 않고, 아래 메인 로직에서 처리합니다.
 
     # AI 생성 로직 (함수 내부에서는 변수만 준비)
     if st.session_state.generation_requested and st.session_state.app_mode == "⚡ 비문학 문제 제작":
@@ -429,31 +448,33 @@ def non_fiction_app():
         if current_d_mode == '직접 입력':
             if current_mode == '단일 지문':
                 current_manual_passage = st.session_state.get("manual_passage_input_col_main", "") # 메인 컬럼에서 입력된 값 사용
+                # domain/topic은 사이드바에서 설정된 값 그대로 사용
+                current_domain = st.session_state.get('manual_domain_select', '사용자 지정')
+                current_topic = "사용자 입력 지문"
             else: # 주제 통합 (가) + (나)
                 passage_a = st.session_state.get("manual_passage_input_a", "")
                 passage_b = st.session_state.get("manual_passage_input_b", "")
                 current_manual_passage = f"[가] 지문:\n{passage_a}\n\n[나] 지문:\n{passage_b}" 
-        else:
+                
+                # **[수정 반영] 직접 입력 통합 지문 시 영역 설정값 사용**
+                dom_a = st.session_state.get('manual_dom_a', '사용자 지정')
+                dom_b = st.session_state.get('manual_dom_b', '사용자 지정')
+                current_domain = f"({dom_a}) + ({dom_b})"
+                current_topic = "사용자 입력 통합 지문"
+                
+        else: # AI 생성 모드
             current_manual_passage = "" # AI 생성 모드일 때는 지문 생성을 모델에게 맡김
-
-        current_topic = st.session_state.get("topic_input", "사용자 입력 지문")
-        current_difficulty = st.session_state.get("difficulty_select", "사용자 지정")
-        
-        # AI/직접 입력 모드에 따른 domain/topic 재설정
-        if current_d_mode == 'AI 생성':
+            
+            # AI 생성 모드의 영역/주제 설정값 사용
+            current_topic = st.session_state.get("topic_input", "주제 입력")
             if current_mode == "단일 지문 (기본)":
-                current_domain = st.session_state.get("domain_select", "사용자 지정")
+                 current_domain = st.session_state.get("domain_select", "사용자 지정")
             else:
-                dom_a = st.session_state.get('dom_a', '인문')
-                dom_b = st.session_state.get('dom_b', '철학')
-                topic_a = st.session_state.get('topic_a_input', '')
-                topic_b = st.session_state.get('topic_b_input', '')
-                current_domain = f"{dom_a} + {dom_b}"
-                current_topic = f"(가) {topic_a} / (나) {topic_b}"
-        else:
-            current_domain = st.session_state.get('manual_domain_select', '사용자 지정')
-            current_topic = "사용자 입력 지문"
-            current_difficulty = "사용자 지정"
+                 dom_a = st.session_state.get('dom_a', '인문')
+                 dom_b = st.session_state.get('dom_b', '철학')
+                 current_domain = f"{dom_a} + {dom_b}"
+
+        current_difficulty = st.session_state.get("difficulty_select", "사용자 지정")
             
         # 문제 개수 및 체크박스 상태 로드
         count_t2 = st.session_state.get("t2", 0)
@@ -938,7 +959,7 @@ def fiction_app():
         # Session state에서 값들을 가져옵니다.
         current_work_name = st.session_state.fiction_work_name_input
         current_author_name = st.session_state.fiction_author_name_input
-        # **[수정 반영] 메인 컬럼에서 입력된 텍스트를 가져옴**
+        # 메인 컬럼에서 입력된 텍스트를 가져옴
         current_novel_text = st.session_state.fiction_novel_text_input_area 
         
         current_count_t1 = st.session_state.fiction_c_t1
@@ -1204,9 +1225,9 @@ with col_select:
 # 1.2. 지문 입력창 및 제목 출력 (오른쪽 컬럼)
 with col_input:
     current_app_mode = st.session_state.get('app_mode')
-
+    
+    # **[수정 반영] 비문학 머리말 출력**
     if current_app_mode == "⚡ 비문학 문제 제작":
-        # **[수정 반영] 머리말을 컬럼 맨 위에 출력**
         st.header("⚡ 비문학 모의평가 출제")
         
         current_d_mode = st.session_state.get('domain_mode_select', 'AI 생성')
@@ -1230,22 +1251,21 @@ with col_input:
         else:
             st.caption("지문 입력 방식이 'AI 생성'으로 설정되어 있습니다. 사이드바 설정을 완료하고 아래 '모의평가 출제하기' 버튼을 눌러주세요.")
 
-
+    # **[수정 반영] 문학 머리말 및 입력창 출력**
     elif current_app_mode == "📖 문학 문제 제작":
-        # **[수정 반영] 머리말을 컬럼 맨 위에 출력**
-        st.header("📖 문학 모의평가 출제")
-       
+        st.header("📖 문학 심층 분석 콘텐츠 제작")
+        st.subheader("📖 분석할 소설 텍스트 입력")
         
-        # 문학 영역일 경우, 소설 텍스트를 입력받음
+        # 문학 영역일 경우, 소설 텍스트를 입력받음 (키가 중복되지 않도록 함수 외부에서 사용)
         st.text_area("소설 텍스트 (발췌분도 가능)", height=300, 
                     placeholder="[문학] 분석할 소설 텍스트 전체(또는 발췌분)를 여기에 붙여넣어 주세요.", 
                     key="fiction_novel_text_input_area")
 
 
+st.markdown("---") # 메인 콘텐츠 분할선
+
 # 2. 선택에 따른 함수 실행 (메인 콘텐츠 영역 아래에서 실행)
 # 이 부분에서는 각 함수가 UI가 아닌 로직(생성, 유효성 검사 등)을 담당합니다.
-st.markdown("---") 
-
 if problem_type == "⚡ 비문학 문제 제작":
     non_fiction_app()
 elif problem_type == "📖 문학 문제 제작":
