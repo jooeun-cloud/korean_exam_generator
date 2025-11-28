@@ -1,23 +1,33 @@
 import streamlit as st
 import google.generativeai as genai
 from google.generativeai.types import GenerationConfig
-import re # 정규표현식 모듈 추가
+import re 
 import os
 
 # ==========================================
 # [설정] API 키를 여기에 붙여넣으세요
 # ==========================================
-# 반드시 발급받은 실제 API 키를 입력해야 합니다.
-# 두 기능 모두 이 키를 사용합니다.
-GOOGLE_API_KEY = "APIKEY" 
+# 주의: GitHub에 실제 키를 업로드하지 마세요. Streamlit Secrets을 사용해야 합니다.
+# 이 코드를 Streamlit Cloud에 배포할 때는, Secrets에 설정된 환경 변수를 사용하도록
+# 아래 코드를 수정해야 합니다.
+# 1. Streamlit Secrets에 GOOGLE_API_KEY = "발급받은 실제 API 키" 설정
+# 2. 아래 라인을 주석 처리하고, 대신 아래 3번 라인의 주석을 해제합니다.
+# GOOGLE_API_KEY = "APIKEY" 
+
+# --- Streamlit Cloud 사용 시 ---
+try:
+    GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
+except (KeyError, AttributeError):
+    # Secrets이 설정되지 않았을 경우 (로컬 테스트용 또는 에러 방지)
+    GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "DUMMY_API_KEY_FOR_LOCAL_TEST") 
+# --- Streamlit Cloud 사용 시 끝 ---
+
+st.set_page_config(page_title="사계국어 AI 모의고사 제작 시스템", page_icon="📚", layout="wide")
 
 # ==========================================
 # [공통 HTML/CSS 정의]
-# 비문학/문학 양식 중 더 포괄적인 양식으로 통합하여 사용합니다.
 # ==========================================
 
-# --- [비문학/문학 통합 HTML/CSS 정의] ---
-# 비문학에서 사용한 H1, H2, time-box, passage, type-box 등을 포함하도록 통합
 HTML_HEAD = """
 <!DOCTYPE html>
 <html lang="ko">
@@ -111,6 +121,16 @@ HTML_HEAD = """
             padding: 2px 8px; border-radius: 4px; margin-right: 5px; margin-bottom: 10px;
             font-family: 'HanyangShinMyeongjo', 'Batang', serif;
         }
+        
+        /* 문단 요약 칸 */
+        .summary-blank { 
+            display: block; margin-top: 10px; margin-bottom: 20px; padding: 0 10px; 
+            height: 100px; border: 1px solid #777; border-radius: 5px;
+            color: #555; font-size: 0.9em; 
+            background: repeating-linear-gradient(transparent, transparent 29px, #eee 30px); 
+            line-height: 30px; 
+            font-family: 'HanyangShinMyeongjo', 'Batang', serif;
+        }
 
         .source-info { /* 문학 작품명/작가명 표시용 */
             text-align: right; font-size: 0.85em; color: #666; margin-bottom: 30px; 
@@ -128,6 +148,12 @@ HTML_HEAD = """
             font-weight: 900; 
             display: inline-block;
             margin-bottom: 5px;
+        }
+        
+        .example-box { /* 보기 박스 */
+            border: 1px solid #333; padding: 15px; margin: 10px 0; 
+            background-color: #f7f7f7; 
+            font-size: 0.95em; font-weight: normal;
         }
 
         /* 객관식 선지 목록 스타일 */
@@ -211,9 +237,11 @@ HTML_TAIL = """
 # 모델 자동 선택 함수 
 def get_best_model():
     """API 환경에서 유효한 최신 Gemini 모델 ID를 찾아서 반환합니다."""
+    # NOTE: GOOGLE_API_KEY는 이 함수 외부에서 st.secrets 또는 os.environ에서 가져옵니다.
+    if "DUMMY_API_KEY_FOR_LOCAL_TEST" in GOOGLE_API_KEY:
+         return 'gemini-2.5-flash'
+         
     try:
-        if "APIKEY" in GOOGLE_API_KEY:
-             return 'gemini-2.5-flash' # API 키 미입력 시 일단 기본값 반환
         genai.configure(api_key=GOOGLE_API_KEY)
         models = [m.name for m in genai.list_models()]
         
@@ -255,10 +283,16 @@ def non_fiction_update_mode():
 # Streamlit UI 스타일 설정
 st.markdown("""
 <style>
+    /* 기본 버튼 스타일 통일 */
     .stButton>button { width: 100%; background-color: #2e8b57; color: white; height: 3em; font-size: 20px; border-radius: 10px; }
     .stNumberInput input { text-align: center; }
-    /* 앱 모드 선택 버튼 스타일 (문학/비문학) */
-    .stRadio > label > div { padding: 10px; border: 1px solid #ccc; border-radius: 5px; margin-bottom: 5px; }
+    /* 앱 모드 선택 버튼 스타일 (문학/비문학) - 외곽선만 살짝 */
+    div[role="radiogroup"] > label {
+        padding: 5px 10px; 
+        border: 1px solid #ccc; 
+        border-radius: 5px; 
+        margin-right: 10px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -272,8 +306,8 @@ def non_fiction_app():
     # --------------------------------------------------------------------------
     # [설정값 정의]
     # --------------------------------------------------------------------------
-    # AI 생성 모드에서 사용되는 변수들을 초기화 또는 정의합니다.
-    current_d_mode = st.session_state.d_mode
+    # Session state에서 현재 값들을 가져옵니다.
+    current_d_mode = st.session_state.get('domain_mode_select', st.session_state.d_mode)
     
     # Sidebar UI 렌더링
     with st.sidebar:
@@ -363,10 +397,10 @@ def non_fiction_app():
     # [AI 생성 및 출력 메인 로직]
     # --------------------------------------------------------------------------
 
-    if st.session_state.generation_requested:
+    if st.session_state.generation_requested and st.session_state.app_mode == "비문학 문제 제작":
         
         # 입력 값들을 Session State에서 다시 가져옵니다
-        current_d_mode = st.session_state.d_mode
+        current_d_mode = st.session_state.domain_mode_select
         current_mode = st.session_state.get("ai_mode", st.session_state.get("manual_mode", "단일 지문 (기본)"))
         current_manual_passage = st.session_state.get("manual_passage_input", "")
 
@@ -415,8 +449,8 @@ def non_fiction_app():
         elif current_d_mode == '직접 입력' and not current_manual_passage:
             st.warning("⚠️ 직접 입력 모드에서는 지문을 입력해주세요!")
             st.session_state.generation_requested = False
-        elif "APIKEY" in GOOGLE_API_KEY:
-            st.error("⚠️ 코드 상단에 API 키를 입력해주세요!")
+        elif "DUMMY_API_KEY_FOR_LOCAL_TEST" in GOOGLE_API_KEY or "APIKEY" in GOOGLE_API_KEY:
+            st.error("⚠️ 코드 상단 또는 Streamlit Secrets에 API 키를 입력해주세요!")
             st.session_state.generation_requested = False
         elif not any([select_t1, select_t2, select_t3, select_t4, select_t5, select_t6, select_t7]) and not use_recommendation:
             st.warning("⚠️ 유형을 최소 하나 이상 선택해주세요.")
@@ -445,7 +479,7 @@ def non_fiction_app():
                     # --- 직접 입력 지문 포맷팅 ---
                     if use_summary:
                         re_prompt_summary = f"""
-                        사용자 입력 지문을 분석하여 문단별로 <p> 태그와 </p> 태그를 정확히 사용하고, 각 </p> 태그 바로 다음에 <div class='summary-blank'>📝 문단 요약 : </div> 태그를 삽입하시오. **결과는 오직 HTML 태그와 지문 내용으로만 출력해야 합니다.**
+                        사용자 입력 지문을 분석하여 문단별로 <p> 태그와 </p> 태그를 정확히 사용하고, 각 </p> 태그 바로 다음에 <div class='summary-blank'>📝 문단 요약 : </div> 태G그를 삽입하시오. **결과는 오직 HTML 태그와 지문 내용으로만 출력해야 합니다.**
                         [텍스트]: {current_manual_passage}
                         """
                         summary_response = model.generate_content(re_prompt_summary, generation_config=GenerationConfig(temperature=0.0, max_output_tokens=4000))
@@ -605,7 +639,16 @@ def non_fiction_app():
                     </div>
                     """
                     reqs.append(rec_prompt)
-
+                
+                # --- 객관식 해설 규칙 텍스트 (비문학용) ---
+                objective_rule_text_nonfiction = """
+                [객관식 해설 작성 규칙 (중복 금지, 줄바꿈 필수)]
+                1. <b>[n번] 정답: ③</b> <br> (바로 줄바꿈)
+                2. <b>[정답 풀이]</b> <br> (줄바꿈 후 내용 작성. '[정답 풀이]' 텍스트 반복 금지)
+                3. <br><b>[오답 풀이]</b> <br>
+                    <div>① (오답 이유)</div>
+                    <div>② (오답 이유)</div>
+                """
                 
                 # 5. 최종 프롬프트 구성 및 AI 호출
                 prompt = f"""
@@ -642,14 +685,7 @@ def non_fiction_app():
                 {summary_answer_inst}
                 - **[필수] O/X 문제 정답 표기:** 반드시 **'O', 'X'** 기호 사용 (정/오 금지).
                 
-                **[객관식 해설 작성 규칙 (중복 금지, 줄바꿈 필수)]**
-                1. <b>[n번] 정답: ③</b> <br> (바로 줄바꿈)
-                2. <b>[정답 풀이]</b> <br> (줄바꿈 후 내용 작성. '[정답 풀이]' 텍스트 반복 금지)
-                3. <br><b>[오답 풀이]</b> <br>
-                    <div>① (오답 이유)</div>
-                    <div>② (오답 이유)</div>
-                    ...
-                - 해설 간 간격 <br><br><br>.
+                {f"{objective_rule_text_nonfiction}{count_t5 + count_t6 + count_t7}문항의 정답(번호) 및 상세 해설(정답 풀이, 오답 풀이)을 작성. 각 문제 해설 사이에 <br><br><br> 태그를 사용하여 충분히 간격을 확보할 것.<br><br>" if count_t5 + count_t6 + count_t7 > 0 else ""}
                 """
                 
                 response = model.generate_content(prompt, generation_config=generation_config)
@@ -733,48 +769,49 @@ def fiction_app():
     # 1. 입력 설정 (사이드바)
     with st.sidebar:
         st.header("1️⃣ 분석 정보 입력")
-        work_name = st.text_input("작품명", placeholder="예: 호질(虎叱) 또는 홍길동전", key="work_name_input")
-        author_name = st.text_input("작가명", placeholder="예: 박지원 또는 허균", key="author_name_input")
+        # key 충돌 방지를 위해 fiction_ 접두사를 사용합니다.
+        work_name = st.text_input("작품명", placeholder="예: 호질(虎叱) 또는 홍길동전", key="fiction_work_name_input")
+        author_name = st.text_input("작가명", placeholder="예: 박지원 또는 허균", key="fiction_author_name_input")
         st.markdown("---")
         
         st.header("2️⃣ 출제 유형 및 개수 선택")
         
         # 유형 1: 어휘 문제 (개수 선택)
         st.subheader("📝 유형 1. 어휘 문제 (단답형)")
-        count_t1 = st.number_input("문항 수 선택 (최대 20)", min_value=0, max_value=20, value=10, key="c_t1")
+        count_t1 = st.number_input("문항 수 선택 (최대 20)", min_value=0, max_value=20, value=10, key="fiction_c_t1")
         
         # 유형 2: 서술형 심화 문제 (개수 선택)
         st.subheader("✍️ 유형 2. 서술형 심화 문제")
-        count_t2 = st.number_input("문항 수 선택 (최대 20)", min_value=0, max_value=20, value=10, key="c_t2")
+        count_t2 = st.number_input("문항 수 선택 (최대 20)", min_value=0, max_value=20, value=10, key="fiction_c_t2")
         
         # 유형 3: 객관식 문제 (개수 선택)
         st.subheader("🔢 유형 3. 객관식 문제")
-        count_t3 = st.number_input("문항 수 선택 (최대 10)", min_value=0, max_value=10, value=5, key="c_t3")
+        count_t3 = st.number_input("문항 수 선택 (최대 10)", min_value=0, max_value=10, value=5, key="fiction_c_t3")
 
         st.markdown("---")
         st.caption("✅ **단일 분석 콘텐츠 (출제 여부 선택)**")
 
         # 유형 4: 주요 등장인물 정리 (출제 여부)
-        select_t4 = st.checkbox("유형 4. 주요 등장인물 정리 (표)", key="select_t4_fic")
+        select_t4 = st.checkbox("유형 4. 주요 등장인물 정리 (표)", key="fiction_select_t4")
         
         # 유형 5: 소설 속 상황 요약 (출제 여부)
-        select_t5 = st.checkbox("유형 5. 소설 속 상황 요약", key="select_t5_fic")
+        select_t5 = st.checkbox("유형 5. 소설 속 상황 요약", key="fiction_select_t5")
         
         # 유형 6: 인물 관계도 및 갈등 작성 (출제 여부)
-        select_t6 = st.checkbox("유형 6. 인물 관계도 및 갈등", key="select_t6_fic")
+        select_t6 = st.checkbox("유형 6. 인물 관계도 및 갈등", key="fiction_select_t6")
         
         # 유형 7: 핵심 갈등 구조 및 심리 정리 (출제 여부)
-        select_t7 = st.checkbox("유형 7. 핵심 갈등 구조 및 심리", key="select_t7_fic")
+        select_t7 = st.checkbox("유형 7. 핵심 갈등 구조 및 심리", key="fiction_select_t7")
         
         st.markdown("---")
         st.header("3️⃣ 유형 8. 사용자 지정 문제")
         
         # 유형 8: 사용자 지정 문제 (제목 및 개수 입력)
-        count_t8 = st.number_input("문항 수 선택 (최대 10)", min_value=0, max_value=10, value=0, key="c_t8")
+        count_t8 = st.number_input("문항 수 선택 (최대 10)", min_value=0, max_value=10, value=0, key="fiction_c_t8")
         if count_t8 > 0:
             custom_title_t8 = st.text_input("유형 8 제목 및 문제 형식", 
                                             placeholder="예: 비평 관점 적용 문제 (객관식 5개 선지)", 
-                                            key="title_t8")
+                                            key="fiction_title_t8")
         else:
             custom_title_t8 = ""
         
@@ -791,9 +828,10 @@ def fiction_app():
 
     # 2. 텍스트 입력 (메인 화면)
     st.subheader("📖 분석할 소설 텍스트 입력")
+    # key 충돌 방지를 위해 fiction_ 접두사를 사용합니다.
     novel_text_input = st.text_area("소설 텍스트 (발췌분도 가능)", height=400, 
                                     placeholder="여기에 소설 텍스트 전체(또는 발췌분)를 붙여넣어 주세요.", 
-                                    key="novel_text_input_area")
+                                    key="fiction_novel_text_input_area")
 
     st.markdown("---")
 
@@ -801,28 +839,29 @@ def fiction_app():
     # [AI 생성 및 출력 메인 로직]
     # --------------------------------------------------------------------------
 
-    if st.session_state.generation_requested:
+    if st.session_state.generation_requested and st.session_state.app_mode == "문학 문제 제작":
         
-        current_work_name = st.session_state.work_name_input
-        current_author_name = st.session_state.author_name_input
-        current_novel_text = st.session_state.novel_text_input_area
+        # Session state에서 값들을 가져올 때, fiction_ 접두사를 사용합니다.
+        current_work_name = st.session_state.fiction_work_name_input
+        current_author_name = st.session_state.fiction_author_name_input
+        current_novel_text = st.session_state.fiction_novel_text_input_area
         
-        current_count_t1 = st.session_state.c_t1
-        current_count_t2 = st.session_state.c_t2
-        current_count_t3 = st.session_state.c_t3
-        current_count_t8 = st.session_state.c_t8
-        current_title_t8 = st.session_state.get("title_t8", "")
+        current_count_t1 = st.session_state.fiction_c_t1
+        current_count_t2 = st.session_state.fiction_c_t2
+        current_count_t3 = st.session_state.fiction_c_t3
+        current_count_t8 = st.session_state.fiction_c_t8
+        current_title_t8 = st.session_state.get("fiction_title_t8", "")
         
-        select_t4 = st.session_state.get("select_t4_fic", False)
-        select_t5 = st.session_state.get("select_t5_fic", False)
-        select_t6 = st.session_state.get("select_t6_fic", False)
-        select_t7 = st.session_state.get("select_t7_fic", False)
+        select_t4 = st.session_state.get("fiction_select_t4", False)
+        select_t5 = st.session_state.get("fiction_select_t5", False)
+        select_t6 = st.session_state.get("fiction_select_t6", False)
+        select_t7 = st.session_state.get("fiction_select_t7", False)
         
         if not current_novel_text or not current_work_name:
             st.warning("⚠️ 작품명과 소설 텍스트를 모두 입력해주세요!")
             st.session_state.generation_requested = False
-        elif "APIKEY" in GOOGLE_API_KEY:
-            st.error("⚠️ 코드 상단에 GOOGLE_API_KEY 변수에 발급받은 API 키를 입력해주세요!")
+        elif "DUMMY_API_KEY_FOR_LOCAL_TEST" in GOOGLE_API_KEY or "APIKEY" in GOOGLE_API_KEY:
+            st.error("⚠️ 코드 상단 또는 Streamlit Secrets에 API 키를 입력해주세요!")
             st.session_state.generation_requested = False
         else:
             status = st.empty()
@@ -942,6 +981,16 @@ def fiction_app():
                     {current_work_name} - {current_author_name}
                 </div>
                 """
+                
+                # --- 객관식 해설 규칙 텍스트 (문학용, 오류 수정됨) ---
+                objective_rule_text_fiction = """
+                [객관식 해설 작성 규칙 (중복 금지, 줄바꿈 필수)]
+                1. <b>[n번] 정답: ③</b> <br> (바로 줄바꿈)
+                2. <b>[정답 풀이]</b> <br> (줄바꿈 후 내용 작성. '[정답 풀이]' 텍스트 반복 금지)
+                3. <br><b>[오답 풀이]</b> <br>
+                <div>① (오답 이유)</div>
+                <div>② (오답 이유)</div>
+                """
 
                 prompt = f"""
                 당신은 수능/LEET급의 최상위권 변별력을 목표로 하는 국어 문학 평가원 출제 위원입니다.
@@ -971,12 +1020,7 @@ def fiction_app():
                     
                     {f"<h4>유형 2. 서술형 심화 문제 모범 답안 ({current_count_t2}문항)</h4><br>[지시]: {current_count_t2}문항의 모범 답안을 상세하게 작성하되, **각 문제의 모범 답안이 끝날 때마다 <br><br><br> 태그를 사용하여 충분히 간격을 확보하여 분리할 것.**<br><br>" if current_count_t2 > 0 else ""}
 
-                    {f"<h4>유형 3. 객관식 문제 정답 및 해설 ({current_count_t3}문항)</h4><br>[지시]: **[객관식 해설 작성 규칙 (중복 금지, 줄바꿈 필수)]**
-                    1. <b>[n번] 정답: ③</b> <br> (바로 줄바꿈)
-                    2. <b>[정답 풀이]</b> <br> (줄바꿈 후 내용 작성. '[정답 풀이]' 텍스트 반복 금지)
-                    3. <br><b>[오답 풀이]</b> <br>
-                    <div>① (오답 이유)</div>
-                    <div>② (오답 이유)</div>{current_count_t3}문항의 정답(번호) 및 상세 해설(정답 풀이, 오답 풀이)을 작성. 각 문제 해설 사이에 **<br><br><br>** 태그를 사용하여 충분히 간격을 확보할 것.<br><br>" if current_count_t3 > 0 else ""}
+                    {f"<h4>유형 3. 객관식 문제 정답 및 해설 ({current_count_t3}문항)</h4><br>[지시]: **{objective_rule_text_fiction}**{current_count_t3}문항의 정답(번호) 및 상세 해설(정답 풀이, 오답 풀이)을 작성. 각 문제 해설 사이에 **<br><br><br>** 태그를 사용하여 충분히 간격을 확보할 것.<br><br>" if current_count_t3 > 0 else ""}
                     
                     {f"<h4>유형 4. 주요 등장인물 정리 모범 답안</h4><br>[지시]: 유형 4에서 요구한 표 형식에 맞춰 모범 답안을 작성하여 제시.<br><br>" if select_t4 else ""}
                     
@@ -1032,13 +1076,21 @@ problem_type = st.radio(
     "출제할 문제 유형을 선택해주세요:",
     ["비문학 문제 제작", "문학 문제 제작"],
     key="app_mode",
-    index=0 # 기본값: 비문학
+    index=0 
 )
 
 # 2. 선택에 따른 화면 분기
 if problem_type == "비문학 문제 제작":
     st.header("⚡ 비문학 모의평가 출제")
+    # 비문학 앱 실행 시, 문학 관련 세션 상태를 재설정하여 키 충돌 방지
+    if st.session_state.app_mode != "비문학 문제 제작":
+        st.session_state.app_mode = "비문학 문제 제작"
+        st.session_state.generation_requested = False
     non_fiction_app()
 elif problem_type == "문학 문제 제작":
     st.header("📖 문학 심층 분석 콘텐츠 제작")
+    # 문학 앱 실행 시, 비문학 관련 세션 상태를 재설정하여 키 충돌 방지
+    if st.session_state.app_mode != "문학 문제 제작":
+        st.session_state.app_mode = "문학 문제 제작"
+        st.session_state.generation_requested = False
     fiction_app()
