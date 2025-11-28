@@ -5,22 +5,15 @@ import re
 import os
 
 # ==========================================
-# [설정] API 키를 여기에 붙여넣으세요
+# [설정] API 키 연동 (Streamlit Cloud Secrets 권장)
 # ==========================================
-# 주의: GitHub에 실제 키를 업로드하지 마세요. Streamlit Secrets을 사용해야 합니다.
-# 이 코드를 Streamlit Cloud에 배포할 때는, Secrets에 설정된 환경 변수를 사용하도록
-# 아래 코드를 수정해야 합니다.
-# 1. Streamlit Secrets에 GOOGLE_API_KEY = "발급받은 실제 API 키" 설정
-# 2. 아래 라인을 주석 처리하고, 대신 아래 3번 라인의 주석을 해제합니다.
-# GOOGLE_API_KEY = "APIKEY" 
-
-# --- Streamlit Cloud 사용 시 ---
+# Streamlit Cloud 배포 시 st.secrets에서 키를 가져옵니다.
 try:
+    # 1. Streamlit Secrets에 GOOGLE_API_KEY = "발급받은 실제 API 키" 설정
     GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 except (KeyError, AttributeError):
-    # Secrets이 설정되지 않았을 경우 (로컬 테스트용 또는 에러 방지)
+    # Secrets 설정이 안 되어 있을 경우 (로컬 테스트용)
     GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "DUMMY_API_KEY_FOR_LOCAL_TEST") 
-# --- Streamlit Cloud 사용 시 끝 ---
 
 st.set_page_config(page_title="사계국어 AI 모의고사 제작 시스템", page_icon="📚", layout="wide")
 
@@ -237,8 +230,7 @@ HTML_TAIL = """
 # 모델 자동 선택 함수 
 def get_best_model():
     """API 환경에서 유효한 최신 Gemini 모델 ID를 찾아서 반환합니다."""
-    # NOTE: GOOGLE_API_KEY는 이 함수 외부에서 st.secrets 또는 os.environ에서 가져옵니다.
-    if "DUMMY_API_KEY_FOR_LOCAL_TEST" in GOOGLE_API_KEY:
+    if "DUMMY_API_KEY_FOR_LOCAL_TEST" in GOOGLE_API_KEY or "APIKEY" in GOOGLE_API_KEY:
          return 'gemini-2.5-flash'
          
     try:
@@ -268,11 +260,13 @@ if 'app_mode' not in st.session_state:
      st.session_state.app_mode = "비문학 문제 제작" # 기본값
 
 def request_generation():
+    # 모든 요청 시, 세션 상태를 True로 설정
     st.session_state.generation_requested = True
 
 # 비문학 전용 콜백
 def non_fiction_update_mode():
     st.session_state.d_mode = st.session_state.domain_mode_select
+    # 모드 변경 시, 기존 AI 생성 입력 필드를 초기화 (필요하다면)
     if st.session_state.d_mode == '직접 입력':
         if 'topic_input' in st.session_state: st.session_state.topic_input = ""
         if 'topic_a_input' in st.session_state: st.session_state.topic_a_input = ""
@@ -286,7 +280,7 @@ st.markdown("""
     /* 기본 버튼 스타일 통일 */
     .stButton>button { width: 100%; background-color: #2e8b57; color: white; height: 3em; font-size: 20px; border-radius: 10px; }
     .stNumberInput input { text-align: center; }
-    /* 앱 모드 선택 버튼 스타일 (문학/비문학) - 외곽선만 살짝 */
+    /* 앱 모드 선택 라디오 버튼 스타일 */
     div[role="radiogroup"] > label {
         padding: 5px 10px; 
         border: 1px solid #ccc; 
@@ -306,7 +300,6 @@ def non_fiction_app():
     # --------------------------------------------------------------------------
     # [설정값 정의]
     # --------------------------------------------------------------------------
-    # Session state에서 현재 값들을 가져옵니다.
     current_d_mode = st.session_state.get('domain_mode_select', st.session_state.d_mode)
     
     # Sidebar UI 렌더링
@@ -449,8 +442,8 @@ def non_fiction_app():
         elif current_d_mode == '직접 입력' and not current_manual_passage:
             st.warning("⚠️ 직접 입력 모드에서는 지문을 입력해주세요!")
             st.session_state.generation_requested = False
-        elif "DUMMY_API_KEY_FOR_LOCAL_TEST" in GOOGLE_API_KEY or "APIKEY" in GOOGLE_API_KEY:
-            st.error("⚠️ 코드 상단 또는 Streamlit Secrets에 API 키를 입력해주세요!")
+        elif "DUMMY_API_KEY_FOR_LOCAL_TEST" in GOOGLE_API_KEY:
+            st.error("⚠️ Streamlit Secrets에 API 키를 설정해주세요!")
             st.session_state.generation_requested = False
         elif not any([select_t1, select_t2, select_t3, select_t4, select_t5, select_t6, select_t7]) and not use_recommendation:
             st.warning("⚠️ 유형을 최소 하나 이상 선택해주세요.")
@@ -479,7 +472,7 @@ def non_fiction_app():
                     # --- 직접 입력 지문 포맷팅 ---
                     if use_summary:
                         re_prompt_summary = f"""
-                        사용자 입력 지문을 분석하여 문단별로 <p> 태그와 </p> 태그를 정확히 사용하고, 각 </p> 태그 바로 다음에 <div class='summary-blank'>📝 문단 요약 : </div> 태G그를 삽입하시오. **결과는 오직 HTML 태그와 지문 내용으로만 출력해야 합니다.**
+                        사용자 입력 지문을 분석하여 문단별로 <p> 태그와 </p> 태그를 정확히 사용하고, 각 </p> 태그 바로 다음에 <div class='summary-blank'>📝 문단 요약 : </div> 태그를 삽입하시오. **결과는 오직 HTML 태그와 지문 내용으로만 출력해야 합니다.**
                         [텍스트]: {current_manual_passage}
                         """
                         summary_response = model.generate_content(re_prompt_summary, generation_config=GenerationConfig(temperature=0.0, max_output_tokens=4000))
@@ -641,6 +634,7 @@ def non_fiction_app():
                     reqs.append(rec_prompt)
                 
                 # --- 객관식 해설 규칙 텍스트 (비문학용) ---
+                # **[f-string 오류 수정 완료]**
                 objective_rule_text_nonfiction = """
                 [객관식 해설 작성 규칙 (중복 금지, 줄바꿈 필수)]
                 1. <b>[n번] 정답: ③</b> <br> (바로 줄바꿈)
@@ -860,8 +854,8 @@ def fiction_app():
         if not current_novel_text or not current_work_name:
             st.warning("⚠️ 작품명과 소설 텍스트를 모두 입력해주세요!")
             st.session_state.generation_requested = False
-        elif "DUMMY_API_KEY_FOR_LOCAL_TEST" in GOOGLE_API_KEY or "APIKEY" in GOOGLE_API_KEY:
-            st.error("⚠️ 코드 상단 또는 Streamlit Secrets에 API 키를 입력해주세요!")
+        elif "DUMMY_API_KEY_FOR_LOCAL_TEST" in GOOGLE_API_KEY:
+            st.error("⚠️ Streamlit Secrets에 API 키를 설정해주세요!")
             st.session_state.generation_requested = False
         else:
             status = st.empty()
@@ -1059,7 +1053,7 @@ def fiction_app():
 
 
             except Exception as e:
-                status.error(f"API 또는 모델 오류 발생: {e}. API 키와 인터넷 연결을 확인해주세요.")
+                status.error(f"오류 발생: {e}. API 키와 입력값을 확인해주세요.")
                 st.session_state.generation_requested = False
 
 
@@ -1079,17 +1073,15 @@ problem_type = st.radio(
     index=0 
 )
 
-# 2. 선택에 따른 화면 분기
+# 2. 선택에 따른 화면 분기 (세션 상태 초기화 추가로 키 충돌 방지)
 if problem_type == "비문학 문제 제작":
     st.header("⚡ 비문학 모의평가 출제")
-    # 비문학 앱 실행 시, 문학 관련 세션 상태를 재설정하여 키 충돌 방지
     if st.session_state.app_mode != "비문학 문제 제작":
         st.session_state.app_mode = "비문학 문제 제작"
         st.session_state.generation_requested = False
     non_fiction_app()
 elif problem_type == "문학 문제 제작":
     st.header("📖 문학 심층 분석 콘텐츠 제작")
-    # 문학 앱 실행 시, 비문학 관련 세션 상태를 재설정하여 키 충돌 방지
     if st.session_state.app_mode != "문학 문제 제작":
         st.session_state.app_mode = "문학 문제 제작"
         st.session_state.generation_requested = False
