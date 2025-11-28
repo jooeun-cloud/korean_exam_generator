@@ -258,14 +258,14 @@ if 'd_mode' not in st.session_state:
     st.session_state.d_mode = 'AI 생성'
 if 'manual_passage_input' not in st.session_state:
     st.session_state.manual_passage_input = ""
-if 'manual_passage_input_a' not in st.session_state: # (가) 지문 입력 상태 추가
+if 'manual_passage_input_a' not in st.session_state: 
     st.session_state.manual_passage_input_a = ""
-if 'manual_passage_input_b' not in st.session_state: # (나) 지문 입력 상태 추가
+if 'manual_passage_input_b' not in st.session_state: 
     st.session_state.manual_passage_input_b = ""
 if 'app_mode' not in st.session_state:
-    st.session_state.app_mode = "⚡ 비문학 문제 제작" # 기본값
+    st.session_state.app_mode = "⚡ 비문학 문제 제작" 
 
-# **[수정 반영] st.radio 오류 방지를 위한 안전한 초기값 설정 (문학 선택 오류 해결)**
+# st.radio 오류 방지를 위한 안전한 초기값 설정
 if st.session_state.app_mode not in ["⚡ 비문학 문제 제작", "📖 문학 문제 제작"]:
      st.session_state['app_mode'] = "⚡ 비문학 문제 제작" 
 
@@ -581,8 +581,6 @@ def non_fiction_app():
                             """
                         
                         # 지문 포맷팅: (가), (나) 라벨과 <div class="passage">를 Python에서 수동으로 생성
-                        # AI에게는 지문 포맷팅을 맡기지 않고 순수 텍스트만 전달
-                        
                         passage_a_text = st.session_state.get("manual_passage_input_a", "")
                         passage_b_text = st.session_state.get("manual_passage_input_b", "")
                         
@@ -620,8 +618,6 @@ def non_fiction_app():
                         
                         # 메인 출력에 사용될 내용
                         manual_passage_content = formatted_passage
-                        
-                        # AI에게 전달할 지문 텍스트는 이미 위에서 current_manual_passage에 저장됨
                         
                         
                 else: # AI 생성 모드
@@ -908,6 +904,7 @@ def fiction_app():
     # --------------------------------------------------------------------------
     # [메인 UI 및 실행 로직]
     # --------------------------------------------------------------------------
+    st.subheader("📚 문학 심층 분석 콘텐츠 생성 시스템")
 
     # 1. 입력 설정 (사이드바)
     with st.sidebar:
@@ -1237,20 +1234,62 @@ def fiction_app():
 st.title("📚 사계국어 AI 모의고사 제작 시스템")
 st.markdown("---")
 
-# 1. 문제 유형 선택
-problem_type = st.radio(
-    "출제할 문제 유형을 선택해주세요:",
-    ["⚡ 비문학 문제 제작", "📖 문학 문제 제작"],
-    key="app_mode",
-    index=0 
-)
+# 1. 메인 콘텐츠 분할을 위한 컬럼 설정
+col_select, col_input = st.columns([1.5, 3]) # 유형 선택은 좁게, 입력창은 넓게 설정
 
-# 2. 선택에 따른 화면 분기
+# 1.1. 유형 선택 (왼쪽 컬럼)
+with col_select:
+    problem_type = st.radio(
+        "출제할 문제 유형을 선택해주세요:",
+        ["⚡ 비문학 문제 제작", "📖 문학 문제 제작"],
+        key="app_mode",
+        index=0 
+    )
+
+# 1.2. 지문 입력창 (오른쪽 컬럼)
+with col_input:
+    st.subheader(f"📖 분석할 지문 텍스트 입력")
+
+    # 분기에 사용할 현재 앱 모드 확인
+    current_app_mode = st.session_state.get('app_mode')
+
+    if current_app_mode == "⚡ 비문학 문제 제작":
+        # 비문학 영역일 경우, 직접 입력 모드에서 지문을 바로 입력받음
+        current_d_mode = st.session_state.get('domain_mode_select', 'AI 생성')
+        current_manual_mode = st.session_state.get("manual_mode", "단일 지문")
+
+        if current_d_mode == '직접 입력':
+            if current_manual_mode == "단일 지문":
+                st.text_area("분석할 지문 텍스트", height=300, key="manual_passage_input_col_main",
+                            placeholder="[비문학 - 단일 지문]의 내용을 여기에 붙여넣어 주세요.")
+            elif current_manual_mode == "주제 통합 (가) + (나)":
+                st.caption("사이드바에서 지문 구성 및 주제 설정을 완료해주세요.")
+                
+                # (가)와 (나) 지문을 나란히 표시
+                col_a_input, col_b_input = st.columns(2)
+                with col_a_input:
+                    st.text_area("🅰️ (가) 지문 텍스트", height=300, key="manual_passage_input_a",
+                                 placeholder="(가) 지문의 내용을 입력하세요.")
+                with col_b_input:
+                    st.text_area("🅱️ (나) 지문 텍스트", height=300, key="manual_passage_input_b",
+                                 placeholder="(나) 지문의 내용을 입력하세요.")
+        else:
+            st.caption("지문 입력 방식이 'AI 생성'으로 설정되어 있습니다. 사이드바 설정을 완료하고 아래 '모의평가 출제하기' 버튼을 눌러주세요.")
+
+
+    elif current_app_mode == "📖 문학 문제 제작":
+        # 문학 영역일 경우, 소설 텍스트를 입력받음
+        st.text_area("소설 텍스트 (발췌분도 가능)", height=300, 
+                    placeholder="[문학] 분석할 소설 텍스트 전체(또는 발췌분)를 여기에 붙여넣어 주세요.", 
+                    key="fiction_novel_text_input_area")
+
+
+st.markdown("---") # 메인 콘텐츠 분할선
+
+# 2. 선택에 따른 함수 실행 (메인 콘텐츠 영역 아래에서 실행)
 if problem_type == "⚡ 비문학 문제 제작":
     st.header("⚡ 비문학 모의평가 출제")
-    # 'app_mode'를 기준으로 분기되므로, '비문학' 선택 시 Session State의 'app_mode'도 자동으로 '⚡ 비문학 문제 제작'으로 설정됩니다.
     non_fiction_app()
 elif problem_type == "📖 문학 문제 제작":
     st.header("📖 문학 심층 분석 콘텐츠 제작")
-    # '문학' 선택 시 Session State의 'app_mode'도 자동으로 '📖 문학 문제 제작'으로 설정됩니다.
     fiction_app()
