@@ -280,12 +280,43 @@ st.markdown("""
     /* 기본 버튼 스타일 통일 */
     .stButton>button { width: 100%; background-color: #2e8b57; color: white; height: 3em; font-size: 20px; border-radius: 10px; }
     .stNumberInput input { text-align: center; }
-    /* 앱 모드 선택 라디오 버튼 스타일 */
+    
+    /* 앱 모드 선택 라디오 버튼 컨테이너 스타일 강조 (수정 반영) */
+    div[data-testid="stForm"] > div > div[role="radiogroup"] {
+        border: 3px solid #2e8b57; 
+        padding: 15px 10px;        
+        border-radius: 10px;       
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1); 
+        justify-content: center;   
+        margin-bottom: 30px;
+    }
+    
+    /* 앱 모드 선택 라디오 버튼 개별 라벨 스타일 (수정 반영) */
     div[role="radiogroup"] > label {
-        padding: 5px 10px; 
-        border: 1px solid #ccc; 
-        border-radius: 5px; 
-        margin-right: 10px;
+        padding: 10px 20px;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        margin-right: 15px;
+        font-size: 18px !important; 
+        font-weight: bold;          
+        transition: background-color 0.3s;
+    }
+
+    /* 선택된 라디오 버튼 배경색 변경 (수정 반영) */
+    div[role="radiogroup"] > label[data-baseweb="radio"] input[type="radio"]:checked + div {
+        background-color: #e0f7e9; 
+        border-color: #2e8b57;     
+    }
+    
+    /* 앱 모드 선택 상단 제목 (출제할 문제 유형을 선택해주세요) 스타일 (수정 반영) */
+    div[data-testid="stVerticalBlock"] > div:nth-child(1) > div:nth-child(3) > div:nth-child(1) > label {
+        font-size: 24px;         
+        font-weight: 800;        
+        color: #00008b;          
+        text-align: center;
+        width: 100%;
+        display: block;
+        margin-bottom: 10px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -661,7 +692,7 @@ def non_fiction_app():
                 3. 문제 출제 (유형별 묶음):
                 - **[핵심]** 문제 유형을 **<div class="type-box">**로 묶고, 그 안에 **'유형 제목(<h3>)'**과 **'해당 유형의 모든 문제들'**을 넣으시오.
                 - 전체 문제 번호는 1번부터 연속되게 매기시오.
-                {reqs_content}  <-- **(수정 반영)**
+                {reqs_content}
                 
                 [태그 및 레이아웃 규칙 (엄수)]
                 - **문제의 발문(질문) 부분만 <b> 태그로 굵게.** (선지는 굵게 X)
@@ -1017,7 +1048,7 @@ def fiction_app():
                 {passage_instruction}
                 
                 3. 분석 콘텐츠 생성 (선택된 유형만 순서 및 태그 엄수):
-                {reqs_content}  <-- **(수정 반영)**
+                {reqs_content}
                 
                 ---
                 
@@ -1085,7 +1116,7 @@ def fiction_app():
                     with col1:
                         st.button("🔄 다시 생성하기 (같은 내용으로 재요청)", on_click=request_generation)
                     with col2:
-                        st.download_button("📥 학습지 다운로드 (HTML)", full_html, f"{current_work_name}_분석_학습지.html", "text/html")
+                        st.download_button("📥 시험지 다운로드 (HTML)", full_html, f"사계국어_모의고사.html", "text/html")
 
                     st.components.v1.html(full_html, height=800, scrolling=True)
 
@@ -1108,7 +1139,7 @@ st.markdown("---")
 # 1. 문제 유형 선택
 problem_type = st.radio(
     "출제할 문제 유형을 선택해주세요:",
-    ["비문학 문제 제작", "문학 문제 제작"],
+    ["⚡ 비문학 문제 제작", "📖 문학 문제 제작"],
     key="app_mode",
     index=0 
 )
