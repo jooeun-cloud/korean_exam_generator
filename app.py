@@ -634,6 +634,7 @@ def non_fiction_app():
                     reqs.append(rec_prompt)
                 
                 # --- 객관식 해설 규칙 텍스트 (비문학용) ---
+                # Raw String (r"""...""") 사용으로 f-string 내 백슬래시 문제를 근본적으로 방지
                 objective_rule_text_nonfiction = r"""
                 [객관식 해설 작성 규칙 (중복 금지, 줄바꿈 필수)]
                 1. <b>[n번] 정답: ③</b> <br> (바로 줄바꿈)
@@ -642,11 +643,10 @@ def non_fiction_app():
                     <div>① (오답 이유)</div>
                     <div>② (오답 이유)</div>
                 """
-
                 
                 # 5. 최종 프롬프트 구성 및 AI 호출
                 
-                # 1. 프롬프트 시작 부분 (문제까지)
+                # 1. 프롬프트 시작 부분 (정답지 시작 태그까지)
                 prompt_start = f"""
                 당신은 대한민국 최고의 수능 국어 출제 위원(평가원장급)입니다.
                 난이도: {current_difficulty} (최상위권 변별력 필수)
@@ -683,12 +683,16 @@ def non_fiction_app():
                 
                 """
                 
-                # 2. 객관식 해설 부분 (조건부 연결 - 오류 해결 로직)
+                # 2. 객관식 해설 부분 (조건부 연결 - f-string 중첩 오류 해결)
                 prompt_answer_obj = ""
                 total_objective_count = count_t5 + count_t6 + count_t7
                 
                 if total_objective_count > 0:
-                    prompt_answer_obj = f"""{objective_rule_text_nonfiction}{str(total_objective_count)}문항의 정답(번호) 및 상세 해설(정답 풀이, 오답 풀이)을 작성. 각 문제 해설 사이에 <br><br><br> 태그를 사용하여 충분히 간격을 확보할 것.<br><br>"""
+                    # f-string 결합을 단순화하여 Raw String을 안전하게 연결
+                    prompt_answer_obj = (
+                        objective_rule_text_nonfiction +
+                        f"{str(total_objective_count)}문항의 정답(번호) 및 상세 해설(정답 풀이, 오답 풀이)을 작성. 각 문제 해설 사이에 <br><br><br> 태그를 사용하여 충분히 간격을 확보할 것.<br><br>"
+                    )
                 
                 # 3. 프롬프트 최종 마침 부분
                 prompt_end = """
@@ -994,16 +998,17 @@ def fiction_app():
                 """
                 
                 # --- 객관식 해설 규칙 텍스트 (문학용) ---
+                # Raw String (r"""...""") 사용으로 f-string 내 백슬래시 문제를 근본적으로 방지
                 objective_rule_text_fiction = r"""
-                [객관식 해설 작성 규칙 (중복 금지, 줄바꿈 필수)]
-                1. <b>[n번] 정답: ③</b> <br> (바로 줄바꿈)
-                2. <b>[정답 풀이]</b> <br> (줄바꿈 후 내용 작성. '[정답 풀이]' 텍스트 반복 금지)
-                3. <br><b>[오답 풀이]</b> <br>
-                <div>① (오답 이유)</div>
-                <div>② (오답 이유)</div>
-                """
+[객관식 해설 작성 규칙 (중복 금지, 줄바꿈 필수)]
+1. <b>[n번] 정답: ③</b> <br> (바로 줄바꿈)
+2. <b>[정답 풀이]</b> <br> (줄바꿈 후 내용 작성. '[정답 풀이]' 텍스트 반복 금지)
+3. <br><b>[오답 풀이]</b> <br>
+<div>① (오답 이유)</div>
+<div>② (오답 이유)</div>
+"""
 
-                # 1. 프롬프트 시작 부분 (지문까지)
+                # 1. 프롬프트 시작 부분 (정답지 시작 태그까지)
                 prompt_start = f"""
                 당신은 수능/LEET급의 최상위권 변별력을 목표로 하는 국어 문학 평가원 출제 위원입니다.
                 [출제 목표] 단순 암기나 사실 확인을 배제하고, 고도의 추론, 비판적 분석, 관점 비교를 요구하는 킬러 문항을 출제해야 합니다. 모든 문제는 최상위권 변별에 초점을 맞추어 논리적 함정을 포함하십시오.
@@ -1030,7 +1035,7 @@ def fiction_app():
                     
                     """
 
-                # 2. 정답 및 해설 콘텐츠 (조건부 연결)
+                # 2. 정답 및 해설 콘텐츠 (조건부 연결 - f-string 오류 해결)
                 prompt_answer_content = ""
                 
                 if current_count_t1 > 0:
@@ -1041,10 +1046,11 @@ def fiction_app():
 
                 if current_count_t3 > 0:
                     # **[f-string 오류 해결] 중첩된 f-string 대신 외부 변수와 문자열 결합**
-                    rule_block = f"""
-                    [지시]: **{objective_rule_text_fiction}**{current_count_t3}문항의 정답(번호) 및 상세 해설(정답 풀이, 오답 풀이)을 작성. 각 문제 해설 사이에 **<br><br><br>** 태그를 사용하여 충분히 간격을 확보할 것.<br><br>
-                    """
-                    prompt_answer_content += f"<h4>유형 3. 객관식 문제 정답 및 해설 ({current_count_t3}문항)</h4><br>{rule_block}"
+                    rule_block = (
+                        objective_rule_text_fiction +
+                        f"{current_count_t3}문항의 정답(번호) 및 상세 해설(정답 풀이, 오답 풀이)을 작성. 각 문제 해설 사이에 <br><br><br> 태그를 사용하여 충분히 간격을 확보할 것.<br><br>"
+                    )
+                    prompt_answer_content += f"<h4>유형 3. 객관식 문제 정답 및 해설 ({current_count_t3}문항)</h4><br>[지시]: {rule_block}"
                 
                 if select_t4:
                     prompt_answer_content += "<h4>유형 4. 주요 등장인물 정리 모범 답안</h4><br>[지시]: 유형 4에서 요구한 표 형식에 맞춰 모범 답안을 작성하여 제시.<br><br>"
