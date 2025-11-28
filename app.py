@@ -418,6 +418,8 @@ def non_fiction_app():
     
     # **[수정 반영] 직접 입력 모드일 때, 지문 유형에 따라 입력창 분리**
     if current_d_mode == '직접 입력':
+        # 이 부분이 실행되면, 메인 컬럼에 있던 st.text_area는 중복 키 문제로 인해 제거됩니다.
+        # 대신, non_fiction_app()이 호출될 때만 이 로직이 실행되도록 합니다.
         st.subheader("📝 직접 입력 지문")
         
         current_manual_mode = st.session_state.get("manual_mode", "단일 지문") # 현재 직접 입력 모드 확인
@@ -429,15 +431,11 @@ def non_fiction_app():
             
         elif current_manual_mode == "주제 통합 (가) + (나)":
             # 주제 통합일 경우: (가)와 (나) 지문 분리하여 입력받음
-            col_a, col_b = st.columns(2)
-            with col_a:
-                st.text_area("🅰️ (가) 지문 텍스트", height=400, key="manual_passage_input_a",
-                                         placeholder="(가) 지문의 내용을 입력하세요.")
-            with col_b:
-                st.text_area("🅱️ (나) 지문 텍스트", height=400, key="manual_passage_input_b",
-                                         placeholder="(나) 지문의 내용을 입력하세요.")
+            st.warning("경고: 통합 지문 입력은 메인 영역(오른쪽)의 입력창을 사용해주세요. (현재 사이드바에는 입력 필드가 없습니다.)")
+            # 메인 영역에 두 컬럼으로 이미 입력 필드가 표시되므로, 여기서는 경고만 표시하고 건너뜁니다.
             
-        # 모든 입력 값은 Session State에 저장되므로, 아래 로직에서는 이것들을 사용합니다.
+        # 이 함수는 메인 콘텐츠 영역 (st.columns 분할 이전)에서 실행되므로, 
+        # 메인 콘텐츠 영역에 배치할 위젯은 main.py의 하단 코드에서 처리됩니다.
         
     else: # AI 생성 모드
         st.subheader(f"AI 생성 지문 (선택 영역: {current_domain})")
@@ -461,8 +459,10 @@ def non_fiction_app():
         # **[수정 반영] 직접 입력 모드일 때 지문 내용 결합**
         if current_d_mode == '직접 입력':
             if current_mode == '단일 지문':
-                current_manual_passage = st.session_state.get("manual_passage_input", "")
+                # 메인 영역의 단일 입력 필드 사용
+                current_manual_passage = st.session_state.get("manual_passage_input_col_main", st.session_state.get("manual_passage_input", ""))
             else: # 주제 통합 (가) + (나)
+                # 메인 영역의 분리된 입력 필드 사용
                 passage_a = st.session_state.get("manual_passage_input_a", "")
                 passage_b = st.session_state.get("manual_passage_input_b", "")
                 # 지문 분석 프롬프트에 전달할 때 사용하기 위해 결합
@@ -538,7 +538,7 @@ def non_fiction_app():
                 passage_instruction = ""
                 summary_passage_inst = "" 
                 summary_answer_inst = "" 
-                manual_passage_content = current_manual_passage # 직접 입력 시 이미 결합된 상태
+                manual_passage_content = ""
 
                 
                 if current_d_mode == '직접 입력':
@@ -967,13 +967,13 @@ def fiction_app():
 
 
     # 2. 텍스트 입력 (메인 화면)
-    st.subheader("📖 분석할 소설 텍스트 입력")
-    # key 충돌 방지를 위해 fiction_ 접두사를 사용합니다.
-    novel_text_input = st.text_area("소설 텍스트 (발췌분도 가능)", height=400, 
-                                     placeholder="여기에 소설 텍스트 전체(또는 발췌분)를 붙여넣어 주세요.", 
-                                     key="fiction_novel_text_input_area")
+    # **[수정 반영] 이 st.text_area는 메인 컬럼으로 이동했으므로, 여기서는 함수 호출 시 중복으로 인해 제거합니다.**
+    # st.subheader("📖 분석할 소설 텍스트 입력")
+    # novel_text_input = st.text_area("소설 텍스트 (발췌분도 가능)", height=400, 
+    #                                  placeholder="여기에 소설 텍스트 전체(또는 발췌분)를 붙여넣어 주세요.", 
+    #                                  key="fiction_novel_text_input_area")
 
-    st.markdown("---")
+    # st.markdown("---")
 
     # --------------------------------------------------------------------------
     # [AI 생성 및 출력 메인 로직]
@@ -984,7 +984,8 @@ def fiction_app():
         # Session state에서 값들을 가져올 때, fiction_ 접두사를 사용합니다.
         current_work_name = st.session_state.fiction_work_name_input
         current_author_name = st.session_state.fiction_author_name_input
-        current_novel_text = st.session_state.fiction_novel_text_input_area
+        # **[수정 반영] 메인 컬럼에서 입력된 텍스트를 가져옴**
+        current_novel_text = st.session_state.fiction_novel_text_input_area 
         
         current_count_t1 = st.session_state.fiction_c_t1
         current_count_t2 = st.session_state.fiction_c_t2
@@ -1248,13 +1249,11 @@ with col_select:
 
 # 1.2. 지문 입력창 (오른쪽 컬럼)
 with col_input:
-    st.subheader(f"📖 분석할 지문 텍스트 입력")
-
     # 분기에 사용할 현재 앱 모드 확인
     current_app_mode = st.session_state.get('app_mode')
 
     if current_app_mode == "⚡ 비문학 문제 제작":
-        # 비문학 영역일 경우, 직접 입력 모드에서 지문을 바로 입력받음
+        st.subheader(f"⚡ 비문학 지문 입력")
         current_d_mode = st.session_state.get('domain_mode_select', 'AI 생성')
         current_manual_mode = st.session_state.get("manual_mode", "단일 지문")
 
@@ -1278,6 +1277,7 @@ with col_input:
 
 
     elif current_app_mode == "📖 문학 문제 제작":
+        st.subheader("📖 분석할 소설 텍스트 입력")
         # 문학 영역일 경우, 소설 텍스트를 입력받음
         st.text_area("소설 텍스트 (발췌분도 가능)", height=300, 
                     placeholder="[문학] 분석할 소설 텍스트 전체(또는 발췌분)를 여기에 붙여넣어 주세요.", 
