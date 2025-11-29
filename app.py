@@ -7,6 +7,7 @@ from docx import Document
 from io import BytesIO
 from docx.shared import Inches
 from docx.shared import Pt
+from google.generativeai.types import Part 
 # from docx.enum.table import WD_ALIGN_VERTICAL, WD_ALIGN_HORIZONTAL # 오류 방지
 # from docx.enum.text import WD_ALIGN_PARAGRAPH # 오류 방지
 
@@ -26,6 +27,7 @@ st.set_page_config(page_title="사계국어 AI 모의고사 제작 시스템", p
 
 # ==========================================
 # [공통 HTML/CSS 정의]
+# ... (중략: HTML/CSS 정의는 동일) ...
 # ==========================================
 
 HTML_HEAD = """
@@ -366,25 +368,23 @@ def create_docx(html_content, file_name, current_topic, is_fiction=False):
     # 해설 영역(answer-sheet) 추출
     answer_sheet_match = re.search(r'<div class="answer-sheet">(.*?)<\/div>', clean_html_body, re.DOTALL)
     
-    # **[수정] 문제 블록 시작점과 끝점을 명확히 정의**
-    
     # 문제 블록 끝 지점
     problem_block_end = answer_sheet_match.start() if answer_sheet_match else len(clean_html_body) # 해설이 없으면 문서 끝까지
 
-    # 지문 섹션 닫는 태그의 끝 지점을 찾음
-    problem_block_start = passage_match.end() if passage_match else (time_box_match.end() if time_box_match else 0)
-    
-    # 지문 내용이 여러 <div class="passage">로 나뉘어 있을 수 있으므로, 
-    # 마지막 <div class="passage">의 끝 지점 이후부터 문제 영역으로 간주해야 합니다.
-    # 안전하게, 마지막으로 매치된 <div class="passage">의 끝점을 찾습니다.
-    all_passage_matches = list(re.finditer(r'<div class="passage">.*?<\/div>', clean_html_body, flags=re.DOTALL))
-    if all_passage_matches:
-        problem_block_start = all_passage_matches[-1].end()
-    elif time_box_match:
+    # 지문 영역 끝나는 지점 이후의 콘텐츠 (문제 시작점)
+    problem_block_start = 0
+    if passage_match:
+         # 지문 컨테이너 </div> 태그의 끝 지점을 찾음
+         passage_div_end = clean_html_body.find('</div>', passage_match.end())
+         if passage_div_end != -1 and passage_div_end < problem_block_end:
+             problem_block_start = passage_div_end + len('</div>')
+         # 만약 지문 닫는 태그를 못 찾으면, 지문 매치 끝 인덱스 사용
+         elif passage_match:
+             problem_block_start = passage_match.end()
+    elif time_box_match: # 지문이 아예 없는 경우 시간 박스 다음부터 시작
          problem_block_start = time_box_match.end()
-    else:
-        problem_block_start = 0
 
+    
     problem_block = clean_html_body[problem_block_start:problem_block_end].strip()
     
     
@@ -444,7 +444,7 @@ def create_docx(html_content, file_name, current_topic, is_fiction=False):
         
     # 해설 부분
     if answer_sheet_match:
-        # **[수정] 해설 섹션 시작점부터 문서 끝까지 추출하여 해설 누락 방지**
+        # 해설 섹션 시작점부터 문서 끝까지 추출하여 해설 누락 방지
         answer_html = clean_html_body[answer_sheet_match.start():]
         answer_html = re.sub(r'<div class="answer-sheet">', '', answer_html, flags=re.DOTALL) # 시작 태그 제거
         
@@ -769,8 +769,8 @@ def non_fiction_app():
                             사용자 입력 지문을 분석하여 문단별로 <p> 태그와 </p> 태그를 정확히 사용하고, 각 </p> 태그 바로 다음에 <div class='summary-blank'>📝 문단 요약 : </div> 태그를 삽입하시오. **결과는 오직 HTML 태그와 지문 내용으로만 출력해야 합니다.**
                             [텍스트]: {current_manual_passage}
                             """
-                            summary_response = model.generate_content(re_prompt_summary, generation_config=GenerationConfig(temperature=0.0, max_output_tokens=4000))
-                            manual_passage_content = summary_response.text.replace("```html", "").replace("```", "").strip()
+                            p_tag_response = model.generate_content(re_prompt_summary, generation_config=GenerationConfig(temperature=0.0, max_output_tokens=4000))
+                            manual_passage_content = p_tag_response.text.replace("```html", "").replace("```", "").strip()
                             
                             summary_answer_inst = """
                             - 정답지 맨 앞부분에 **[지문 문단별 핵심 요약 정답]** 섹션을 만드시오.
