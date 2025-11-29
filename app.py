@@ -255,14 +255,16 @@ def get_best_model():
 # ==========================================
 
 def create_docx(html_content, file_name, current_topic, is_fiction=False):
-    """HTML 내용을 기반으로 DOCX 문서를 생성하고 BytesIO 객체를 반환"""
     document = Document()
     
     # ------------------ [수정 시작] --------------------
-    # AI 생성 HTML은 보통 <h1>...</h1><h2>...</h2><div class="time-box">...</div><div class="passage">...</div> 순서로 시작합니다.
+    # 0. HTML <head> 및 <style> 블록 전체를 제거하여 DOCX에 삽입되는 것을 방지
+    clean_html_body = re.sub(r'<head>.*?<\/head>', '', html_content, flags=re.DOTALL | re.IGNORECASE)
+    
+    # 이제 clean_html_body에서 제목과 시간 박스를 추출합니다.
     
     # 1. <h1> 사계국어 비문학 스펙트럼 </h1> 추출
-    h1_match = re.search(r'<h1>(.*?)<\/h1>', html_content, re.DOTALL)
+    h1_match = re.search(r'<h1>(.*?)<\/h1>', clean_html_body, re.DOTALL)
     if h1_match:
         h1_text = re.sub(r'<[^>]+>', '', h1_match.group(1)).strip()
         document.add_heading(h1_text, level=0)
