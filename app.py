@@ -259,41 +259,29 @@ def create_docx(html_content, file_name, current_topic, is_fiction=False):
     document = Document()
     
     # ------------------ [수정 시작] --------------------
-    # 제목 (h1, h2) 및 시간 박스 추출
-    
     # AI 생성 HTML은 보통 <h1>...</h1><h2>...</h2><div class="time-box">...</div><div class="passage">...</div> 순서로 시작합니다.
     
-    header_end_index = 0
-    passage_start_match = re.search(r'<div class="passage">', html_content)
-    if passage_start_match:
-        header_end_index = passage_start_match.start()
-    
-    header_content = html_content[:header_end_index]
-    
     # 1. <h1> 사계국어 비문학 스펙트럼 </h1> 추출
-    h1_match = re.search(r'<h1>(.*?)<\/h1>', header_content, re.DOTALL)
+    h1_match = re.search(r'<h1>(.*?)<\/h1>', html_content, re.DOTALL)
     if h1_match:
         h1_text = re.sub(r'<[^>]+>', '', h1_match.group(1)).strip()
         document.add_heading(h1_text, level=0)
     
     # 2. <h2> [영역: 주제] </h2> 추출
-    h2_match = re.search(r'<h2>(.*?)<\/h2>', header_content, re.DOTALL)
+    h2_match = re.search(r'<h2>(.*?)<\/h2>', html_content, re.DOTALL)
     if h2_match:
         h2_text = re.sub(r'<[^>]+>', '', h2_match.group(1)).strip()
         document.add_heading(h2_text, level=2) # 2레벨 제목
         
     # 3. 시간 박스 추출 및 추가
-    time_box_match = re.search(r'<div class="time-box">(.*?)<\/div>', header_content, re.DOTALL)
+    time_box_match = re.search(r'<div class="time-box">(.*?)<\/div>', html_content, re.DOTALL)
     if time_box_match:
         time_text = re.sub(r'<[^>]+>', '', time_box_match.group(1)).strip()
         document.add_paragraph(f"--- {time_text} ---") # 텍스트 형태로 간략하게 추가
     
-    # ------------------ [수정 끝] --------------------
     
-    # 4. 지문 및 문제/해설 영역 처리
-    
-    # 지문 영역 추출
-    passage_match = re.search(r'<div class="passage">(.*?)<\/div>', clean_content, re.DOTALL)
+    # 4. 지문 영역 추출 및 처리
+    passage_match = re.search(r'<div class="passage">(.*?)<\/div>', html_content, re.DOTALL)
     if passage_match:
         passage_html = passage_match.group(1).strip()
         
@@ -315,37 +303,52 @@ def create_docx(html_content, file_name, current_topic, is_fiction=False):
                     if p_text:
                         document.add_paragraph(p_text)
                         
-    # 5. 문제 및 해설 영역 처리 (나머지 내용)
-    questions_and_answers = re.split(r'(<h3>.*?<\/h3>|<h4>.*?<\/h4>|\[지문 문단별 핵심 요약 정답\])', clean_content)
+    # 5. 문제 및 해설 영역 처리 (나머지 내용 - 이 부분은 html_content 전체에서 문제/해설 태그를 찾아야 함)
+    # AI 생성 HTML은 헤더와 지문 부분이 이미 제거된 clean_content를 사용해야 더 정확하게 문제/해설을 찾을 수 있습니다.
     
-    for qa_block in questions_and_answers:
-        if not qa_block.strip() or re.match(r'<div class="passage">', qa_block):
-            continue
-            
-        # 제목 태그 처리
-        if re.match(r'<h[34]>', qa_block):
-            level = int(re.match(r'<h([34])>', qa_block).group(1))
-            title = re.sub(r'<[^>]+>', '', qa_block).strip()
-            document.add_heading(title, level=level - 1)
-        
-        # 정답지 헤딩 처리
-        elif "[지문 문단별 핵심 요약 정답]" in qa_block:
-             document.add_heading("IV. 정답 및 해설", level=1)
-             document.add_heading("[지문 문단별 핵심 요약 정답]", level=2)
-             
-        # 일반 텍스트 및 문제 포맷팅 처리
-        else:
-            # HTML 태그 제거 및 줄 바꿈(\n) 정리
-            text = re.sub(r'<br\s*\/?>', '\n', qa_block)
-            text = re.sub(r'<[^>]+>', '', text).strip()
-            
-            if text:
-                # 문제 번호 등으로 시작하는 줄은 새 문단으로 처리
-                lines = text.split('\n')
-                for line in lines:
-                    line = line.strip()
-                    if line:
-                        document.add_paragraph(line)
+    # AI 생성 로직이 full_html 대신 clean_content를 전달하도록 수정했으므로,
+    # 이제 html_content는 지문 + 문제/해설 부분만 포함한다고 가정하고 파싱합니다.
+    
+    # 지문 영역 이후의 문제 및 해설 콘텐츠만 추출 (full_html을 사용하면 이미 추출된 상태)
+    
+    # clean_content는 full_html에서 헤더/지문이 제거된 순수 문제/해설 블록이므로,
+    # 여기서는 전달받은 html_content(full_html)에서 answer-sheet 이후를 추출하여 사용하겠습니다.
+    
+    answer_sheet_match = re.search(r'<div class="answer-sheet">(.*?)<\/div>', html_content, re.DOTALL)
+    
+    if answer_sheet_match:
+         # 문제 부분
+         problem_block = html_content[:answer_sheet_match.start()]
+         problem_block = re.sub(r'<h1>.*?<\/h2>.*?<\/div>', '', problem_block, flags=re.DOTALL) # 상단 헤더 다시 제거
+         document.add_heading("II. 문제", level=1)
+         
+         # 문제 내용을 문단으로 추가 (문제 제목 태그와 서술 공간 태그만 제거)
+         problem_text = re.sub(r'<h3>.*?<\/h3>|<h4>.*?<\/h4>|<div class="write-box">.*?<\/div>|<span class="passage-label">.*?<\/span>|<div class="passage">.*?<\/div>|---.*---', '', problem_block, flags=re.DOTALL)
+         
+         # 줄 바꿈을 강제하여 포맷팅을 유지
+         problem_text = re.sub(r'<br\s*\/?>', '\n', problem_text)
+         problem_text = re.sub(r'<div class="question-box">', '\n\n**', problem_text)
+         problem_text = re.sub(r'<\/div>', '', problem_text)
+         
+         # 문제 번호별로 문단 추가
+         problem_lines = problem_text.split('\n')
+         for line in problem_lines:
+             if line.strip():
+                 document.add_paragraph(line.strip())
+                 
+         
+         # 해설 부분
+         answer_html = answer_sheet_match.group(1).strip()
+         document.add_heading("III. 정답 및 해설", level=1)
+         
+         answer_text = re.sub(r'<br\s*\/?>', '\n', answer_html)
+         answer_text = re.sub(r'<[^>]+>', '', answer_text).strip()
+         
+         answer_lines = answer_text.split('\n')
+         for line in answer_lines:
+             if line.strip():
+                 document.add_paragraph(line.strip())
+
 
     # DOCX 파일을 메모리에 저장
     file_stream = BytesIO()
@@ -940,12 +943,15 @@ def non_fiction_app():
                 
                 # 6. 결과 처리 및 출력
                 clean_content = response.text.replace("```html", "").replace("```", "")\
-                                             .replace("***", "").replace("**", "")\
-                                             .replace("##", "").strip()
+                                             .replace("***", "").replace("**", "").replace("##", "").strip()
                 
-                full_html = HTML_HEAD
+                # **[수정] full_html과 clean_content를 별도로 생성 및 저장**
                 
-                # AI 생성 모드일 경우: AI가 생성한 제목/시간 박스/지문 부분을 추출하여 본문 상단에 먼저 추가
+                full_html = HTML_HEAD # HTML 헤드 시작
+                
+                # -----------------------------------------------------------
+                # AI 생성 모드일 경우: AI가 생성한 HTML 헤더(제목/시간/지문) 추출
+                # -----------------------------------------------------------
                 if current_d_mode == 'AI 생성':
                     
                     header_and_passage_match = re.search(r'(<h1>.*?<\/div>.*?<div class="passage">.*?<\/div>)', clean_content, re.DOTALL)
@@ -953,37 +959,31 @@ def non_fiction_app():
                     if header_and_passage_match:
                         extracted_content = header_and_passage_match.group(0)
                         full_html += extracted_content
+                        # clean_content는 순수 문제/해설 부분만 남깁니다.
                         clean_content = clean_content.replace(extracted_content, "", 1)
-                        
                     else:
-                        st.warning("⚠️ AI가 지문을 생성하지 못했습니다. 다시 시도해 주세요.")
                         full_html += clean_content
                         
-                # 직접 입력 모드일 경우: Python이 제목/시간 박스 및 포맷팅된 지문을 수동으로 추가
+                # -----------------------------------------------------------
+                # 직접 입력 모드일 경우: Python이 헤더/지문 수동 생성
+                # -----------------------------------------------------------
                 elif current_d_mode == '직접 입력':
                     
-                    # 1. 제목/시간 박스를 수동으로 추가 (단 한 번 출력)
-                    full_html += f"<h1>사계국어 비문학 스펙트럼</h1><h2>[{current_domain} 영역: {current_topic}]</h2>"
-                    full_html += f"<div class='time-box'> ⏱️ 실제 소요 시간: <span class='time-blank'></span> 분 </div>"
+                    # 1. 제목/시간 박스를 수동으로 생성
+                    html_header_manual = f"<h1>사계국어 비문학 스펙트럼</h1><h2>[{current_domain} 영역: {current_topic}]</h2>"
+                    html_header_manual += f"<div class='time-box'> ⏱️ 실제 소요 시간: <span class='time-blank'></span> 분 </div>"
+                    full_html += html_header_manual
                     
-                    # 2. 지문 본문 (<div class="passage"> 태그로 감싸서 출력)
-                    if current_mode == "단일 지문":
-                         # 단일 지문일 경우
-                         full_html += f"""
-                         <div class="passage">
-                         {manual_passage_content}
-                         </div>
-                         """
-                    else:
-                         # 주제 통합일 경우 (이미 위에서 HTML 포맷팅 됨)
-                         full_html += manual_passage_content
+                    # 2. 지문 본문 (manual_passage_content에 저장된 포맷팅된 지문)
+                    full_html += manual_passage_content
                     
-                    # AI가 생성한 문제 내용 중 혹시라도 포함되었을 수 있는 제목/시간 박스 및 지문 관련 지시 부분을 제거
+                    # AI가 생성한 문제 내용 중 불필요한 헤더 부분을 제거 (AI의 출력물에서 문제 부분만 추출하기 위함)
                     clean_content = re.sub(r'<h1>.*?<\/div>.*?<div class="time-box">.*?<\/div>|2\. \[.*?지문\]:.*?지시\]:.*?지문은 다시 출력하지 마시오\.', '', clean_content, 1, re.DOTALL)
+                
                 
                 # 지문 아래에 나머지 문제 내용 및 정답지 추가
                 full_html += clean_content
-                full_html += HTML_TAIL
+                full_html += HTML_TAIL # HTML 꼬리말 추가
 
                 
                 if len(clean_content) < 100 and not current_manual_passage:
@@ -992,8 +992,10 @@ def non_fiction_app():
                 else:
                     # **[수정] 생성된 결과를 Session State에 저장**
                     st.session_state.generated_result = {
-                        "full_html": full_html,
-                        "clean_content": clean_content,
+                        # AI가 생성한 응답의 HTML 포맷 전체
+                        "full_html": full_html, 
+                        # AI가 생성한 응답에서 지문 및 헤더를 제외한 순수 문제/해설 블록
+                        "clean_content": clean_content, 
                         "domain": current_domain,
                         "topic": current_topic,
                         "type": "non_fiction"
@@ -1294,47 +1296,29 @@ def fiction_app():
                 
                 response = model.generate_content(prompt, generation_config=generation_config)
                 
-                clean_content = response.text.replace("```html", "").replace("```", "")\
-                                             .replace("***", "").replace("**", "")\
-                                             .replace("##", "").strip()
+                clean_content = response.text.replace("```html", "").replace("```", "").replace("##", "").strip()
                 
-                full_html = HTML_HEAD
+                # -----------------------------------------------------------
+                # Header 및 Passage 추출 (수동 생성)
+                # -----------------------------------------------------------
+                html_header_manual = f"<h1>사계국어 문학 분석 스펙트럼</h1><h2>[작품명: {current_work_name} / 작가: {current_author_name}]</h2>"
+                html_header_manual += f"<div class='time-box'> ⏱️ 실제 소요 시간: <span class='time-blank'></span> 분 </div>"
                 
-                # 지문 및 작품 정보 구성은 이미 위에서 current_novel_text, current_work_name 등으로 설정됨
-
-                # AI가 생성한 콘텐츠의 HTML 헤더 부분을 추출하여 full_html에 추가
-                # (HTML 헤더 부분은 AI가 프롬프트에 따라 생성한 제목, 시간 박스, 지문 등을 포함함)
+                # 지문 본문
+                passage_html_manual = f"""
+                <div class="passage">
+                    <b>[분석 텍스트]</b><br>
+                    {current_novel_text}
+                </div>
+                <div class="source-info">
+                    {current_work_name} - {current_author_name}
+                </div>
+                """
                 
-                # Header 및 Passage 추출 (AI 생성 모드)
-                if st.session_state.app_mode == "⚡ 비문학 문제 제작" and current_d_mode == 'AI 생성':
-                    header_and_passage_match = re.search(r'(<h1>.*?<\/div>.*?<div class="passage">.*?<\/div>)', clean_content, re.DOTALL)
-                    if header_and_passage_match:
-                        extracted_content = header_and_passage_match.group(0)
-                        full_html += extracted_content
-                        clean_content = clean_content.replace(extracted_content, "", 1)
-                    else:
-                        full_html += clean_content
-                        
-                # Header 및 Passage 추출 (직접 입력 모드)
-                elif st.session_state.app_mode == "⚡ 비문학 문제 제작" and current_d_mode == '직접 입력':
-                    # 직접 입력 모드의 경우 Python이 생성한 헤더 및 지문 포맷을 사용
-                    
-                    # 1. 제목/시간 박스를 수동으로 생성
-                    html_header_manual = f"<h1>사계국어 비문학 스펙트럼</h1><h2>[{current_domain} 영역: {current_topic}]</h2>"
-                    html_header_manual += f"<div class='time-box'> ⏱️ 실제 소요 시간: <span class='time-blank'></span> 분 </div>"
-                    full_html += html_header_manual
-                    
-                    # 2. 지문 본문 (manual_passage_content에 저장된 포맷팅된 지문)
-                    full_html += manual_passage_content
-                    
-                    # AI가 생성한 문제 내용 중 불필요한 헤더 부분을 제거
-                    clean_content = re.sub(r'<h1>.*?<\/div>.*?<div class="time-box">.*?<\/div>|2\. \[.*?지문\]:.*?지시\]:.*?지문은 다시 출력하지 마시오\.', '', clean_content, 1, re.DOTALL)
+                full_html = HTML_HEAD + html_header_manual + passage_html_manual + clean_content + HTML_TAIL
                 
-                
-                # 지문 아래에 나머지 문제 내용 및 정답지 추가
-                full_html += clean_content
-                full_html += HTML_TAIL
-                
+                # clean_content는 AI의 순수 응답 내용 (문제 + 해설)이므로, 문제 번호 등을 제거
+                clean_content_for_parsing = re.sub(r'<h1>.*?<\/div>.*?<div class="time-box">.*?<\/div>|2\. \[.*?지문\]:.*?지시\]:.*?지문은 다시 출력하지 마시오\.', '', clean_content, 1, re.DOTALL)
                 
                 if len(clean_content) < 100 and not current_novel_text:
                     st.error(f"⚠️ 생성 오류: AI가 내용을 충분히 생성하지 못했습니다. (생성 길이: {len(clean_content)}). **다시 생성하기** 버튼을 눌러주세요.")
@@ -1343,12 +1327,13 @@ def fiction_app():
                     # **[수정] 생성된 결과를 Session State에 저장**
                     st.session_state.generated_result = {
                         "full_html": full_html,
-                        "clean_content": clean_content,
-                        "domain": current_work_name if st.session_state.app_mode == "📖 문학 문제 제작" else current_domain,
-                        "topic": current_author_name if st.session_state.app_mode == "📖 문학 문제 제작" else current_topic,
-                        "type": "fiction" if st.session_state.app_mode == "📖 문학 문제 제작" else "non_fiction"
+                        # DOCX 파싱을 위해 AI의 순수 응답 블록을 저장
+                        "clean_content": clean_content_for_parsing, 
+                        "domain": current_work_name,
+                        "topic": current_author_name,
+                        "type": "fiction"
                     }
-                    st.success(f"✅ 생성 완료! (사용 모델: {model_name})")
+                    st.success(f"✅ 분석 학습지 생성 완료! (사용 모델: {model_name})")
                     clear_generation_status()
 
 
@@ -1371,8 +1356,8 @@ def display_results():
 
     # 결과 변수 로드
     full_html = result["full_html"]
-    clean_content = result["clean_content"]
-    current_topic_doc = result["topic"] # DOCX 함수에 전달할 주제/작가명
+    clean_content = result["clean_content"] # DOCX 파싱을 위해 AI의 순수 응답 블록 사용
+    current_topic_doc = result["topic"]
     current_domain_doc = result["domain"]
     app_type = result["type"]
 
@@ -1397,7 +1382,8 @@ def display_results():
         st.download_button("📥 시험지 다운로드 (HTML)", full_html, html_file_name, "text/html")
     
     with col3:
-        # DOCX 파일 생성 (Session State에 저장된 clean_content 사용)
+        # **[수정] full_html 대신 DOCX 파싱이 용이한 full_html을 전달**
+        # full_html을 전달해야 제목/시간 박스/지문이 포함됩니다.
         docx_file = create_docx(full_html, docx_file_name, current_topic_doc, is_fiction=(app_type=="fiction"))
         st.download_button(
             label="📄 워드 파일 다운로드 (.docx)",
@@ -1459,7 +1445,7 @@ with col_input:
 
     elif current_app_mode == "📖 문학 문제 제작":
         # 머리말 및 입력창 출력
-        st.header("📖문학 모의평가 출제")
+        st.header("📖 문학 모의평가 출제")
         st.subheader("📖 분석할 소설 텍스트 입력")
         
         # 문학 영역일 경우, 소설 텍스트를 입력받음
@@ -1471,7 +1457,7 @@ with col_input:
     # 3. 메인 실행 버튼 (오른쪽 컬럼 맨 아래에 배치)
     if current_app_mode == "⚡ 비문학 문제 제작" and st.button("🚀 모의평가 출제하기 (클릭)", key="non_fiction_run_btn_col"):
         request_generation()
-    elif current_app_mode == "📖 문학 문제 제작" and st.button("🚀 모의평가 출제하기", key="fiction_run_btn_col"):
+    elif current_app_mode == "📖 문학 문제 제작" and st.button("🚀 문학 분석 자료 생성 요청", key="fiction_run_btn_col"):
         request_generation()
 
 
