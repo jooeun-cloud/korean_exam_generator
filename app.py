@@ -6,13 +6,228 @@ import os
 from docx import Document
 from io import BytesIO
 from docx.shared import Inches
-# from docx.enum.table import WD_ALIGN_VERTICAL, WD_ALIGN_HORIZONTAL # 오류 발생 원인 제거
-# from docx.enum.text import WD_ALIGN_PARAGRAPH # 오류 발생 원인 제거
+from docx.enum.table import WD_ALIGN_VERTICAL, WD_ALIGN_HORIZONTAL
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+# ==========================================
+# [설정] API 키 연동 (Streamlit Cloud Secrets 권장)
+# ==========================================
+# Streamlit Cloud 배포 시 st.secrets에서 키를 가져옵니다.
+try:
+    # 1. Streamlit Secrets에 GOOGLE_API_KEY = "발급받은 실제 API 키" 설정
+    GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"] 
+except (KeyError, AttributeError):
+    # Secrets 설정이 안 되어 있을 경우 (로컬 테스트용)
+    GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "DUMMY_API_KEY_FOR_LOCAL_TEST") 
+
+st.set_page_config(page_title="사계국어 AI 모의고사 제작 시스템", page_icon="📚", layout="wide")
 
 # ==========================================
 # [공통 HTML/CSS 정의]
-# ... (중략) ...
 # ==========================================
+
+HTML_HEAD = """
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        /* 기본 폰트 및 페이지 설정 */
+        body { 
+            font-family: 'HanyangShinMyeongjo', 'Batang', 'Times New Roman', serif; 
+            padding: 40px; 
+            max-width: 850px; 
+            margin: 0 auto; 
+            line-height: 1.6; 
+            color: #000; 
+            font-size: 10.5pt;
+        }
+        
+        h1 { text-align: center; margin-bottom: 5px; font-size: 28px; letter-spacing: -1px; }
+        h2 { text-align: center; margin-top: 0; margin-bottom: 30px; font-size: 16px; color: #333; }
+        
+        /* [비문학] 시간 박스 */
+        .time-box {
+            text-align: center; border: 1px solid #333; border-radius: 30px;
+            padding: 10px 20px; margin: 0 auto 40px auto; width: fit-content;
+            font-weight: bold; background-color: #fdfdfd; font-size: 0.95em;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            font-family: 'HanyangShinMyeongjo', 'Batang', serif;
+        }
+
+        .time-blank {
+            display: inline-block;
+            width: 60px;
+            border-bottom: 1px solid #000;
+            margin: 0 5px;
+            height: 1em;
+            vertical-align: middle;
+        }
+        
+        /* [비문학] 유형 구분 헤딩 (h3) */
+        h3 { 
+            margin-top: 5px; 
+            margin-bottom: 15px; 
+            font-size: 1.6em; 
+            color: #2e8b57; 
+            border-bottom: 2px solid #2e8b57;
+            padding-bottom: 10px;
+            font-weight: bold;
+        }
+        
+        /* [문학] 유형 구분 헤딩 (h4) */
+        h4 {
+            margin-top: 5px; 
+            margin-bottom: 10px; 
+            font-size: 1.8em; 
+            color: #00008b; 
+            border-bottom: 3px solid #00008b; 
+            padding-bottom: 8px; 
+            font-weight: bold; 
+        }
+
+        /* [비문학/문학 통합] 유형 콘텐츠 전체를 감싸는 박스 */
+        .type-box { 
+            border: 2px solid #999; 
+            padding: 20px; 
+            margin-bottom: 20px; 
+            border-radius: 10px; 
+            background-color: #fff; 
+            page-break-inside: avoid; 
+        }
+
+        /* 지문 스타일 */
+        .passage { 
+            font-size: 10pt; 
+            border: 1px solid #000; 
+            padding: 25px; 
+            margin-bottom: 30px; 
+            background-color: #fff; 
+            line-height: 1.8; 
+            text-align: justify;
+        }
+        .passage p { 
+            text-indent: 1em; 
+            margin-bottom: 10px; 
+            display: block;
+        }
+        
+        /* (가), (나) 지문 표시 */
+        .passage-label {
+            font-weight: bold; font-size: 1.1em; color: #fff;
+            display: inline-block; background-color: #000;
+            padding: 2px 8px; border-radius: 4px; margin-right: 5px; margin-bottom: 10px;
+            font-family: 'HanyangShinMyeongjo', 'Batang', serif;
+        }
+        
+        /* 문단 요약 칸 */
+        .summary-blank { 
+            display: block; margin-top: 10px; margin-bottom: 20px; padding: 0 10px; 
+            height: 100px; border: 1px solid #777; border-radius: 5px;
+            color: #555; font-size: 0.9em; 
+            background: repeating-linear-gradient(transparent, transparent 29px, #eee 30px); 
+            line-height: 30px; 
+            font-family: 'HanyangShinMyeongjo', 'Batang', serif;
+        }
+
+        /* 문학 작품명/작가명 표시용 */
+        .source-info { 
+            text-align: right; font-size: 0.85em; color: #666; margin-bottom: 30px; 
+            font-style: italic; font-family: 'HanyangShinMyeongjo', 'Batang', serif;
+        }
+
+        /* 문제/질문 스타일 */
+        .question-box { 
+            margin-bottom: 25px; 
+            page-break-inside: avoid; 
+        }
+
+        /* 문제 발문 강조 스타일 */
+        .question-box b, .question-box strong {
+            font-weight: 900; 
+            display: inline-block;
+            margin-bottom: 5px;
+        }
+        
+        /* 보기 박스 */
+        .example-box { 
+            border: 1px solid #333; padding: 15px; margin: 10px 0; 
+            background-color: #f7f7f7; 
+            font-size: 0.95em; font-weight: normal;
+        }
+
+        /* 객관식 선지 목록 스타일 */
+        .choices { 
+            padding-left: 20px;
+            text-indent: -20px; 
+            margin-left: 20px;
+            padding-top: 10px;
+            line-height: 1.4;
+        }
+        .choices div { 
+            margin-bottom: 5px; 
+        }
+        
+        /* 서술 공간 */
+        .write-box { 
+            margin-top: 15px; margin-bottom: 10px; height: 150px; 
+            border: 1px solid #777; 
+            background: repeating-linear-gradient(transparent, transparent 29px, #eee 30px); 
+            line-height: 30px; border-radius: 5px; 
+        }
+
+        /* 문학 전용 긴 밑줄 */
+        .long-blank-line {
+            display: block; 
+            border-bottom: 1px solid #000; 
+            margin: 5px 0 15px 0; 
+            min-height: 1.5em; 
+            width: 95%; 
+        }
+        .answer-line-gap { /* 문학 서술형 답안용 큰 공백 밑줄 */
+            display: block;
+            border-bottom: 1px solid #000;
+            margin: 25px 0 25px 0;
+            min-height: 1.5em;
+            width: 95%;
+        }
+
+        /* 빈칸 밑줄 */
+        .blank {
+            display: inline-block;
+            min-width: 60px;
+            border-bottom: 1px solid #000;
+            margin: 0 2px;
+            vertical-align: bottom;
+            height: 1.2em;
+        }
+        
+        /* 테이블 스타일 (문학: 유형 4) */
+        .analysis-table { 
+            width: 100%; border-collapse: collapse; margin-top: 10px; 
+            font-size: 0.95em; line-height: 1.4;
+        }
+        .analysis-table th, .analysis-table td { 
+            border: 1px solid #000; padding: 8px; text-align: left;
+        }
+        .analysis-table th { 
+            background-color: #e6e6fa; 
+            text-align: center; font-weight: bold;
+        }
+        .analysis-table .blank-row { height: 35px; }
+
+        /* 정답/해설 */
+        .answer-sheet { 
+            background: #f8f9fa; padding: 40px; margin-top: 50px; 
+            border: 1px solid #ccc; border-radius: 10px; 
+            page-break-before: always; line-height: 1.8; font-size: 10.5pt;
+        }
+        
+        @media print { body { padding: 0; } }
+    </style>
+</head>
+<body>
+"""
 
 HTML_TAIL = """
 </body>
@@ -47,10 +262,6 @@ def create_docx(html_content, file_name, current_topic, is_fiction=False):
     document = Document()
     
     # ------------------ [DOCX 파싱 로직] --------------------
-    
-    # WD_ALIGN_VERTICAL.CENTER는 1을 나타냅니다.
-    # WD_ALIGN_HORIZONTAL.CENTER는 1을 나타냅니다.
-    # WD_ALIGN_PARAGRAPH.CENTER는 1을 나타냅니다.
     
     # 0. HTML <head> 및 <body> 태그 이전/이후의 불필요한 부분을 제거
     clean_html_body = re.sub(r'.*?<body[^>]*>', '', html_content, flags=re.DOTALL | re.IGNORECASE)
@@ -104,7 +315,7 @@ def create_docx(html_content, file_name, current_topic, is_fiction=False):
                 summary_table = document.add_table(rows=1, cols=1)
                 summary_table.width = Inches(6.5)
                 sum_cell = summary_table.cell(0, 0)
-                # sum_cell.vertical_alignment = 1 # WD_ALIGN_VERTICAL.CENTER 대신 1 사용
+                # sum_cell.vertical_alignment = 1 # Enum 오류 방지
                 sum_cell.paragraphs[0].add_run("📝 문단 요약 :").bold = True
                 # 빈 줄 추가 (칸 확보)
                 sum_cell.add_paragraph(' \n \n')
@@ -289,6 +500,9 @@ st.markdown("""
 # ==========================================
 
 def non_fiction_app():
+    
+    # **[수정] NameError 방지를 위해 global 명시**
+    global GOOGLE_API_KEY
     
     # --------------------------------------------------------------------------
     # [설정값 정의]
@@ -742,7 +956,7 @@ def non_fiction_app():
                 - 선지 부분은 반드시 <div class="choices">로 감쌀 것.
                 - **선지 항목은 반드시 <div>로 감싸서 출력하고 <br> 태그는 사용하지 마시오.**
                 - [유형1] 밑 <div class="write-box"></div>.
-                - [유형3] 빈칸은 반드시 <span class='blank'></span> 태그를 사용.
+                - [유 유형3] 빈칸은 반드시 <span class='blank'></span> 태그를 사용.
                 - [유형7] 및 보기는 <div class="example-box">.
                 
                 [지시사항 5: 정답 및 해설]
@@ -845,6 +1059,9 @@ def non_fiction_app():
 # ==========================================
 
 def fiction_app():
+    
+    # **[수정] NameError 방지를 위해 global 명시**
+    global GOOGLE_API_KEY
     
     # 이 함수는 이제 UI를 직접 출력하지 않고, 사이드바와 메인 콘텐츠의 세부 로직만 담당합니다.
 
