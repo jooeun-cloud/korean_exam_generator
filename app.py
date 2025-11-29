@@ -255,13 +255,17 @@ def get_best_model():
 # ==========================================
 
 def create_docx(html_content, file_name, current_topic, is_fiction=False):
+    """HTML 내용을 기반으로 DOCX 문서를 생성하고 BytesIO 객체를 반환"""
     document = Document()
     
-    # ------------------ [수정 시작] --------------------
-    # 0. HTML <head> 및 <style> 블록 전체를 제거하여 DOCX에 삽입되는 것을 방지
-    clean_html_body = re.sub(r'<head>.*?<\/head>', '', html_content, flags=re.DOTALL | re.IGNORECASE)
+    # ------------------ [DOCX 파싱 로직 수정] --------------------
     
-    # 이제 clean_html_body에서 제목과 시간 박스를 추출합니다.
+    # 0. HTML <head> 및 <style> 블록 전체를 제거하고 <body> 내용만 추출
+    # <head> 태그와 <body> 태그 이전의 모든 것을 제거합니다.
+    clean_html_body = re.sub(r'.*?<body[^>]*>', '', html_content, flags=re.DOTALL | re.IGNORECASE)
+    # </body> 태그와 </html> 태그를 제거합니다.
+    clean_html_body = re.sub(r'<\/body>.*?<\/html>', '', clean_html_body, flags=re.DOTALL | re.IGNORECASE)
+    
     
     # 1. <h1> 사계국어 비문학 스펙트럼 </h1> 추출
     h1_match = re.search(r'<h1>(.*?)<\/h1>', clean_html_body, re.DOTALL)
@@ -270,20 +274,20 @@ def create_docx(html_content, file_name, current_topic, is_fiction=False):
         document.add_heading(h1_text, level=0)
     
     # 2. <h2> [영역: 주제] </h2> 추출
-    h2_match = re.search(r'<h2>(.*?)<\/h2>', html_content, re.DOTALL)
+    h2_match = re.search(r'<h2>(.*?)<\/h2>', clean_html_body, re.DOTALL)
     if h2_match:
         h2_text = re.sub(r'<[^>]+>', '', h2_match.group(1)).strip()
         document.add_heading(h2_text, level=2) # 2레벨 제목
         
     # 3. 시간 박스 추출 및 추가
-    time_box_match = re.search(r'<div class="time-box">(.*?)<\/div>', html_content, re.DOTALL)
+    time_box_match = re.search(r'<div class="time-box">(.*?)<\/div>', clean_html_body, re.DOTALL)
     if time_box_match:
         time_text = re.sub(r'<[^>]+>', '', time_box_match.group(1)).strip()
         document.add_paragraph(f"--- {time_text} ---") # 텍스트 형태로 간략하게 추가
     
     
     # 4. 지문 영역 추출 및 처리
-    passage_match = re.search(r'<div class="passage">(.*?)<\/div>', html_content, re.DOTALL)
+    passage_match = re.search(r'<div class="passage">(.*?)<\/div>', clean_html_body, re.DOTALL)
     if passage_match:
         passage_html = passage_match.group(1).strip()
         
@@ -305,52 +309,58 @@ def create_docx(html_content, file_name, current_topic, is_fiction=False):
                     if p_text:
                         document.add_paragraph(p_text)
                         
-    # 5. 문제 및 해설 영역 처리 (나머지 내용 - 이 부분은 html_content 전체에서 문제/해설 태그를 찾아야 함)
-    # AI 생성 HTML은 헤더와 지문 부분이 이미 제거된 clean_content를 사용해야 더 정확하게 문제/해설을 찾을 수 있습니다.
+    # 5. 문제 및 해설 영역 처리 (나머지 내용)
     
-    # AI 생성 로직이 full_html 대신 clean_content를 전달하도록 수정했으므로,
-    # 이제 html_content는 지문 + 문제/해설 부분만 포함한다고 가정하고 파싱합니다.
-    
-    # 지문 영역 이후의 문제 및 해설 콘텐츠만 추출 (full_html을 사용하면 이미 추출된 상태)
-    
-    # clean_content는 full_html에서 헤더/지문이 제거된 순수 문제/해설 블록이므로,
-    # 여기서는 전달받은 html_content(full_html)에서 answer-sheet 이후를 추출하여 사용하겠습니다.
-    
-    answer_sheet_match = re.search(r'<div class="answer-sheet">(.*?)<\/div>', html_content, re.DOTALL)
+    # 해설 영역(answer-sheet) 추출
+    answer_sheet_match = re.search(r'<div class="answer-sheet">(.*?)<\/div>', clean_html_body, re.DOTALL)
     
     if answer_sheet_match:
-         # 문제 부분
-         problem_block = html_content[:answer_sheet_match.start()]
-         problem_block = re.sub(r'<h1>.*?<\/h2>.*?<\/div>', '', problem_block, flags=re.DOTALL) # 상단 헤더 다시 제거
-         document.add_heading("II. 문제", level=1)
-         
-         # 문제 내용을 문단으로 추가 (문제 제목 태그와 서술 공간 태그만 제거)
-         problem_text = re.sub(r'<h3>.*?<\/h3>|<h4>.*?<\/h4>|<div class="write-box">.*?<\/div>|<span class="passage-label">.*?<\/span>|<div class="passage">.*?<\/div>|---.*---', '', problem_block, flags=re.DOTALL)
-         
-         # 줄 바꿈을 강제하여 포맷팅을 유지
-         problem_text = re.sub(r'<br\s*\/?>', '\n', problem_text)
-         problem_text = re.sub(r'<div class="question-box">', '\n\n**', problem_text)
-         problem_text = re.sub(r'<\/div>', '', problem_text)
-         
-         # 문제 번호별로 문단 추가
-         problem_lines = problem_text.split('\n')
-         for line in problem_lines:
-             if line.strip():
-                 document.add_paragraph(line.strip())
-                 
-         
-         # 해설 부분
-         answer_html = answer_sheet_match.group(1).strip()
-         document.add_heading("III. 정답 및 해설", level=1)
-         
-         answer_text = re.sub(r'<br\s*\/?>', '\n', answer_html)
-         answer_text = re.sub(r'<[^>]+>', '', answer_text).strip()
-         
-         answer_lines = answer_text.split('\n')
-         for line in answer_lines:
-             if line.strip():
-                 document.add_paragraph(line.strip())
+        # 문제 블록 추출 (지문 끝부터 해설 전까지)
+        problem_block_start = passage_match.end() if passage_match else (h2_match.end() if h2_match else 0)
+        problem_block_end = answer_sheet_match.start()
+        problem_block = clean_html_body[problem_block_start:problem_block_end]
+        
+        document.add_heading("II. 문제", level=1)
+        
+        # 문제 블록을 문제 유형별로 나누기 (<h3> 또는 <h4> 태그 기준으로)
+        question_parts = re.split(r'(<h3>.*?<\/h3>|<h4>.*?<\/h4>)', problem_block, flags=re.DOTALL)
+        
+        for part in question_parts:
+            if not part.strip():
+                continue
+            
+            # 유형 제목 (h3/h4) 처리
+            if re.match(r'<h[34]>', part):
+                level = int(re.match(r'<h([34])>', part).group(1))
+                title = re.sub(r'<[^>]+>', '', part).strip()
+                document.add_heading(title, level=level - 1)
+            
+            # 실제 문제 내용 처리
+            else:
+                # 불필요한 HTML 태그 제거 및 포맷팅 정리
+                text = re.sub(r'<div class="write-box">.*?<\/div>|<div class="example-box">.*?<\/div>', '\n\n', part, flags=re.DOTALL)
+                text = re.sub(r'<\/?b>|<strong>|<\/?div class="question-box">|<\/?div class="choices">', '', text)
+                text = re.sub(r'<[^>]+>', '', text) # 나머지 태그 제거
+                text = re.sub(r'<br\s*\/?>', '\n', text)
+                
+                # 문제 번호별로 문단 추가
+                lines = text.split('\n')
+                for line in lines:
+                    if line.strip():
+                        document.add_paragraph(line.strip())
 
+        
+        # 해설 부분
+        answer_html = answer_sheet_match.group(1).strip()
+        document.add_heading("III. 정답 및 해설", level=1)
+        
+        answer_text = re.sub(r'<br\s*\/?>', '\n', answer_html)
+        answer_text = re.sub(r'<[^>]+>', '', answer_text).strip()
+        
+        answer_lines = answer_text.split('\n')
+        for line in answer_lines:
+            if line.strip():
+                document.add_paragraph(line.strip())
 
     # DOCX 파일을 메모리에 저장
     file_stream = BytesIO()
@@ -944,8 +954,7 @@ def non_fiction_app():
                 response = model.generate_content(prompt, generation_config=generation_config)
                 
                 # 6. 결과 처리 및 출력
-                clean_content = response.text.replace("```html", "").replace("```", "")\
-                                             .replace("***", "").replace("**", "").replace("##", "").strip()
+                clean_content = response.text.replace("```html", "").replace("```", "").replace("##", "").strip()
                 
                 # **[수정] full_html과 clean_content를 별도로 생성 및 저장**
                 
@@ -996,7 +1005,7 @@ def non_fiction_app():
                     st.session_state.generated_result = {
                         # AI가 생성한 응답의 HTML 포맷 전체
                         "full_html": full_html, 
-                        # AI가 생성한 응답에서 지문 및 헤더를 제외한 순수 문제/해설 블록
+                        # DOCX 파싱 시 사용하지 않는, AI가 생성한 순수 문제/해설 블록 (사용되지는 않음)
                         "clean_content": clean_content, 
                         "domain": current_domain,
                         "topic": current_topic,
@@ -1236,7 +1245,7 @@ def fiction_app():
 
                 작품명: {current_work_name} / 작가: {current_author_name}
                 
-                **[지시사항: HTML <body> 내용만 작성. <html>, <head> 및 불필요한 마크다운 기호(```)는 사용하지 마세요]**
+                **[지시사항: HTML <body> 내용만 작성. <html>, <head> 금지]**
                 
                 1. 제목: <h1>사계국어 문학 분석 스펙트럼</h1>
                 
@@ -1259,7 +1268,7 @@ def fiction_app():
                 
                 if current_count_t1 > 0:
                     prompt_answer_content += f"<h4>유형 1. 어휘 문제 정답 및 풀이 ({current_count_t1}문항)</h4><br>[지시]: {current_count_t1}문항의 정답과 뜻풀이를 모두 작성. 각 문제의 해설은 줄 바꿈(<br>)하여 구분할 것.<br><br>"
-                
+
                 if current_count_t2 > 0:
                     prompt_answer_content += f"<h4>유형 2. 서술형 심화 문제 모범 답안 ({current_count_t2}문항)</h4><br>[지시]: {current_count_t2}문항의 모범 답안을 상세하게 작성하되, **각 문제의 모범 답안이 끝날 때마다 <br><br><br> 태그를 사용하여 충분히 간격을 확보하여 분리할 것.**<br><br>"
 
@@ -1274,7 +1283,7 @@ def fiction_app():
                 
                 if select_t4:
                     prompt_answer_content += "<h4>유형 4. 주요 등장인물 정리 모범 답안</h4><br>[지시]: 유형 4에서 요구한 표 형식에 맞춰 모범 답안을 작성하여 제시.<br><br>"
-                
+
                 if select_t5:
                     prompt_answer_content += "<h4>유형 5. 소설 속 상황 요약 모범 답안</h4><br>[지시]: 유형 5의 질문에 대한 모범적인 분석 내용을 작성하여 제시.<br><br>"
 
@@ -1329,7 +1338,7 @@ def fiction_app():
                     # **[수정] 생성된 결과를 Session State에 저장**
                     st.session_state.generated_result = {
                         "full_html": full_html,
-                        # DOCX 파싱을 위해 AI의 순수 응답 블록을 저장
+                        # DOCX 파싱 시 사용하지 않는, AI가 생성한 순수 문제/해설 블록 (사용되지는 않음)
                         "clean_content": clean_content_for_parsing, 
                         "domain": current_work_name,
                         "topic": current_author_name,
@@ -1358,7 +1367,7 @@ def display_results():
 
     # 결과 변수 로드
     full_html = result["full_html"]
-    clean_content = result["clean_content"] # DOCX 파싱을 위해 AI의 순수 응답 블록 사용
+    # clean_content는 현재 사용되지 않음. DOCX 파싱에는 full_html 사용
     current_topic_doc = result["topic"]
     current_domain_doc = result["domain"]
     app_type = result["type"]
@@ -1370,6 +1379,7 @@ def display_results():
     col1, col2, col3 = st.columns([1, 1, 1])
     
     with col1:
+        # 버튼을 누르면 request_generation 함수가 실행되고 Session State가 초기화되며 앱이 재실행됨
         st.button("🔄 다시 생성하기 (같은 내용으로 재요청)", on_click=request_generation)
     
     # 파일 이름 설정
@@ -1384,8 +1394,8 @@ def display_results():
         st.download_button("📥 시험지 다운로드 (HTML)", full_html, html_file_name, "text/html")
     
     with col3:
-        # **[수정] full_html 대신 DOCX 파싱이 용이한 full_html을 전달**
-        # full_html을 전달해야 제목/시간 박스/지문이 포함됩니다.
+        # DOCX 파일 생성 (Session State에 저장된 full_html 사용)
+        # 다운로드 버튼 클릭 시 Streamlit이 이 함수를 호출하여 BytesIO 스트림을 가져감
         docx_file = create_docx(full_html, docx_file_name, current_topic_doc, is_fiction=(app_type=="fiction"))
         st.download_button(
             label="📄 워드 파일 다운로드 (.docx)",
