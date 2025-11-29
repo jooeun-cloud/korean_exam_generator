@@ -6,227 +6,16 @@ import os
 from docx import Document
 from io import BytesIO
 from docx.shared import Inches
-# from docx.enum.table import WD_ALIGN_VERTICAL, WD_ALIGN_HORIZONTAL # 오류 방지
-# from docx.enum.text import WD_ALIGN_PARAGRAPH # 오류 방지
+from docx.enum.table import WD_ALIGN_VERTICAL # Enum 오류 방지 위해 제거했으나, 재정의 필요
+from docx.enum.text import WD_ALIGN_PARAGRAPH # Enum 오류 방지 위해 제거했으나, 재정의 필요
+# WD_ALIGN_VERTICAL, WD_ALIGN_HORIZONTAL, WD_ALIGN_PARAGRAPH는 현재 Streamlit Cloud 환경에서 import 오류를 내므로,
+# 코드 내에서는 해당 상수의 정수 값(1 또는 3)을 직접 사용하거나, 기능 자체를 우회합니다.
 
-# ==========================================
-# [설정] API 키 연동 (Streamlit Cloud Secrets 권장)
-# ==========================================
-# Streamlit Cloud 배포 시 st.secrets에서 키를 가져옵니다.
-try:
-    # 1. Streamlit Secrets에 GOOGLE_API_KEY = "발급받은 실제 API 키" 설정
-    GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"] 
-except (KeyError, AttributeError):
-    # Secrets 설정이 안 되어 있을 경우 (로컬 테스트용)
-    GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "DUMMY_API_KEY_FOR_LOCAL_TEST") 
-
-st.set_page_config(page_title="사계국어 AI 모의고사 제작 시스템", page_icon="📚", layout="wide")
 
 # ==========================================
 # [공통 HTML/CSS 정의]
+# ... (중략) ...
 # ==========================================
-
-HTML_HEAD = """
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <style>
-        /* 기본 폰트 및 페이지 설정 */
-        body { 
-            font-family: 'HanyangShinMyeongjo', 'Batang', 'Times New Roman', serif; 
-            padding: 40px; 
-            max-width: 850px; 
-            margin: 0 auto; 
-            line-height: 1.6; 
-            color: #000; 
-            font-size: 10.5pt;
-        }
-        
-        h1 { text-align: center; margin-bottom: 5px; font-size: 28px; letter-spacing: -1px; }
-        h2 { text-align: center; margin-top: 0; margin-bottom: 30px; font-size: 16px; color: #333; }
-        
-        /* [비문학] 시간 박스 */
-        .time-box {
-            text-align: center; border: 1px solid #333; border-radius: 30px;
-            padding: 10px 20px; margin: 0 auto 40px auto; width: fit-content;
-            font-weight: bold; background-color: #fdfdfd; font-size: 0.95em;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-            font-family: 'HanyangShinMyeongjo', 'Batang', serif;
-        }
-
-        .time-blank {
-            display: inline-block;
-            width: 60px;
-            border-bottom: 1px solid #000;
-            margin: 0 5px;
-            height: 1em;
-            vertical-align: middle;
-        }
-        
-        /* [비문학] 유형 구분 헤딩 (h3) */
-        h3 { 
-            margin-top: 5px; 
-            margin-bottom: 15px; 
-            font-size: 1.6em; 
-            color: #2e8b57; 
-            border-bottom: 2px solid #2e8b57;
-            padding-bottom: 10px;
-            font-weight: bold;
-        }
-        
-        /* [문학] 유형 구분 헤딩 (h4) */
-        h4 {
-            margin-top: 5px; 
-            margin-bottom: 10px; 
-            font-size: 1.8em; 
-            color: #00008b; 
-            border-bottom: 3px solid #00008b; 
-            padding-bottom: 8px; 
-            font-weight: bold; 
-        }
-
-        /* [비문학/문학 통합] 유형 콘텐츠 전체를 감싸는 박스 */
-        .type-box { 
-            border: 2px solid #999; 
-            padding: 20px; 
-            margin-bottom: 20px; 
-            border-radius: 10px; 
-            page-break-inside: avoid; 
-        }
-
-        /* 지문 스타일 */
-        .passage { 
-            font-size: 10pt; 
-            border: 1px solid #000; 
-            padding: 25px; 
-            margin-bottom: 30px; 
-            background-color: #fff; 
-            line-height: 1.8; 
-            text-align: justify;
-        }
-        .passage p { 
-            text-indent: 1em; 
-            margin-bottom: 10px; 
-            display: block;
-        }
-        
-        /* (가), (나) 지문 표시 */
-        .passage-label {
-            font-weight: bold; font-size: 1.1em; color: #fff;
-            display: inline-block; background-color: #000;
-            padding: 2px 8px; border-radius: 4px; margin-right: 5px; margin-bottom: 10px;
-            font-family: 'HanyangShinMyeongjo', 'Batang', serif;
-        }
-        
-        /* 문단 요약 칸 */
-        .summary-blank { 
-            display: block; margin-top: 10px; margin-bottom: 20px; padding: 0 10px; 
-            height: 100px; border: 1px solid #777; border-radius: 5px;
-            color: #555; font-size: 0.9em; 
-            background: repeating-linear-gradient(transparent, transparent 29px, #eee 30px); 
-            line-height: 30px; 
-            font-family: 'HanyangShinMyeongjo', 'Batang', serif;
-        }
-
-        /* 문학 작품명/작가명 표시용 */
-        .source-info { 
-            text-align: right; font-size: 0.85em; color: #666; margin-bottom: 30px; 
-            font-style: italic; font-family: 'HanyangShinMyeongjo', 'Batang', serif;
-        }
-
-        /* 문제/질문 스타일 */
-        .question-box { 
-            margin-bottom: 25px; 
-            page-break-inside: avoid; 
-        }
-
-        /* 문제 발문 강조 스타일 */
-        .question-box b, .question-box strong {
-            font-weight: 900; 
-            display: inline-block;
-            margin-bottom: 5px;
-        }
-        
-        /* 보기 박스 */
-        .example-box { 
-            border: 1px solid #333; padding: 15px; margin: 10px 0; 
-            background-color: #f7f7f7; 
-            font-size: 0.95em; font-weight: normal;
-        }
-
-        /* 객관식 선지 목록 스타일 */
-        .choices { 
-            padding-left: 20px;
-            text-indent: -20px; 
-            margin-left: 20px;
-            padding-top: 10px;
-            line-height: 1.4;
-        }
-        .choices div { 
-            margin-bottom: 5px; 
-        }
-        
-        /* 서술 공간 */
-        .write-box { 
-            margin-top: 15px; margin-bottom: 10px; height: 150px; 
-            border: 1px solid #777; 
-            background: repeating-linear-gradient(transparent, transparent 29px, #eee 30px); 
-            line-height: 30px; border-radius: 5px; 
-        }
-
-        /* 문학 전용 긴 밑줄 */
-        .long-blank-line {
-            display: block; 
-            border-bottom: 1px solid #000; 
-            margin: 5px 0 15px 0; 
-            min-height: 1.5em; 
-            width: 95%; 
-        }
-        .answer-line-gap { /* 문학 서술형 답안용 큰 공백 밑줄 */
-            display: block;
-            border-bottom: 1px solid #000;
-            margin: 25px 0 25px 0;
-            min-height: 1.5em;
-            width: 95%;
-        }
-
-        /* 빈칸 밑줄 */
-        .blank {
-            display: inline-block;
-            min-width: 60px;
-            border-bottom: 1px solid #000;
-            margin: 0 2px;
-            vertical-align: bottom;
-            height: 1.2em;
-        }
-        
-        /* 테이블 스타일 (문학: 유형 4) */
-        .analysis-table { 
-            width: 100%; border-collapse: collapse; margin-top: 10px; 
-            font-size: 0.95em; line-height: 1.4;
-        }
-        .analysis-table th, .analysis-table td { 
-            border: 1px solid #000; padding: 8px; text-align: left;
-        }
-        .analysis-table th { 
-            background-color: #e6e6fa; 
-            text-align: center; font-weight: bold;
-        }
-        .analysis-table .blank-row { height: 35px; }
-
-        /* 정답/해설 */
-        .answer-sheet { 
-            background: #f8f9fa; padding: 40px; margin-top: 50px; 
-            border: 1px solid #ccc; border-radius: 10px; 
-            page-break-before: always; line-height: 1.8; font-size: 10.5pt;
-        }
-        
-        @media print { body { padding: 0; } }
-    </style>
-</head>
-<body>
-"""
 
 HTML_TAIL = """
 </body>
@@ -300,44 +89,42 @@ def create_docx(html_content, file_name, current_topic, is_fiction=False):
         
         passage_html = passage_match.group(1).strip()
         
-        # 문단 요약 필드를 찾아 표로 변환
-        # 먼저, 문단 요약 필드를 지문 내용에서 분리합니다.
-        parts = re.split(r'(📝 문단 요약 :.*?)(?:<\/p>|<div class="summary-blank">)', passage_html, flags=re.DOTALL)
-        
-        current_paragraph_content = ""
+        # 4-1. 지문 내용과 문단 요약 필드를 분리하여 셀에 추가
+        parts = re.split(r'(<div class="summary-blank">.*?<\/div>|<div class="source-info">.*?<\/div>)', passage_html, flags=re.DOTALL)
         
         for part in parts:
-            if not part or re.match(r'📝 문단 요약 :', part):
+            if not part.strip():
                 continue
-            
-            if "📝 문단 요약" in part:
-                # 문단 요약 테이블 추가
+
+            if part.startswith('<div class="summary-blank">'):
+                # 문단 요약 테이블 추가 (박스 효과)
                 summary_table = document.add_table(rows=1, cols=1)
                 summary_table.width = Inches(6.5)
                 sum_cell = summary_table.cell(0, 0)
-                # sum_cell.vertical_alignment = 1 # Enum 오류 방지
+                # sum_cell.vertical_alignment = 1 
                 sum_cell.paragraphs[0].add_run("📝 문단 요약 :").bold = True
-                # 빈 줄 추가 (칸 확보)
-                sum_cell.add_paragraph(' \n \n')
+                sum_cell.add_paragraph(' \n \n') # 빈 줄 추가 (칸 확보)
+            
+            elif part.startswith('<div class="source-info">'):
+                # 출처 정보 추가
+                source_text = re.sub(r'<[^>]+>', '', part).strip()
+                cell.add_paragraph(f"\n{source_text}", style='Caption') # Caption 스타일로 작게 추가
+                
             else:
                 # 일반 지문 문단 처리
-                current_paragraph_content += part
-        
-        # 현재까지 추출된 지문 내용을 테이블 셀에 추가
-        passage_paragraphs = re.split(r'<\/p>', current_paragraph_content)
-        
-        for p_html in passage_paragraphs:
-            # (가), (나) 라벨 처리
-            label_match = re.search(r'<span class="passage-label">(.*?)<\/span>', p_html)
-            if label_match:
-                 label = label_match.group(1).strip()
-                 cell.paragraphs[0].add_run(f"[{label}]\n").bold = True
-                 p_html = re.sub(r'<span class="passage-label">.*?<\/span><br>', '', p_html)
+                paragraphs = re.split(r'<\/p>', part)
+                for p_html in paragraphs:
+                    # (가), (나) 라벨 처리
+                    label_match = re.search(r'<span class="passage-label">(.*?)<\/span>', p_html)
+                    if label_match:
+                         label = label_match.group(1).strip()
+                         cell.paragraphs[0].add_run(f"\n[{label}]\n").bold = True
+                         p_html = re.sub(r'<span class="passage-label">.*?<\/span><br>', '', p_html)
 
-            p_text = re.sub(r'<[^>]+>', '', p_html).strip()
-            if p_text:
-                cell.add_paragraph(p_text)
-                
+                    p_text = re.sub(r'<[^>]+>', '', p_html).strip()
+                    if p_text:
+                        cell.add_paragraph(p_text)
+                        
     # 5. 문제 및 해설 영역 처리 (나머지 내용)
     
     # 해설 영역(answer-sheet) 추출
@@ -345,15 +132,17 @@ def create_docx(html_content, file_name, current_topic, is_fiction=False):
     
     if answer_sheet_match:
         # 문제 블록 추출 (지문 끝부터 해설 전까지)
-        problem_block_start = passage_match.end() if passage_match else (h2_match.end() if h2_match else 0)
         problem_block_end = answer_sheet_match.start()
-        problem_block = clean_html_body[problem_block_start:problem_block_end]
+        
+        # HTML Header/지문 이후의 모든 콘텐츠를 문제 블록으로 간주
+        # 이전에 추출한 H1, H2, Time-box, Passage 끝 이후부터 해설 전까지 추출
+        problem_block = clean_html_body[passage_match.end() if passage_match else 0 : problem_block_end]
         
         document.add_heading("II. 문제", level=1)
         
         # **[수정] 추천 문제의 정답 노출 방지**
-        # <p>정답: (정답 번호)</p> 패턴을 문제 블록에서 제거합니다.
-        problem_block = re.sub(r'<p>정답: \(정답 번호\)<\/p>', '', problem_block, flags=re.DOTALL)
+        # 문제 블록에서 <p>정답: (정답 번호)</p> 패턴을 제거합니다.
+        problem_block = re.sub(r'<p>정답:.*?<\/p>', '', problem_block, flags=re.DOTALL)
         
         # 문제 블록을 문제 유형별로 나누기 (<h3> 또는 <h4> 태그 기준으로)
         question_parts = re.split(r'(<h3>.*?<\/h3>|<h4>.*?<\/h4>)', problem_block, flags=re.DOTALL)
@@ -917,8 +706,7 @@ def non_fiction_app():
                                 <div>④ 보기4</div>
                                 <div>⑤ 보기5</div>
                             </div>
-                            <p>정답: (정답 번호)</p>
-                        </div>
+                            <p style='display: none;'>정답: (정답 번호)</p> </div>
                     </div>
                     """
                     reqs.append(rec_prompt)
@@ -1049,7 +837,7 @@ def non_fiction_app():
                         "topic": current_topic,
                         "type": "non_fiction"
                     }
-                    st.success(f"✅ 생성 완료! (사용 모델: {model_name})")
+                    status.success(f"✅ 생성 완료! (사용 모델: {model_name})")
                     clear_generation_status()
 
 
@@ -1498,7 +1286,7 @@ with col_input:
 
     elif current_app_mode == "📖 문학 문제 제작":
         # 머리말 및 입력창 출력
-        st.header("📖 문학 심층 분석 콘텐츠 제작")
+        st.header("📖 문학 모의평가 출제")
         st.subheader("📖 분석할 소설 텍스트 입력")
         
         # 문학 영역일 경우, 소설 텍스트를 입력받음
