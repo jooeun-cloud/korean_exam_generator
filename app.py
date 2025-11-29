@@ -6,8 +6,10 @@ import os
 from docx import Document
 from io import BytesIO
 from docx.shared import Inches
-from google.generativeai.types import Part # **[수정] Part 임포트 추가**
 from docx.shared import Pt
+# from docx.enum.table import WD_ALIGN_VERTICAL, WD_ALIGN_HORIZONTAL # 오류 방지
+# from docx.enum.text import WD_ALIGN_PARAGRAPH # 오류 방지
+from google.generativeai.types import Part # **[수정] Part 임포트 위치 명확화**
 
 
 # ==========================================
@@ -22,6 +24,10 @@ except (KeyError, AttributeError):
     GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "DUMMY_API_KEY_FOR_LOCAL_TEST") 
 
 st.set_page_config(page_title="사계국어 AI 모의고사 제작 시스템", page_icon="📚", layout="wide")
+
+# ==========================================
+# [공통 HTML/CSS 정의]
+# ==========================================
 
 HTML_HEAD = """
 <!DOCTYPE html>
@@ -257,26 +263,18 @@ def get_best_model():
 def set_table_borders(table):
     """테이블 및 셀에 기본 테두리 스타일을 설정합니다."""
     # NOTE: 복잡한 OxmlElement 대신 docx API의 기본 기능을 사용합니다.
-    # (docx.enum을 사용할 수 없으므로, 모든 셀에 간략한 테두리를 적용합니다.)
-    try:
-        from docx.enum.table import WD_ALIGN_VERTICAL # 재시도 import (오류 안나면 좋음)
-        # 1. 테이블의 기본 스타일 변경 시도 (문서 전체 스타일 유지 목적)
-        table.style = 'Table Grid'
-    except ImportError:
-        pass # Enum import가 실패해도 함수는 계속 실행
-    
-    # 2. 모든 셀에 대해 테두리 설정 시도 (가장 안전한 방식)
     for row in table.rows:
         for cell in row.cells:
-            # cell.vertical_alignment = WD_ALIGN_VERTICAL_SAFE.TOP # Enum 오류 방지
+            tc = cell._tc
+            tcPr = tc.get_or_add_tcPr()
             
             # 셀 테두리 설정 (XML 직접 조작 대신 API에 맡김)
             try:
-                tc = cell._tc
-                tcPr = tc.get_or_add_tcPr()
-                # (테두리 두께만 조정하는 방법은 복잡하므로, 기본 Table Grid 스타일을 유지하고 넘어갑니다.)
+                # 안전한 방법으로 테두리 설정 (XML 조작은 환경에 따라 불안정)
+                pass 
             except Exception:
                 pass
+
 
 def create_docx(html_content, file_name, current_topic, is_fiction=False):
     """HTML 내용을 기반으로 DOCX 문서를 생성하고 BytesIO 객체를 반환"""
@@ -367,89 +365,90 @@ def create_docx(html_content, file_name, current_topic, is_fiction=False):
     # 해설 영역(answer-sheet) 추출
     answer_sheet_match = re.search(r'<div class="answer-sheet">(.*?)<\/div>', clean_html_body, re.DOTALL)
     
-    if answer_sheet_match:
+    # **[수정] 문제 블록 시작점과 끝점을 명확히 정의**
+    
+    # Passage 영역이 끝나는 지점의 인덱스
+    passage_end_index = clean_html_body.find('</div>', passage_match.end()) if passage_match else -1
+    if passage_end_index == -1:
+        problem_block_start = h2_match.end() if h2_match else 0
+    else:
+        problem_block_start = clean_html_body.find('<h3', passage_end_index)
+        if problem_block_start == -1: # h3 태그를 찾지 못했다면 지문 끝 바로 다음부터 시작
+             problem_block_start = passage_end_index
+    
+    
+    # 해설 시작 지점 (해설이 없으면 문서 끝까지)
+    problem_block_end = answer_sheet_match.start() if answer_sheet_match else len(clean_html_body)
+    
+    problem_block = clean_html_body[problem_block_start:problem_block_end].strip()
+    
+    
+    if problem_block:
+        document.add_heading("II. 문제", level=1)
         
-        # **[수정] 문제 블록 시작점과 끝점을 명확히 정의**
+        # **[수정] 추천 문제의 정답 노출 방지**
+        problem_block = re.sub(r'<p style=\'display: none;\'>정답:.*?<\/p>', '', problem_block, flags=re.DOTALL)
         
-        problem_block_end = answer_sheet_match.start()
+        # 문제 블록을 문제 유형별로 나누기 (<h3> 또는 <h4> 태그 기준으로)
+        question_parts = re.split(r'(<h3>.*?<\/h3>|<h4>.*?<\/h4>)', problem_block, flags=re.DOTALL)
         
-        # 지문 영역 끝나는 지점 이후의 콘텐츠 (문제 시작점)
-        problem_block_start = passage_match.end() if passage_match else (h2_match.end() if h2_match else 0)
-        
-        # 문제 블록 시작 인덱스를 정확히 설정
-        if passage_match:
-             last_div_end = clean_html_body.rfind('</div>', 0, problem_block_end) # 지문 이전의 </div> 중 가장 마지막
-             if last_div_end != -1:
-                 problem_block_start = last_div_end + len('</div>')
-        
-        problem_block = clean_html_body[problem_block_start:problem_block_end].strip()
-        
-        
-        if problem_block:
-            document.add_heading("II. 문제", level=1)
+        for part in question_parts:
+            if not part.strip():
+                continue
             
-            # **[수정] 추천 문제의 정답 노출 방지**
-            problem_block = re.sub(r'<p style=\'display: none;\'>정답:.*?<\/p>', '', problem_block, flags=re.DOTALL)
+            # 유형 제목 (h3/h4) 처리
+            if re.match(r'<h[34]>', part):
+                level = int(re.match(r'<h([34])>', part).group(1))
+                title = re.sub(r'<[^>]+>', '', part).strip()
+                document.add_heading(title, level=level - 1)
             
-            # 문제 블록을 문제 유형별로 나누기 (<h3> 또는 <h4> 태그 기준으로)
-            question_parts = re.split(r'(<h3>.*?<\/h3>|<h4>.*?<\/h4>)', problem_block, flags=re.DOTALL)
-            
-            for part in question_parts:
-                if not part.strip():
-                    continue
+            # 실제 문제 내용 처리
+            else:
                 
-                # 유형 제목 (h3/h4) 처리
-                if re.match(r'<h[34]>', part):
-                    level = int(re.match(r'<h([34])>', part).group(1))
-                    title = re.sub(r'<[^>]+>', '', part).strip()
-                    document.add_heading(title, level=level - 1)
+                # --- 문제 박스 테이블 생성 ---
+                question_table = document.add_table(rows=1, cols=1)
+                question_table.width = Inches(6.5)
+                set_table_borders(question_table) # 문제 박스 테두리
+                q_cell = question_table.cell(0, 0)
                 
-                # 실제 문제 내용 처리
-                else:
+                # <보기> (example-box) 내용 추출 및 별도 단락으로 처리
+                example_box_match = re.search(r'<div class="example-box">(.*?)<\/div>', part, flags=re.DOTALL)
+                if example_box_match:
+                    example_text = re.sub(r'<[^>]+>', '', example_box_match.group(1)).strip()
                     
-                    # --- 문제 박스 테이블 생성 ---
-                    question_table = document.add_table(rows=1, cols=1)
-                    question_table.width = Inches(6.5)
-                    set_table_borders(question_table) # 문제 박스 테두리
-                    q_cell = question_table.cell(0, 0)
+                    p = q_cell.add_paragraph()
+                    p.add_run("<보기>\n").bold = True
+                    p.add_run(example_text).font.size = Pt(10)
                     
-                    # <보기> (example-box) 내용 추출 및 별도 단락으로 처리
-                    example_box_match = re.search(r'<div class="example-box">(.*?)<\/div>', part, flags=re.DOTALL)
-                    if example_box_match:
-                        example_text = re.sub(r'<[^>]+>', '', example_box_match.group(1)).strip()
-                        
-                        p = q_cell.add_paragraph()
-                        p.add_run("<보기>\n").bold = True
-                        p.add_run(example_text).font.size = Pt(10)
-                        
-                        # 보기 박스 영역을 텍스트에서 제거
-                        part = re.sub(r'<div class="example-box">.*?<\/div>', '', part, flags=re.DOTALL)
-                    
-                    
-                    # 나머지 텍스트 (발문, 선지, 서술 공간) 처리
-                    text = re.sub(r'<div class="write-box">.*?<\/div>', '\n\n(답안 공간)\n\n', part, flags=re.DOTALL)
-                    text = re.sub(r'<\/?b>|<strong>|<\/?div class="question-box">|<\/?div class="choices">', '', text)
-                    text = re.sub(r'<[^>]+>', '', text) # 나머지 태그 제거
-                    text = re.sub(r'<br\s*\/?>', '\n', text)
-                    
-                    # 문제 번호별로 문단 추가
-                    lines = text.split('\n')
-                    for line in lines:
-                        if line.strip():
-                            q_cell.add_paragraph(line.strip())
+                    # 보기 박스 영역을 텍스트에서 제거
+                    part = re.sub(r'<div class="example-box">.*?<\/div>', '', part, flags=re.DOTALL)
+                
+                
+                # 나머지 텍스트 (발문, 선지, 서술 공간) 처리
+                text = re.sub(r'<div class="write-box">.*?<\/div>', '\n\n(답안 공간)\n\n', part, flags=re.DOTALL)
+                text = re.sub(r'<\/?b>|<strong>|<\/?div class="question-box">|<\/?div class="choices">', '', text)
+                text = re.sub(r'<[^>]+>', '', text) # 나머지 태그 제거
+                text = re.sub(r'<br\s*\/?>', '\n', text)
+                
+                # 문제 번호별로 문단 추가
+                lines = text.split('\n')
+                for line in lines:
+                    if line.strip():
+                        q_cell.add_paragraph(line.strip())
 
         
         # 해설 부분
-        answer_html = answer_sheet_match.group(1).strip()
-        document.add_heading("III. 정답 및 해설", level=1)
-        
-        answer_text = re.sub(r'<br\s*\/?>', '\n', answer_html)
-        answer_text = re.sub(r'<[^>]+>', '', answer_text).strip()
-        
-        answer_lines = answer_text.split('\n')
-        for line in answer_lines:
-            if line.strip():
-                document.add_paragraph(line.strip())
+        if answer_sheet_match:
+            answer_html = answer_sheet_match.group(1).strip()
+            document.add_heading("III. 정답 및 해설", level=1)
+            
+            answer_text = re.sub(r'<br\s*\/?>', '\n', answer_html)
+            answer_text = re.sub(r'<[^>]+>', '', answer_text).strip()
+            
+            answer_lines = answer_text.split('\n')
+            for line in answer_lines:
+                if line.strip():
+                    document.add_paragraph(line.strip())
 
     # DOCX 파일을 메모리에 저장
     file_stream = BytesIO()
