@@ -1058,7 +1058,7 @@ def non_fiction_app():
                 if total_objective_count > 0:
                     # **오류 방지 위해 rule_text를 빈 문자열로 사용**
                     rule_text = objective_rule_text_nonfiction
-                    count_text = f"<h4>객관식 정답 및 해설 ({total_objective_count}문항)</h4><br>[지시]: {total_objective_count}문항의 정답(번호) 및 상세 해설(정답 풀이, 오답 풀이)을 작성. 각 문제 해설 사이에 <br><br><br> 태그를 사용하여 충분히 간격을 확보할 것. (해설 양식 규칙 텍스트는 서버 오류 회피를 위해 생략됨)<br><br>"
+                    count_text = f"<h4>객관식 정답 및 해설 ({total_objective_count}문항)</h4><br>[지시]: {total_objective_count}문항의 정답(번호) 및 상세 해설을 작성. 각 문제 해설 사이에 <br><br><br> 태그를 사용하여 **[최중요] 정답뿐만 아니라 오답 선지 각각의 틀린 이유를 명확하게 설명하고, 반드시 모든 선지의 정오(正誤) 판별 이유를 명시**할 것.<br><br>"
                     prompt_answer_obj = rule_text + count_text
                 
                 # 3. 프롬프트 최종 마침 부분
@@ -1398,7 +1398,7 @@ def fiction_app():
                 if current_count_t3 > 0:
                     # **오류 방지 위해 rule_text를 빈 문자열로 사용**
                     rule_text = objective_rule_text_fiction
-                    count_text = f"<h4>유형 3. 객관식 문제 정답 및 해설 ({current_count_t3}문항)</h4><br>[지시]: {current_count_t3}문항의 정답(번호) 및 상세 해설(정답 풀이, 오답 풀이)을 작성. 각 문제 해설 사이에 <br><br><br> 태그를 사용하여 충분히 간격을 확보할 것. (해설 양식 규칙 텍스트는 서버 오류 회피를 위해 생략됨)<br><br>"
+                    count_text = f"<h4>유형 3. 객관식 문제 정답 및 해설 ({current_count_t3}문항)</h4><br>[지시]: {current_count_t3}문항의 정답(번호) 및 상세 해설을 작성. 각 문제 해설 사이에 <br><br><br> 태그를 사용하여 **[최중요] 정답뿐만 아니라 오답 선지 각각의 틀린 이유를 명확하게 설명하고, 반드시 모든 선지의 정오(正誤) 판별 이유를 명시**할 것.<br><br>"
                     
                     rule_block = rule_text + count_text
                     
