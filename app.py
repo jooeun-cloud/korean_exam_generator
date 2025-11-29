@@ -7,9 +7,7 @@ from docx import Document
 from io import BytesIO
 from docx.shared import Inches
 from docx.shared import Pt
-from google.generativeai.types import Part 
-# from docx.enum.table import WD_ALIGN_VERTICAL, WD_ALIGN_HORIZONTAL # 오류 방지
-# from docx.enum.text import WD_ALIGN_PARAGRAPH # 오류 방지
+# from google.generativeai.types import Part # **[오류 발생 원인] 이 라인을 삭제하고 genai.types.Part 사용**
 
 
 # ==========================================
@@ -27,7 +25,6 @@ st.set_page_config(page_title="사계국어 AI 모의고사 제작 시스템", p
 
 # ==========================================
 # [공통 HTML/CSS 정의]
-# ... (중략: HTML/CSS 정의는 동일) ...
 # ==========================================
 
 HTML_HEAD = """
@@ -263,17 +260,29 @@ def get_best_model():
 # DOCX 테이블에 테두리를 설정하는 헬퍼 함수
 def set_table_borders(table):
     """테이블 및 셀에 기본 테두리 스타일을 설정합니다."""
-    for row in table.rows:
-        for cell in row.cells:
-            tc = cell._tc
-            tcPr = tc.get_or_add_tcPr()
-            
-            # 셀 테두리 설정 (XML 직접 조작 대신 API에 맡김)
-            try:
-                # 안전한 방법으로 테두리 설정 시도 (Table Grid 스타일 유지)
-                pass 
-            except Exception:
-                pass
+    # NOTE: Enum 오류 방지를 위해 XML 직접 조작 코드는 삭제하고, 기본 API만 사용합니다.
+    try:
+        from docx.oxml.ns import qn
+        from docx.oxml import OxmlElement
+        
+        for row in table.rows:
+            for cell in row.cells:
+                tc = cell._tc
+                tcPr = tc.get_or_add_tcPr()
+                
+                # 기본 테두리 설정 (단색, 1/4 pt)
+                for border_name in ('top', 'left', 'bottom', 'right'):
+                    borders = OxmlElement(qn('w:tcBorders'))
+                    border = OxmlElement(f'w:{border_name}')
+                    border.set(qn('w:val'), 'single')
+                    border.set(qn('w:sz'), '4') # 두께 1/4 pt
+                    border.set(qn('w:color'), 'auto')
+                    
+                    borders.append(border)
+                    tcPr.append(borders)
+    except Exception:
+        # docx.oxml 관련 import가 실패해도 실행되도록 처리
+        pass
 
 
 def create_docx(html_content, file_name, current_topic, is_fiction=False):
@@ -769,8 +778,8 @@ def non_fiction_app():
                             사용자 입력 지문을 분석하여 문단별로 <p> 태그와 </p> 태그를 정확히 사용하고, 각 </p> 태그 바로 다음에 <div class='summary-blank'>📝 문단 요약 : </div> 태그를 삽입하시오. **결과는 오직 HTML 태그와 지문 내용으로만 출력해야 합니다.**
                             [텍스트]: {current_manual_passage}
                             """
-                            p_tag_response = model.generate_content(re_prompt_summary, generation_config=GenerationConfig(temperature=0.0, max_output_tokens=4000))
-                            manual_passage_content = p_tag_response.text.replace("```html", "").replace("```", "").strip()
+                            summary_response = model.generate_content(re_prompt_summary, generation_config=GenerationConfig(temperature=0.0, max_output_tokens=4000))
+                            manual_passage_content = summary_response.text.replace("```html", "").replace("```", "").strip()
                             
                             summary_answer_inst = """
                             - 정답지 맨 앞부분에 **[지문 문단별 핵심 요약 정답]** 섹션을 만드시오.
@@ -1431,7 +1440,7 @@ def fiction_app():
                 """
                 
                 # 최종 prompt 결합
-                prompt = prompt_start + prompt_answer_content + prompt_end
+                prompt = prompt_start + prompt_answer_obj + prompt_end
                 
                 
                 response = model.generate_content(prompt, generation_config=generation_config)
