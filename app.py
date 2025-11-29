@@ -6,6 +6,8 @@ import os
 from docx import Document
 from io import BytesIO
 from docx.shared import Inches
+from docx.enum.table import WD_ALIGN_VERTICAL, WD_ALIGN_HORIZONTAL
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 # ==========================================
 # [설정] API 키 연동 (Streamlit Cloud Secrets 권장)
@@ -255,7 +257,38 @@ def get_best_model():
 # [DOCX 생성 및 다운로드 함수]
 # ==========================================
 
-# 4. 지문 영역 추출 및 처리
+def create_docx(html_content, file_name, current_topic, is_fiction=False):
+    """HTML 내용을 기반으로 DOCX 문서를 생성하고 BytesIO 객체를 반환"""
+    document = Document()
+    
+    # ------------------ [DOCX 파싱 로직] --------------------
+    
+    # 0. HTML <head> 및 <body> 태그 이전/이후의 불필요한 부분을 제거
+    # 이 부분은 DOCX에 포함될 본문(body) 내용만 남깁니다.
+    clean_html_body = re.sub(r'.*?<body[^>]*>', '', html_content, flags=re.DOTALL | re.IGNORECASE)
+    clean_html_body = re.sub(r'<\/body>.*?<\/html>', '', clean_html_body, flags=re.DOTALL | re.IGNORECASE)
+    
+    
+    # 1. <h1> 사계국어 비문학 스펙트럼 </h1> 추출
+    h1_match = re.search(r'<h1>(.*?)<\/h1>', clean_html_body, re.DOTALL)
+    if h1_match:
+        h1_text = re.sub(r'<[^>]+>', '', h1_match.group(1)).strip()
+        document.add_heading(h1_text, level=0)
+    
+    # 2. <h2> [영역: 주제] </h2> 추출
+    h2_match = re.search(r'<h2>(.*?)<\/h2>', clean_html_body, re.DOTALL)
+    if h2_match:
+        h2_text = re.sub(r'<[^>]+>', '', h2_match.group(1)).strip()
+        document.add_heading(h2_text, level=2) # 2레벨 제목
+        
+    # 3. 시간 박스 추출 및 추가
+    time_box_match = re.search(r'<div class="time-box">(.*?)<\/div>', clean_html_body, re.DOTALL)
+    if time_box_match:
+        time_text = re.sub(r'<[^>]+>', '', time_box_match.group(1)).strip()
+        document.add_paragraph(f"--- {time_text} ---") # 텍스트 형태로 간략하게 추가
+    
+    
+    # 4. 지문 영역 추출 및 처리
     passage_match = re.search(r'<div class="passage">(.*?)<\/div>', clean_html_body, re.DOTALL)
     
     # --- DOCX 박스 구현 시작 ---
@@ -306,7 +339,7 @@ def get_best_model():
             if p_text:
                 cell.add_paragraph(p_text)
                 
-    # 5. 문제 및 해설 영역 처리
+    # 5. 문제 및 해설 영역 처리 (나머지 내용)
     
     # 해설 영역(answer-sheet) 추출
     answer_sheet_match = re.search(r'<div class="answer-sheet">(.*?)<\/div>', clean_html_body, re.DOTALL)
