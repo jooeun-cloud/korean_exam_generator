@@ -1144,7 +1144,7 @@ def non_fiction_app():
             except Exception as e:
                 status.error(f"오류 발생: {e}")
                 clear_generation_status()
-                
+
 
 # ==========================================
 # 📖 문학 문제 제작 함수
@@ -1558,7 +1558,7 @@ with col_input:
     current_app_mode = st.session_state.get('app_mode')
 
     if current_app_mode == "⚡ 비문학 문제 제작":
-        # **[수정] 머리말을 컬럼 맨 위에 출력 (중복 방지)**
+        # 머리말을 컬럼 맨 위에 출력
         st.header("⚡ 비문학 모의평가 출제")
         
         current_d_mode = st.session_state.get('domain_mode_select', 'AI 생성')
@@ -1606,9 +1606,8 @@ with col_input:
 st.markdown("---") # 메인 콘텐츠 분할선
 
 # 2. 선택에 따른 함수 실행 (메인 콘텐츠 영역 아래에서 실행)
-# **[수정] 이 함수들이 AI 생성 로직을 실행**
 if problem_type == "⚡ 비문학 문제 제작":
-    non_fiction_app() 
+    non_fiction_app()
 elif problem_type == "📖 문학 문제 제작":
     fiction_app()
 
