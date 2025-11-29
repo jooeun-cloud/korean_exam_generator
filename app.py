@@ -1,11 +1,10 @@
 import streamlit as st
 import google.generativeai as genai
 from google.generativeai.types import GenerationConfig
-from docx import Document
-from io import BytesIO
 import re 
 import os
-
+from docx import Document
+from io import BytesIO
 
 # ==========================================
 # [설정] API 키 연동 (Streamlit Cloud Secrets 권장)
@@ -19,82 +18,6 @@ except (KeyError, AttributeError):
     GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "DUMMY_API_KEY_FOR_LOCAL_TEST") 
 
 st.set_page_config(page_title="사계국어 AI 모의고사 제작 시스템", page_icon="📚", layout="wide")
-
-
-# ==========================================
-# [DOCX 생성 및 다운로드 함수]
-# ==========================================
-
-def create_docx(html_content, file_name, work_name, is_fiction=False):
-    """HTML 내용을 기반으로 DOCX 문서를 생성하고 BytesIO 객체를 반환"""
-    document = Document()
-    
-    # 제목 및 기본 정보 추가
-    document.add_heading(file_name.replace(".docx", ""), level=0)
-    
-    # HTML에서 텍스트 및 태그를 추출하여 구조화
-    clean_text = html_content
-    
-    # 1. 지문 영역 추출 및 처리 (가장 먼저)
-    passage_match = re.search(r'<div class="passage">(.*?)<\/div>', clean_text, re.DOTALL)
-    if passage_match:
-        passage_html = passage_match.group(1).strip()
-        
-        document.add_heading("I. 지문", level=1)
-        
-        # (가), (나) 지문 분리
-        sub_passages = re.split(r'(<span class="passage-label">.*?<\/span>)', passage_html)
-        
-        for part in sub_passages:
-            if part.startswith('<span class="passage-label">'):
-                # (가) 또는 (나) 라벨 처리
-                label = re.search(r'>(.*?)<', part).group(1).strip()
-                document.add_heading(f"[{label}]", level=2)
-            elif part.strip():
-                # 문단 텍스트 처리 (HTML 태그 제거)
-                paragraphs = re.split(r'<\/p>', part)
-                for p_html in paragraphs:
-                    p_text = re.sub(r'<[^>]+>', '', p_html).strip()
-                    if p_text:
-                        document.add_paragraph(p_text)
-                        
-    # 2. 문제 및 해설 영역 처리 (나머지 내용)
-    questions_and_answers = re.split(r'(<h3>.*?<\/h3>|<h4>.*?<\/h4>|\[지문 문단별 핵심 요약 정답\])', clean_text)
-    
-    for qa_block in questions_and_answers:
-        if not qa_block.strip() or re.match(r'<div class="passage">', qa_block):
-            continue
-            
-        # 제목 태그 처리
-        if re.match(r'<h[34]>', qa_block):
-            level = int(re.match(r'<h([34])>', qa_block).group(1))
-            title = re.sub(r'<[^>]+>', '', qa_block).strip()
-            document.add_heading(title, level=level - 1)
-        
-        # 정답지 헤딩 처리
-        elif "[지문 문단별 핵심 요약 정답]" in qa_block:
-             document.add_heading("IV. 정답 및 해설", level=1)
-             document.add_heading("[지문 문단별 핵심 요약 정답]", level=2)
-             
-        # 일반 텍스트 및 문제 포맷팅 처리
-        else:
-            # HTML 태그 제거 및 줄 바꿈(\n) 정리
-            text = re.sub(r'<br\s*\/?>', '\n', qa_block)
-            text = re.sub(r'<[^>]+>', '', text).strip()
-            
-            if text:
-                # 문제 번호 등으로 시작하는 줄은 새 문단으로 처리
-                lines = text.split('\n')
-                for line in lines:
-                    line = line.strip()
-                    if line:
-                        document.add_paragraph(line)
-
-    # DOCX 파일을 메모리에 저장
-    file_stream = BytesIO()
-    document.save(file_stream)
-    file_stream.seek(0)
-    return file_stream
 
 # ==========================================
 # [공통 HTML/CSS 정의]
@@ -327,6 +250,109 @@ def get_best_model():
         return 'gemini-2.5-flash'
 
 
+# ==========================================
+# [DOCX 생성 및 다운로드 함수]
+# ==========================================
+
+def create_docx(html_content, file_name, current_topic, is_fiction=False):
+    """HTML 내용을 기반으로 DOCX 문서를 생성하고 BytesIO 객체를 반환"""
+    document = Document()
+    
+    # ------------------ [수정 시작] --------------------
+    # 제목 (h1, h2) 및 시간 박스 추출
+    
+    # AI 생성 HTML은 보통 <h1>...</h1><h2>...</h2><div class="time-box">...</div><div class="passage">...</div> 순서로 시작합니다.
+    
+    header_end_index = 0
+    passage_start_match = re.search(r'<div class="passage">', html_content)
+    if passage_start_match:
+        header_end_index = passage_start_match.start()
+    
+    header_content = html_content[:header_end_index]
+    
+    # 1. <h1> 사계국어 비문학 스펙트럼 </h1> 추출
+    h1_match = re.search(r'<h1>(.*?)<\/h1>', header_content, re.DOTALL)
+    if h1_match:
+        h1_text = re.sub(r'<[^>]+>', '', h1_match.group(1)).strip()
+        document.add_heading(h1_text, level=0)
+    
+    # 2. <h2> [영역: 주제] </h2> 추출
+    h2_match = re.search(r'<h2>(.*?)<\/h2>', header_content, re.DOTALL)
+    if h2_match:
+        h2_text = re.sub(r'<[^>]+>', '', h2_match.group(1)).strip()
+        document.add_heading(h2_text, level=2) # 2레벨 제목
+        
+    # 3. 시간 박스 추출 및 추가
+    time_box_match = re.search(r'<div class="time-box">(.*?)<\/div>', header_content, re.DOTALL)
+    if time_box_match:
+        time_text = re.sub(r'<[^>]+>', '', time_box_match.group(1)).strip()
+        document.add_paragraph(f"--- {time_text} ---") # 텍스트 형태로 간략하게 추가
+    
+    # ------------------ [수정 끝] --------------------
+    
+    # 4. 지문 및 문제/해설 영역 처리
+    
+    # 지문 영역 추출
+    passage_match = re.search(r'<div class="passage">(.*?)<\/div>', clean_content, re.DOTALL)
+    if passage_match:
+        passage_html = passage_match.group(1).strip()
+        
+        document.add_heading("I. 지문", level=1)
+        
+        # (가), (나) 지문 분리
+        sub_passages = re.split(r'(<span class="passage-label">.*?<\/span>)', passage_html)
+        
+        for part in sub_passages:
+            if part.startswith('<span class="passage-label">'):
+                # (가) 또는 (나) 라벨 처리
+                label = re.search(r'>(.*?)<', part).group(1).strip()
+                document.add_heading(f"[{label}]", level=2)
+            elif part.strip():
+                # 문단 텍스트 처리 (HTML 태그 제거)
+                paragraphs = re.split(r'<\/p>', part)
+                for p_html in paragraphs:
+                    p_text = re.sub(r'<[^>]+>', '', p_html).strip()
+                    if p_text:
+                        document.add_paragraph(p_text)
+                        
+    # 5. 문제 및 해설 영역 처리 (나머지 내용)
+    questions_and_answers = re.split(r'(<h3>.*?<\/h3>|<h4>.*?<\/h4>|\[지문 문단별 핵심 요약 정답\])', clean_content)
+    
+    for qa_block in questions_and_answers:
+        if not qa_block.strip() or re.match(r'<div class="passage">', qa_block):
+            continue
+            
+        # 제목 태그 처리
+        if re.match(r'<h[34]>', qa_block):
+            level = int(re.match(r'<h([34])>', qa_block).group(1))
+            title = re.sub(r'<[^>]+>', '', qa_block).strip()
+            document.add_heading(title, level=level - 1)
+        
+        # 정답지 헤딩 처리
+        elif "[지문 문단별 핵심 요약 정답]" in qa_block:
+             document.add_heading("IV. 정답 및 해설", level=1)
+             document.add_heading("[지문 문단별 핵심 요약 정답]", level=2)
+             
+        # 일반 텍스트 및 문제 포맷팅 처리
+        else:
+            # HTML 태그 제거 및 줄 바꿈(\n) 정리
+            text = re.sub(r'<br\s*\/?>', '\n', qa_block)
+            text = re.sub(r'<[^>]+>', '', text).strip()
+            
+            if text:
+                # 문제 번호 등으로 시작하는 줄은 새 문단으로 처리
+                lines = text.split('\n')
+                for line in lines:
+                    line = line.strip()
+                    if line:
+                        document.add_paragraph(line)
+
+    # DOCX 파일을 메모리에 저장
+    file_stream = BytesIO()
+    document.save(file_stream)
+    file_stream.seek(0)
+    return file_stream
+
 # --------------------------------------------------------------------------
 # [Session State 및 콜백 함수]
 # --------------------------------------------------------------------------
@@ -343,6 +369,10 @@ if 'manual_passage_input_b' not in st.session_state:
     st.session_state.manual_passage_input_b = ""
 if 'app_mode' not in st.session_state:
     st.session_state.app_mode = "⚡ 비문학 문제 제작" 
+    
+# **[수정 추가] 생성된 결과 데이터를 저장할 Session State 초기화**
+if 'generated_result' not in st.session_state:
+    st.session_state.generated_result = None
 
 # st.radio 오류 방지를 위한 안전한 초기값 설정
 if st.session_state.app_mode not in ["⚡ 비문학 문제 제작", "📖 문학 문제 제작"]:
@@ -352,6 +382,14 @@ if st.session_state.app_mode not in ["⚡ 비문학 문제 제작", "📖 문학
 def request_generation():
     # 모든 요청 시, 세션 상태를 True로 설정
     st.session_state.generation_requested = True
+    # 새로운 생성을 요청할 때는 이전 결과 데이터를 지웁니다.
+    st.session_state.generated_result = None 
+
+
+def clear_generation_status():
+     # 재실행 후 request 상태를 False로 바꾸어 무한 루프를 막고, 결과를 유지합니다.
+     st.session_state.generation_requested = False
+
 
 # 비문학 전용 콜백
 def non_fiction_update_mode():
@@ -419,8 +457,6 @@ st.markdown("""
 
 def non_fiction_app():
     
-    # 이 함수는 이제 UI를 직접 출력하지 않고, 사이드바와 메인 콘텐츠의 세부 로직만 담당합니다.
-    
     # --------------------------------------------------------------------------
     # [설정값 정의]
     # --------------------------------------------------------------------------
@@ -459,7 +495,7 @@ def non_fiction_app():
             current_mode = st.session_state.ai_mode
             current_domain = domain
 
-        # 직접 입력 모드 **[수정 시작]**
+        # 직접 입력 모드 
         else: 
             mode = st.radio("지문 구성 방식", ["단일 지문", "주제 통합 (가) + (나)"], index=0, key="manual_mode")
             domains = ["인문", "철학", "경제", "법률", "사회", "과학", "기술", "예술", "사용자 지정"]
@@ -474,9 +510,11 @@ def non_fiction_app():
             
             else: # 주제 통합 (가) + (나)일 경우
                 st.markdown("#### 🅰️ (가) 지문 영역")
+                # 직접 입력 통합 지문의 (가) 영역 선택
                 domain_a = st.selectbox("[(가) 영역]", domains, key="manual_dom_a")
                 
                 st.markdown("#### 🅱️ (나) 지문 영역")
+                # 직접 입력 통합 지문의 (나) 영역 선택
                 domain_b = st.selectbox("[(나) 영역]", domains, key="manual_dom_b", index=7)
                 
                 # AI 생성 프롬프트에 넘길 때 사용할 통합 영역/주제 설정 (실제 사용은 안 됨)
@@ -487,7 +525,6 @@ def non_fiction_app():
             difficulty = "사용자 지정"
             current_topic = topic
             current_mode = st.session_state.manual_mode
-        # **[수정 끝]**
 
         st.markdown("---")
         
@@ -517,7 +554,7 @@ def non_fiction_app():
     # 이 함수는 UI를 직접 출력하지 않고, 아래 메인 로직에서 처리합니다.
 
     # AI 생성 로직 (함수 내부에서는 변수만 준비)
-    if st.session_state.generation_requested and st.session_state.app_mode == "⚡ 비문학 문제 제작":
+    if st.session_state.generation_requested:
         
         # 입력 값들을 Session State에서 다시 가져옵니다
         current_d_mode = st.session_state.domain_mode_select
@@ -535,7 +572,7 @@ def non_fiction_app():
                 passage_b = st.session_state.get("manual_passage_input_b", "")
                 current_manual_passage = f"[가] 지문:\n{passage_a}\n\n[나] 지문:\n{passage_b}" 
                 
-                # **[수정 반영] 직접 입력 통합 지문 시 영역 설정값 사용**
+                # 직접 입력 통합 지문 시 영역 설정값 사용
                 dom_a = st.session_state.get('manual_dom_a', '사용자 지정')
                 dom_b = st.session_state.get('manual_dom_b', '사용자 지정')
                 current_domain = f"({dom_a}) + ({dom_b})"
@@ -577,16 +614,16 @@ def non_fiction_app():
         # 2. 유효성 검사 (API 키, 필수 입력값)
         if current_d_mode == 'AI 생성' and (current_mode == "단일 지문 (기본)" and not current_topic):
             st.warning("⚠️ AI 생성 모드에서는 주제를 입력해주세요!")
-            st.session_state.generation_requested = False
-        elif current_d_mode == '직접 입력' and not current_manual_passage.strip(): # 수정: 입력된 지문이 비어있는지 확인
+            clear_generation_status()
+        elif current_d_mode == '직접 입력' and not current_manual_passage.strip():
             st.warning("⚠️ 직접 입력 모드에서는 지문을 입력해주세요!")
-            st.session_state.generation_requested = False
+            clear_generation_status()
         elif "DUMMY_API_KEY_FOR_LOCAL_TEST" in GOOGLE_API_KEY:
             st.error("⚠️ Streamlit Secrets에 API 키를 설정해주세요!")
-            st.session_state.generation_requested = False
+            clear_generation_status()
         elif not any([select_t1, select_t2, select_t3, select_t4, select_t5, select_t6, select_t7]) and not use_recommendation:
             st.warning("⚠️ 유형을 최소 하나 이상 선택해주세요.")
-            st.session_state.generation_requested = False
+            clear_generation_status()
         else:
             status = st.empty()
             status.info(f"⚡ [{current_domain}] 영역의 특성을 반영하여 출제 중입니다... (약 20~40초)")
@@ -687,6 +724,7 @@ def non_fiction_app():
                         
                         
                 else: # AI 생성 모드
+                    # **[수정 반영] 난이도 가이드 조건문 추가**
                     if current_difficulty == "최상(LEET급)" or current_difficulty == "상":
                         difficulty_guide = f"""
                         - **[난이도]**: {current_difficulty} 난이도
@@ -700,6 +738,7 @@ def non_fiction_app():
                         - **[문체]**: 교과서나 일반 상식 수준의 쉽고 친절한 설명 문체 사용.
                         - **[요구사항]**: 문장 구조는 단순하고 명료해야 하며, 전문 용어는 반드시 쉽게 풀어 설명할 것. 한 문단은 **6~8문장 내외**로 작성하여 이해하기 쉽게 충분한 설명을 제공하시오. 지문 길이는 1500자 내외로 유지.
                         """
+                    # **[수정 끝]**
                     
                     if use_summary:
                         summary_passage_inst = "<p> 태그로 문단이 끝날 때마다 <div class='summary-blank'>📝 문단 요약 : </div> 태그를 삽입하시오."
@@ -949,45 +988,24 @@ def non_fiction_app():
                 
                 if len(clean_content) < 100 and not current_manual_passage:
                     st.error("⚠️ 생성 오류: AI가 내용을 충분히 생성하지 못했습니다. **다시 생성하기** 버튼을 눌러주세요.")
-                    st.session_state.generation_requested = False
-                # [기존 코드에서 변경할 부분]
-
+                    clear_generation_status()
                 else:
+                    # **[수정] 생성된 결과를 Session State에 저장**
+                    st.session_state.generated_result = {
+                        "full_html": full_html,
+                        "clean_content": clean_content,
+                        "domain": current_domain,
+                        "topic": current_topic,
+                        "type": "non_fiction"
+                    }
                     status.success(f"✅ 생성 완료! (사용 모델: {model_name})")
-                    
-                    # --- [재생성 버튼 및 다운로드 추가] ---
-                    col1, col2, col3 = st.columns([1, 1, 1])
-                    
-                    with col1:
-                        st.button("🔄 다시 생성하기 (같은 내용으로 재요청)", on_click=request_generation)
-                    
-                    with col2:
-                        st.download_button("📥 시험지 다운로드 (HTML)", full_html, f"사계국어_모의고사.html", "text/html")
-                    
-                    # **[이 부분을 아래와 같이 수정하세요]**
-                    with col3:
-                        # 1. 파일 이름 정의
-                        docx_file_name = f"{current_domain.replace(' ', '_')}_모의고사.docx"
-                        
-                        # 2. DOCX 파일 생성 (페이지 로드/재실행 시마다 실행되어야 함)
-                        docx_file = create_docx(clean_content, docx_file_name, current_topic)
-                        
-                        # 3. 다운로드 버튼 렌더링
-                        st.download_button(
-                            label="📄 워드 파일 다운로드 (.docx)",
-                            data=docx_file,
-                            file_name=docx_file_name,
-                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                        )
-                    # ------------------------------------
-
-                    st.components.v1.html(full_html, height=800, scrolling=True)
-                st.session_state.generation_requested = False
+                    clear_generation_status()
 
 
             except Exception as e:
                 status.error(f"오류 발생: {e}")
-                st.session_state.generation_requested = False
+                clear_generation_status()
+
 
 # ==========================================
 # 📖 문학 문제 제작 함수
@@ -1047,21 +1065,14 @@ def fiction_app():
             custom_title_t8 = ""
         
         
-        # 메인 생성 버튼
-        if st.button("🚀 문학 분석 자료 생성 요청", key="fiction_run_btn"):
-            if count_t1 + count_t2 + count_t3 + count_t8 <= 0 and not any([select_t4, select_t5, select_t6, select_t7]):
-                st.warning("⚠️ 최소 하나 이상의 문제 유형을 선택하고 문항 수를 1 이상으로 설정해야 합니다.")
-            elif count_t8 > 0 and not custom_title_t8:
-                st.warning("⚠️ 유형 8 문항 수가 1 이상이면 제목 및 문제 형식을 입력해야 합니다.")
-            else:
-                request_generation()
-
+        # 메인 생성 버튼은 아래 메인 실행부에서 처리됨
+        # if st.button("🚀 문학 분석 자료 생성 요청", key="fiction_run_btn"): ...
 
     # --------------------------------------------------------------------------
     # [AI 생성 및 출력 메인 로직]
     # --------------------------------------------------------------------------
 
-    if st.session_state.generation_requested and st.session_state.app_mode == "📖 문학 문제 제작":
+    if st.session_state.generation_requested:
         
         # Session state에서 값들을 가져옵니다.
         current_work_name = st.session_state.fiction_work_name_input
@@ -1082,10 +1093,10 @@ def fiction_app():
         
         if not current_novel_text or not current_work_name:
             st.warning("⚠️ 작품명과 소설 텍스트를 모두 입력해주세요!")
-            st.session_state.generation_requested = False
+            clear_generation_status()
         elif "DUMMY_API_KEY_FOR_LOCAL_TEST" in GOOGLE_API_KEY:
             st.error("⚠️ Streamlit Secrets에 API 키를 설정해주세요!")
-            st.session_state.generation_requested = False
+            clear_generation_status()
         else:
             status = st.empty()
             status.info(f"⚡문학 분석 콘텐츠를 생성 중입니다... (약 30초 소요)")
@@ -1287,53 +1298,117 @@ def fiction_app():
                                              .replace("***", "").replace("**", "")\
                                              .replace("##", "").strip()
                 
-                if len(clean_content) < 1000 and (current_count_t1 + current_count_t2 + current_count_t3 + current_count_t8 > 0 or any([select_t4, select_t5, select_t6, select_t7])):
+                full_html = HTML_HEAD
+                
+                # 지문 및 작품 정보 구성은 이미 위에서 current_novel_text, current_work_name 등으로 설정됨
+
+                # AI가 생성한 콘텐츠의 HTML 헤더 부분을 추출하여 full_html에 추가
+                # (HTML 헤더 부분은 AI가 프롬프트에 따라 생성한 제목, 시간 박스, 지문 등을 포함함)
+                
+                # Header 및 Passage 추출 (AI 생성 모드)
+                if st.session_state.app_mode == "⚡ 비문학 문제 제작" and current_d_mode == 'AI 생성':
+                    header_and_passage_match = re.search(r'(<h1>.*?<\/div>.*?<div class="passage">.*?<\/div>)', clean_content, re.DOTALL)
+                    if header_and_passage_match:
+                        extracted_content = header_and_passage_match.group(0)
+                        full_html += extracted_content
+                        clean_content = clean_content.replace(extracted_content, "", 1)
+                    else:
+                        full_html += clean_content
+                        
+                # Header 및 Passage 추출 (직접 입력 모드)
+                elif st.session_state.app_mode == "⚡ 비문학 문제 제작" and current_d_mode == '직접 입력':
+                    # 직접 입력 모드의 경우 Python이 생성한 헤더 및 지문 포맷을 사용
+                    
+                    # 1. 제목/시간 박스를 수동으로 생성
+                    html_header_manual = f"<h1>사계국어 비문학 스펙트럼</h1><h2>[{current_domain} 영역: {current_topic}]</h2>"
+                    html_header_manual += f"<div class='time-box'> ⏱️ 실제 소요 시간: <span class='time-blank'></span> 분 </div>"
+                    full_html += html_header_manual
+                    
+                    # 2. 지문 본문 (manual_passage_content에 저장된 포맷팅된 지문)
+                    full_html += manual_passage_content
+                    
+                    # AI가 생성한 문제 내용 중 불필요한 헤더 부분을 제거
+                    clean_content = re.sub(r'<h1>.*?<\/div>.*?<div class="time-box">.*?<\/div>|2\. \[.*?지문\]:.*?지시\]:.*?지문은 다시 출력하지 마시오\.', '', clean_content, 1, re.DOTALL)
+                
+                
+                # 지문 아래에 나머지 문제 내용 및 정답지 추가
+                full_html += clean_content
+                full_html += HTML_TAIL
+                
+                
+                if len(clean_content) < 100 and not current_novel_text:
                     st.error(f"⚠️ 생성 오류: AI가 내용을 충분히 생성하지 못했습니다. (생성 길이: {len(clean_content)}). **다시 생성하기** 버튼을 눌러주세요.")
-                # [기존 코드에서 변경할 부분]
-
+                    clear_generation_status()
                 else:
-                    full_html = HTML_HEAD + clean_content + HTML_TAIL
-                    status.success(f"✅ 분석 학습지 생성 완료! (사용 모델: {model_name})")
-                    
-                    # --- [재생성 버튼 및 다운로드 추가] ---
-                    col1, col2, col3 = st.columns([1, 1, 1])
-                    
-                    with col1:
-                        st.button("🔄 다시 생성하기 (같은 내용으로 재요청)", on_click=request_generation)
-                    
-                    with col2:
-                        st.download_button("📥 학습지 다운로드 (HTML)", full_html, f"{current_work_name}_분석_학습지.html", "text/html")
-                    
-                    # **[이 부분을 아래와 같이 수정하세요]**
-                    with col3:
-                         # 1. 파일 이름 정의
-                         docx_file_name = f"{current_work_name}_분석_학습지.docx"
-                         
-                         # 2. DOCX 파일 생성 (페이지 로드/재실행 시마다 실행되어야 함)
-                         docx_file = create_docx(clean_content, docx_file_name, current_work_name, is_fiction=True)
-                         
-                         # 3. 다운로드 버튼 렌더링
-                         st.download_button(
-                            label="📄 워드 파일 다운로드 (.docx)",
-                            data=docx_file,
-                            file_name=docx_file_name,
-                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                        )
-                    # ------------------------------------
-
-                    st.components.v1.html(full_html, height=800, scrolling=True)
-
-                st.session_state.generation_requested = False
+                    # **[수정] 생성된 결과를 Session State에 저장**
+                    st.session_state.generated_result = {
+                        "full_html": full_html,
+                        "clean_content": clean_content,
+                        "domain": current_work_name if st.session_state.app_mode == "📖 문학 문제 제작" else current_domain,
+                        "topic": current_author_name if st.session_state.app_mode == "📖 문학 문제 제작" else current_topic,
+                        "type": "fiction" if st.session_state.app_mode == "📖 문학 문제 제작" else "non_fiction"
+                    }
+                    st.success(f"✅ 생성 완료! (사용 모델: {model_name})")
+                    clear_generation_status()
 
 
             except Exception as e:
-                status.error(f"오류 발생: {e}. API 키와 입력값을 확인해주세요.")
-                st.session_state.generation_requested = False
+                st.error(f"오류 발생: {e}. API 키와 입력값을 확인해주세요.")
+                clear_generation_status()
 
 
 # ==========================================
 # 🚀 메인 애플리케이션 실행
 # ==========================================
+
+# **[수정] 다운로드 버튼 및 결과 출력 함수**
+def display_results():
+    """Session State에 저장된 결과를 기반으로 HTML 렌더링 및 다운로드 버튼을 표시합니다."""
+    
+    result = st.session_state.generated_result
+    if result is None:
+        return
+
+    # 결과 변수 로드
+    full_html = result["full_html"]
+    clean_content = result["clean_content"]
+    current_topic_doc = result["topic"] # DOCX 함수에 전달할 주제/작가명
+    current_domain_doc = result["domain"]
+    app_type = result["type"]
+
+    st.markdown("---")
+    st.subheader(f"📊 생성 결과")
+    
+    # --- [재생성 버튼 및 다운로드 추가] ---
+    col1, col2, col3 = st.columns([1, 1, 1])
+    
+    with col1:
+        st.button("🔄 다시 생성하기 (같은 내용으로 재요청)", on_click=request_generation)
+    
+    # 파일 이름 설정
+    if app_type == "non_fiction":
+        html_file_name = f"사계국어_모의고사.html"
+        docx_file_name = f"{current_domain_doc.replace(' ', '_')}_모의고사.docx"
+    else: # fiction
+        html_file_name = f"{current_domain_doc}_분석_학습지.html"
+        docx_file_name = f"{current_domain_doc}_분석_학습지.docx"
+        
+    with col2:
+        st.download_button("📥 시험지 다운로드 (HTML)", full_html, html_file_name, "text/html")
+    
+    with col3:
+        # DOCX 파일 생성 (Session State에 저장된 clean_content 사용)
+        docx_file = create_docx(full_html, docx_file_name, current_topic_doc, is_fiction=(app_type=="fiction"))
+        st.download_button(
+            label="📄 워드 파일 다운로드 (.docx)",
+            data=docx_file,
+            file_name=docx_file_name,
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
+    # ------------------------------------
+
+    st.components.v1.html(full_html, height=800, scrolling=True)
+# **[수정 완료]**
 
 # 메인 제목
 st.title("📚 사계국어 AI 모의고사 제작 시스템")
@@ -1356,7 +1431,7 @@ with col_input:
     current_app_mode = st.session_state.get('app_mode')
 
     if current_app_mode == "⚡ 비문학 문제 제작":
-        # **[수정 반영] 머리말을 컬럼 맨 위에 출력**
+        # 머리말을 컬럼 맨 위에 출력
         st.header("⚡ 비문학 모의평가 출제")
         
         current_d_mode = st.session_state.get('domain_mode_select', 'AI 생성')
@@ -1378,14 +1453,14 @@ with col_input:
                     st.text_area("🅱️ (나) 지문 텍스트", height=300, key="manual_passage_input_b",
                                  placeholder="(나) 지문의 내용을 입력하세요.")
         else:
-            # **[수정 반영] AI 생성 모드일 때 메시지 출력**
+            # AI 생성 모드일 때 메시지 출력
             st.caption("지문 입력 방식이 'AI 생성'으로 설정되어 있습니다. 사이드바 설정을 완료하고 아래 '모의평가 출제하기' 버튼을 눌러주세요.")
 
 
     elif current_app_mode == "📖 문학 문제 제작":
-        # **[수정 반영] 머리말 및 입력창 출력**
-        st.header("📖 문학 모의평가 출제")
-       
+        # 머리말 및 입력창 출력
+        st.header("📖문학 모의평가 출제")
+        st.subheader("📖 분석할 소설 텍스트 입력")
         
         # 문학 영역일 경우, 소설 텍스트를 입력받음
         st.text_area("소설 텍스트 (발췌분도 가능)", height=300, 
@@ -1396,15 +1471,17 @@ with col_input:
     # 3. 메인 실행 버튼 (오른쪽 컬럼 맨 아래에 배치)
     if current_app_mode == "⚡ 비문학 문제 제작" and st.button("🚀 모의평가 출제하기 (클릭)", key="non_fiction_run_btn_col"):
         request_generation()
-    elif current_app_mode == "📖 문학 문제 제작" and st.button("🚀 문학 분석 자료 생성 요청", key="fiction_run_btn_col"):
+    elif current_app_mode == "📖 문학 문제 제작" and st.button("🚀 모의평가 출제하기", key="fiction_run_btn_col"):
         request_generation()
 
 
 st.markdown("---") # 메인 콘텐츠 분할선
 
 # 2. 선택에 따른 함수 실행 (메인 콘텐츠 영역 아래에서 실행)
-# 이 부분에서는 각 함수가 UI가 아닌 로직(생성, 유효성 검사 등)을 담당합니다.
 if problem_type == "⚡ 비문학 문제 제작":
     non_fiction_app()
 elif problem_type == "📖 문학 문제 제작":
     fiction_app()
+
+# **[수정] 생성 결과가 Session State에 있으면 표시**
+display_results()
