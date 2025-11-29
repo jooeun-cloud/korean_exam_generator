@@ -6,11 +6,21 @@ import os
 from docx import Document
 from io import BytesIO
 from docx.shared import Inches
-from docx.enum.table import WD_ALIGN_VERTICAL # Enum 오류 방지 위해 제거했으나, 재정의 필요
-from docx.enum.text import WD_ALIGN_PARAGRAPH # Enum 오류 방지 위해 제거했으나, 재정의 필요
-# WD_ALIGN_VERTICAL, WD_ALIGN_HORIZONTAL, WD_ALIGN_PARAGRAPH는 현재 Streamlit Cloud 환경에서 import 오류를 내므로,
-# 코드 내에서는 해당 상수의 정수 값(1 또는 3)을 직접 사용하거나, 기능 자체를 우회합니다.
+# from docx.enum.table import WD_ALIGN_VERTICAL, WD_ALIGN_HORIZONTAL # 오류 방지
+# from docx.enum.text import WD_ALIGN_PARAGRAPH # 오류 방지
 
+# ==========================================
+# [설정] API 키 연동 (Streamlit Cloud Secrets 권장)
+# ==========================================
+# Streamlit Cloud 배포 시 st.secrets에서 키를 가져옵니다.
+try:
+    # 1. Streamlit Secrets에 GOOGLE_API_KEY = "발급받은 실제 API 키" 설정
+    GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"] 
+except (KeyError, AttributeError):
+    # Secrets 설정이 안 되어 있을 경우 (로컬 테스트용)
+    GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "DUMMY_API_KEY_FOR_LOCAL_TEST") 
+
+st.set_page_config(page_title="사계국어 AI 모의고사 제작 시스템", page_icon="📚", layout="wide")
 
 # ==========================================
 # [공통 HTML/CSS 정의]
@@ -291,41 +301,42 @@ def create_docx(html_content, file_name, current_topic, is_fiction=False):
         passage_html = passage_match.group(1).strip()
         
         # 4-1. 지문 내용과 문단 요약 필드를 분리하여 셀에 추가
-        parts = re.split(r'(<div class="summary-blank">.*?<\/div>|<div class="source-info">.*?<\/div>)', passage_html, flags=re.DOTALL)
+        parts = re.split(r'(📝 문단 요약 :.*?)(?:<\/p>|<div class="summary-blank">)', passage_html, flags=re.DOTALL)
+        
+        current_paragraph_content = ""
         
         for part in parts:
-            if not part.strip():
+            if not part or re.match(r'📝 문단 요약 :', part):
                 continue
-
-            if part.startswith('<div class="summary-blank">'):
+            
+            if "📝 문단 요약" in part:
                 # 문단 요약 테이블 추가 (박스 효과)
                 summary_table = document.add_table(rows=1, cols=1)
                 summary_table.width = Inches(6.5)
                 sum_cell = summary_table.cell(0, 0)
-                # sum_cell.vertical_alignment = 1 
+                # sum_cell.vertical_alignment = 1 # Enum 오류 방지
                 sum_cell.paragraphs[0].add_run("📝 문단 요약 :").bold = True
-                sum_cell.add_paragraph(' \n \n') # 빈 줄 추가 (칸 확보)
-            
-            elif part.startswith('<div class="source-info">'):
-                # 출처 정보 추가
-                source_text = re.sub(r'<[^>]+>', '', part).strip()
-                cell.add_paragraph(f"\n{source_text}", style='Caption') # Caption 스타일로 작게 추가
-                
+                # 빈 줄 추가 (칸 확보)
+                sum_cell.add_paragraph(' \n \n')
             else:
                 # 일반 지문 문단 처리
-                paragraphs = re.split(r'<\/p>', part)
-                for p_html in paragraphs:
-                    # (가), (나) 라벨 처리
-                    label_match = re.search(r'<span class="passage-label">(.*?)<\/span>', p_html)
-                    if label_match:
-                         label = label_match.group(1).strip()
-                         cell.paragraphs[0].add_run(f"\n[{label}]\n").bold = True
-                         p_html = re.sub(r'<span class="passage-label">.*?<\/span><br>', '', p_html)
+                current_paragraph_content += part
+        
+        # 현재까지 추출된 지문 내용을 테이블 셀에 추가
+        passage_paragraphs = re.split(r'<\/p>', current_paragraph_content)
+        
+        for p_html in passage_paragraphs:
+            # (가), (나) 라벨 처리
+            label_match = re.search(r'<span class="passage-label">(.*?)<\/span>', p_html)
+            if label_match:
+                 label = label_match.group(1).strip()
+                 cell.paragraphs[0].add_run(f"[{label}]\n").bold = True
+                 p_html = re.sub(r'<span class="passage-label">.*?<\/span><br>', '', p_html)
 
-                    p_text = re.sub(r'<[^>]+>', '', p_html).strip()
-                    if p_text:
-                        cell.add_paragraph(p_text)
-                        
+            p_text = re.sub(r'<[^>]+>', '', p_html).strip()
+            if p_text:
+                cell.add_paragraph(p_text)
+                
     # 5. 문제 및 해설 영역 처리 (나머지 내용)
     
     # 해설 영역(answer-sheet) 추출
@@ -336,8 +347,9 @@ def create_docx(html_content, file_name, current_topic, is_fiction=False):
         problem_block_end = answer_sheet_match.start()
         
         # HTML Header/지문 이후의 모든 콘텐츠를 문제 블록으로 간주
-        # 이전에 추출한 H1, H2, Time-box, Passage 끝 이후부터 해설 전까지 추출
-        problem_block = clean_html_body[passage_match.end() if passage_match else 0 : problem_block_end]
+        # 지문이 끝난 직후부터 해설 섹션이 시작되기 전까지의 내용을 추출
+        problem_block_start = passage_match.end() if passage_match else (h2_match.end() if h2_match else 0)
+        problem_block = clean_html_body[problem_block_start:problem_block_end]
         
         document.add_heading("II. 문제", level=1)
         
@@ -1487,7 +1499,7 @@ with col_input:
 
     elif current_app_mode == "📖 문학 문제 제작":
         # 머리말 및 입력창 출력
-        st.header("📖 문학 모의평가 출제")
+        st.header("📖 문학 심층 분석 콘텐츠 제작")
         st.subheader("📖 분석할 소설 텍스트 입력")
         
         # 문학 영역일 경우, 소설 텍스트를 입력받음
