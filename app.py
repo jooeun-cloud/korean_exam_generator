@@ -6,7 +6,8 @@ import os
 from docx import Document
 from io import BytesIO
 from docx.shared import Inches
-from docx.enum.text import WD_ALIGN_PARAGRAPH # DOCX에서 문단 정렬 상수를 사용하기 위해 추가
+# from docx.enum.table import WD_ALIGN_VERTICAL, WD_ALIGN_HORIZONTAL # 오류 방지
+# from docx.enum.text import WD_ALIGN_PARAGRAPH # 오류 방지
 
 # ==========================================
 # [설정] API 키 연동 (Streamlit Cloud Secrets 권장)
@@ -300,10 +301,8 @@ def create_docx(html_content, file_name, current_topic, is_fiction=False):
         passage_html = passage_match.group(1).strip()
         
         # 4-1. 지문 내용과 문단 요약 필드를 분리하여 셀에 추가
-        # <div class="summary-blank"> 바로 이전까지를 지문 문단으로 처리
+        # 이 루프를 통해 지문과 문단 요약 박스를 구분하여 처리
         parts = re.split(r'(<div class="summary-blank">.*?<\/div>|<div class="source-info">.*?<\/div>)', passage_html, flags=re.DOTALL)
-        
-        current_paragraph_content = ""
         
         for part in parts:
             if not part.strip():
@@ -343,11 +342,23 @@ def create_docx(html_content, file_name, current_topic, is_fiction=False):
     answer_sheet_match = re.search(r'<div class="answer-sheet">(.*?)<\/div>', clean_html_body, re.DOTALL)
     
     if answer_sheet_match:
-        # 문제 블록 추출 (지문 끝부터 해설 전까지)
+        
+        # **[수정] 문제 블록 시작점과 끝점을 명확히 정의**
         problem_block_end = answer_sheet_match.start()
         
-        # HTML Header/지문 이후의 모든 콘텐츠를 문제 블록으로 간주
-        problem_block_start = passage_match.end() if passage_match else (h2_match.end() if h2_match else 0)
+        # Passage 영역이 끝나는 </div> 태그 바로 다음 인덱스를 찾습니다.
+        if passage_match:
+            problem_block_start = clean_html_body.find('</div>', passage_match.end())
+            # 지문 닫는 태그를 찾지 못했거나 지문 끝과 해설 사이에 다른 내용이 있다면 지문 끝 지점 사용
+            if problem_block_start == -1 or problem_block_start >= problem_block_end:
+                 problem_block_start = passage_match.end()
+            else:
+                 # '</div>' 태그를 건너뛰고 바로 다음 문자부터 시작
+                 problem_block_start += len('</div>')
+        else:
+             # 지문 섹션이 없다면 H2 끝점 이후부터 시작 (안전 보장)
+             problem_block_start = h2_match.end() if h2_match else 0
+             
         problem_block = clean_html_body[problem_block_start:problem_block_end]
         
         document.add_heading("II. 문제", level=1)
@@ -386,8 +397,8 @@ def create_docx(html_content, file_name, current_topic, is_fiction=False):
                 lines = text.split('\n')
                 for line in lines:
                     if line.strip():
-                        q_cell.add_paragraph(line.strip())
-                
+                        document.add_paragraph(line.strip())
+
         
         # 해설 부분
         answer_html = answer_sheet_match.group(1).strip()
@@ -875,7 +886,7 @@ def non_fiction_app():
                     <div class="type-box">
                         <h3>변형 문장 정오판단 ({count_t4}문항)</h3>
                         - [유형4] 변형 문장 정오판단 {count_t4}문제 (문장 끝에 (O/X) 표시 필수, 함정 선지). 
-                        **모든 문제는 <div class="question-box"> 안에 번호. <b>문제 발문</b> 태그를 사용하여 출제할 것.**
+                        **모든 문제는 <div class='question-box'> 안에 번호. <b>문제 발문</b> 태그를 사용하여 출제할 것.**
                     </div>
                     """)
 
@@ -885,7 +896,7 @@ def non_fiction_app():
                         <h3>객관식 (일치/불일치) ({count_t5}문항)</h3>
                         - [유형5] 객관식 일치/불일치 {count_t5}문제 (지문 재구성 필요). 
                         **선지 항목은 <div>태그로 감싸서 출력하고 <br> 태그를 사용하지 말 것.**
-                        **모든 문제는 <div class="question-box"> 안에 번호. <b>문제 발문</b>과 선지 목록(<div class='choices'>)을 사용하여 출제할 것.**
+                        **모든 문제는 <div class='question-box'> 안에 번호. <b>문제 발문</b>과 선지 목록(<div class='choices'>)을 사용하여 출제할 것.**
                     </div>
                     """)
                     
@@ -895,7 +906,7 @@ def non_fiction_app():
                         <h3>객관식 (추론) ({count_t6}문항)</h3>
                         - [유형6] 객관식 추론 {count_t6}문제 (비판적 사고 요구). 
                         **선지 항목은 <div>태그로 감싸서 출력하고 <br> 태그를 사용하지 말 것.**
-                        **모든 문제는 <div class="question-box"> 안에 번호. <b>문제 발문</b>과 선지 목록(<div class='choices'>)을 사용하여 출제할 것.**
+                        **모든 문제는 <div class='question-box'> 안에 번호. <b>문제 발문</b>과 선지 목록(<div class='choices'>)을 사용하여 출제할 것.**
                     </div>
                     """)
                     
@@ -904,7 +915,7 @@ def non_fiction_app():
                     <div class="type-box">
                         <h3>객관식 (보기 적용 3점) ({count_t7}문항)</h3>
                         - [유형7] 보기 적용 고난도 {count_t7}문제 (3점, 킬러 문항). 
-                        **<보기> 내용은 반드시 <div class='example-box'> 태그 안에 삽입하고, 선지는 <div class='choices'>를 사용하며 <div>로 항목을 감쌀 것.** **모든 문제는 <div class="question-box"> 안에 번호. <b>문제 발문</b>을 사용하여 출제할 것.**
+                        **<보기> 내용은 반드시 <div class='example-box'> 태그 안에 삽입하고, 선지는 <div class='choices'>를 사용하며 <div>로 항목을 감쌀 것.** **모든 문제는 <div class='question-box'> 안에 번호. <b>문제 발문</b>을 사용하여 출제할 것.**
                     </div>
                     """)
 
@@ -1497,7 +1508,7 @@ with col_input:
                     st.text_area("🅱️ (나) 지문 텍스트", height=300, key="manual_passage_input_b",
                                  placeholder="(나) 지문의 내용을 입력하세요.")
         else:
-            # **[수정] AI 생성 모드일 때 겹침 방지를 위해 공간 확보**
+            # AI 생성 모드일 때 메시지 출력
             st.caption("지문 입력 방식이 'AI 생성'으로 설정되어 있습니다. 사이드바 설정을 완료하고 아래 '모의평가 출제하기' 버튼을 눌러주세요.")
             st.markdown("<div style='height: 150px;'></div>", unsafe_allow_html=True) # 겹침 방지용 빈 공간 추가
 
