@@ -6,8 +6,6 @@ import os
 from docx import Document
 from io import BytesIO
 from docx.shared import Inches
-from docx.enum.table import WD_ALIGN_VERTICAL # 사용 불가 시 제거
-from docx.enum.text import WD_ALIGN_PARAGRAPH # 사용 불가 시 제거
 from docx.shared import Pt
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
@@ -260,24 +258,28 @@ def get_best_model():
 # ==========================================
 
 # DOCX 테이블에 테두리를 설정하는 헬퍼 함수
+# DOCX 테이블에 테두리를 설정하는 헬퍼 함수
 def set_table_borders(table):
-    tbl = table._tbl
-    for cell in table.iter_cells():
-        tc = cell._tc
-        tcPr = tc.get_or_add_tcPr()
-        
-        # 기본 테두리 설정 (단색, 1/4 pt)
-        for border_name in ('top', 'left', 'bottom', 'right'):
-            tag = qn('w:tcBorders')
-            borders = OxmlElement(tag)
+    
+    # **[수정 반영: Table 순회 방식 변경 - iter_cells 대신 row와 cell 반복]**
+    for row in table.rows:
+        for cell in row.cells:
+            tc = cell._tc
+            tcPr = tc.get_or_add_tcPr()
             
-            border = OxmlElement(f'w:{border_name}')
-            border.set(qn('w:val'), 'single')
-            border.set(qn('w:sz'), '4') # 두께 1/4 pt
-            border.set(qn('w:color'), 'auto')
-            
-            borders.append(border)
-            tcPr.append(borders)
+            # 기본 테두리 설정 (단색, 1/4 pt)
+            for border_name in ('top', 'left', 'bottom', 'right'):
+                tag = qn('w:tcBorders')
+                borders = OxmlElement(tag)
+                
+                border = OxmlElement(f'w:{border_name}')
+                border.set(qn('w:val'), 'single')
+                border.set(qn('w:sz'), '4') # 두께 1/4 pt
+                border.set(qn('w:color'), 'auto')
+                
+                borders.append(border)
+                tcPr.append(borders)
+    # **[수정 끝]**
 
 
 def create_docx(html_content, file_name, current_topic, is_fiction=False):
