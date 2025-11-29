@@ -373,11 +373,18 @@ def create_docx(html_content, file_name, current_topic, is_fiction=False):
 
     # 지문 섹션 닫는 태그의 끝 지점을 찾음
     problem_block_start = passage_match.end() if passage_match else (time_box_match.end() if time_box_match else 0)
-    if passage_match:
-         passage_div_end = clean_html_body.find('</div>', passage_match.end()) 
-         if passage_div_end != -1 and passage_div_end < problem_block_end:
-             problem_block_start = passage_div_end + len('</div>')
     
+    # 지문 내용이 여러 <div class="passage">로 나뉘어 있을 수 있으므로, 
+    # 마지막 <div class="passage">의 끝 지점 이후부터 문제 영역으로 간주해야 합니다.
+    # 안전하게, 마지막으로 매치된 <div class="passage">의 끝점을 찾습니다.
+    all_passage_matches = list(re.finditer(r'<div class="passage">.*?<\/div>', clean_html_body, flags=re.DOTALL))
+    if all_passage_matches:
+        problem_block_start = all_passage_matches[-1].end()
+    elif time_box_match:
+         problem_block_start = time_box_match.end()
+    else:
+        problem_block_start = 0
+
     problem_block = clean_html_body[problem_block_start:problem_block_end].strip()
     
     
@@ -778,16 +785,29 @@ def non_fiction_app():
                             manual_passage_content = p_tag_response.text.replace("```html", "").replace("```", "").strip()
 
 
+                        # **[핵심 수정] 지문 분석 강제 지시**
                         passage_instruction = f"""
-                            2. [사용자 입력 지문]:
-                            - **[지시]**: 아래에 출력될 사용자 입력 지문을 분석하여 문제를 생성하시오. 지문을 다시 출력하지 마시오.
+                            2. [분석 대상 지문]:
+                            - **[최중요 지시]**: 아래에 [사용자 제공 지문]을 첨부하니, **이 지문만을 분석하여 문제를 생성하시오.**
+                            - **[금지]**: **지문을 다시 출력하거나, 지문의 내용 이외의 정보를 임의로 지어내어 문제나 해설에 포함하지 마시오.**
+                            - **[지시 사항]**: 문제 생성은 3. 문제 출제 섹션부터 HTML 형식으로 출력하시오.
+
+                            [사용자 제공 지문]:
+                            {current_manual_passage} 
                             """
                     
                     elif current_mode == "주제 통합 (가) + (나)":
                         # 통합 지문 처리 (프롬프트에 결합된 current_manual_passage 사용)
+                        
+                        # **[핵심 수정] 지문 분석 강제 지시**
                         passage_instruction = f"""
-                            2. [사용자 입력 지문 (가) + (나)]:
-                            - **[지시]**: 아래에 출력될 사용자 입력 지문(가), (나)를 분석하여 문제를 생성하시오. 지문을 다시 출력하지 마시오.
+                            2. [분석 대상 지문 (가) + (나)]:
+                            - **[최중요 지시]**: 아래에 [사용자 제공 지문]을 첨부하니, **이 지문만을 분석하여 문제를 생성하시오.**
+                            - **[금지]**: **지문을 다시 출력하거나, 지문의 내용 이외의 정보를 임의로 지어내어 문제나 해설에 포함하지 마시오.**
+                            - **[지시 사항]**: 문제 생성은 3. 문제 출제 섹션부터 HTML 형식으로 출력하시오.
+
+                            [사용자 제공 지문]:
+                            {current_manual_passage} 
                             """
                         
                         # 지문 포맷팅: (가), (나) 라벨과 <div class="passage">를 Python에서 수동으로 생성
@@ -798,8 +818,11 @@ def non_fiction_app():
                         
                         # (가) 지문 포맷팅
                         if passage_a_text:
+                            re_prompt_p_tag_a = f"""
+                            입력된 텍스트를 분석하여 문단별로 <p> 태그와 </p> 태그를 사용하여 HTML 형식으로 출력하시오. **결과는 오직 HTML 태그와 지문 내용으로만 출력해야 합니다.** [텍스트]: {passage_a_text}
+                            """
                             p_tag_response_a = model.generate_content(
-                                f"입력된 텍스트를 분석하여 문단별로 <p> 태그와 </p> 태그를 사용하여 HTML 형식으로 출력하시오. [텍스트]: {passage_a_text}",
+                                re_prompt_p_tag_a,
                                 generation_config=GenerationConfig(temperature=0.0, max_output_tokens=2000)
                             )
                             formatted_text_a = p_tag_response_a.text.replace("```html", "").replace("```", "").strip()
@@ -813,8 +836,11 @@ def non_fiction_app():
                         
                         # (나) 지문 포맷팅
                         if passage_b_text:
+                            re_prompt_p_tag_b = f"""
+                            입력된 텍스트를 분석하여 문단별로 <p> 태그와 </p> 태그를 사용하여 HTML 형식으로 출력하시오. **결과는 오직 HTML 태그와 지문 내용으로만 출력해야 합니다.** [텍스트]: {passage_b_text}
+                            """
                             p_tag_response_b = model.generate_content(
-                                f"입력된 텍스트를 분석하여 문단별로 <p> 태그와 </p> 태그를 사용하여 HTML 형식으로 출력하시오. [텍스트]: {passage_b_text}",
+                                re_prompt_p_tag_b,
                                 generation_config=GenerationConfig(temperature=0.0, max_output_tokens=2000)
                             )
                             formatted_text_b = p_tag_response_b.text.replace("```html", "").replace("```", "").strip()
@@ -935,7 +961,7 @@ def non_fiction_app():
                         <h3>객관식 (일치/불일치) ({count_t5}문항)</h3>
                         - [유형5] 객관식 일치/불일치 {count_t5}문제 (지문 재구성 필요). 
                         **선지 항목은 <div>태그로 감싸서 출력하고 <br> 태그를 사용하지 말 것.**
-                        **모든 문제는 <div class='question-box'> 안에 번호. <b>문제 발문</b>과 선지 목록(<div class='choices'>)을 사용하여 출제할 것.**
+                        **모든 문제는 <div class="question-box"> 안에 번호. <b>문제 발문</b>과 선지 목록(<div class='choices'>)을 사용하여 출제할 것.**
                     </div>
                     """)
                     
@@ -945,7 +971,7 @@ def non_fiction_app():
                         <h3>객관식 (추론) ({count_t6}문항)</h3>
                         - [유형6] 객관식 추론 {count_t6}문제 (비판적 사고 요구). 
                         **선지 항목은 <div>태그로 감싸서 출력하고 <br> 태그를 사용하지 말 것.**
-                        **모든 문제는 <div class='question-box'> 안에 번호. <b>문제 발문</b>과 선지 목록(<div class='choices'>)을 사용하여 출제할 것.**
+                        **모든 문제는 <div class="question-box"> 안에 번호. <b>문제 발문</b>과 선지 목록(<div class='choices'>)을 사용하여 출제할 것.**
                     </div>
                     """)
                     
@@ -954,7 +980,7 @@ def non_fiction_app():
                     <div class="type-box">
                         <h3>객관식 (보기 적용 3점) ({count_t7}문항)</h3>
                         - [유형7] 보기 적용 고난도 {count_t7}문제 (3점, 킬러 문항). 
-                        **<보기> 내용은 반드시 <div class='example-box'> 태그 안에 삽입하고, 선지는 <div class='choices'>를 사용하며 <div>로 항목을 감쌀 것.** **모든 문제는 <div class='question-box'> 안에 번호. <b>문제 발문</b>을 사용하여 출제할 것.**
+                        **<보기> 내용은 반드시 <div class="example-box"> 태그 안에 삽입하고, 선지는 <div class='choices'>를 사용하며 <div>로 항목을 감쌀 것.** **모든 문제는 <div class="question-box"> 안에 번호. <b>문제 발문</b>을 사용하여 출제할 것.**
                     </div>
                     """)
 
@@ -1082,7 +1108,8 @@ def non_fiction_app():
                     full_html += manual_passage_content
                     
                     # AI가 생성한 문제 내용 중 불필요한 헤더 부분을 제거 (AI의 출력물에서 문제 부분만 추출하기 위함)
-                    clean_content = re.sub(r'<h1>.*?<\/div>.*?<div class="time-box">.*?<\/div>|2\. \[.*?지문\]:.*?지시\]:.*?지문은 다시 출력하지 마시오\.', '', clean_content, 1, re.DOTALL)
+                    # **[강화된 지시문 제거]**
+                    clean_content = re.sub(r'<h1>.*?<\/div>.*?<div class="time-box">.*?<\/div>|2\. \[분석 대상 지문\].*?\[사용자 제공 지문\].*?{current_manual_passage}.*?\[지시 사항\]: 문제 생성은 3\. 문제 출제 섹션부터 HTML 형식으로 출력하시오\.', '', clean_content, 1, re.DOTALL)
                 
                 
                 # 지문 아래에 나머지 문제 내용 및 정답지 추가
