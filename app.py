@@ -5,6 +5,9 @@ import re
 import os
 from docx import Document
 from io import BytesIO
+from docx.shared import Inches
+from docx.enum.table import WD_ALIGN_VERTICAL, WD_ALIGN_HORIZONTAL
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 # ==========================================
 # [설정] API 키 연동 (Streamlit Cloud Secrets 권장)
@@ -259,11 +262,10 @@ def create_docx(html_content, file_name, current_topic, is_fiction=False):
     document = Document()
     
     # ------------------ [DOCX 파싱 로직 수정] --------------------
-    # 0. HTML <head> 및 <body> 태그 이전/이후의 불필요한 부분을 제거
     
-    # <head> 태그와 <body> 태그 이전의 모든 것을 제거합니다.
+    # 0. HTML <head> 및 <body> 태그 이전/이후의 불필요한 부분을 제거
+    # 이 부분은 DOCX에 포함될 본문(body) 내용만 남깁니다.
     clean_html_body = re.sub(r'.*?<body[^>]*>', '', html_content, flags=re.DOTALL | re.IGNORECASE)
-    # </body> 태그와 </html> 태그를 제거합니다.
     clean_html_body = re.sub(r'<\/body>.*?<\/html>', '', clean_html_body, flags=re.DOTALL | re.IGNORECASE)
     
     
@@ -277,39 +279,67 @@ def create_docx(html_content, file_name, current_topic, is_fiction=False):
     h2_match = re.search(r'<h2>(.*?)<\/h2>', clean_html_body, re.DOTALL)
     if h2_match:
         h2_text = re.sub(r'<[^>]+>', '', h2_match.group(1)).strip()
-        document.add_heading(h2_text, level=2) # 2레벨 제목
+        document.add_heading(h2_text, level=2) 
         
     # 3. 시간 박스 추출 및 추가
     time_box_match = re.search(r'<div class="time-box">(.*?)<\/div>', clean_html_body, re.DOTALL)
     if time_box_match:
         time_text = re.sub(r'<[^>]+>', '', time_box_match.group(1)).strip()
-        document.add_paragraph(f"--- {time_text} ---") # 텍스트 형태로 간략하게 추가
+        document.add_paragraph(f"--- {time_text} ---") 
     
     
     # 4. 지문 영역 추출 및 처리
     passage_match = re.search(r'<div class="passage">(.*?)<\/div>', clean_html_body, re.DOTALL)
+    
+    # --- DOCX 박스 구현 시작 ---
     if passage_match:
-        passage_html = passage_match.group(1).strip()
-        
         document.add_heading("I. 지문", level=1)
         
-        # (가), (나) 지문 분리
-        sub_passages = re.split(r'(<span class="passage-label">.*?<\/span>)', passage_html)
+        # 지문 전체를 담을 테이블 생성 (테두리 효과)
+        table = document.add_table(rows=1, cols=1)
+        table.width = Inches(6.5) # 문서 너비에 맞게 설정
+        cell = table.cell(0, 0)
         
-        for part in sub_passages:
-            if part.startswith('<span class="passage-label">'):
-                # (가) 또는 (나) 라벨 처리
-                label = re.search(r'>(.*?)<', part).group(1).strip()
-                document.add_heading(f"[{label}]", level=2)
-            elif part.strip():
-                # 문단 텍스트 처리 (HTML 태그 제거)
-                paragraphs = re.split(r'<\/p>', part)
-                for p_html in paragraphs:
-                    p_text = re.sub(r'<[^>]+>', '', p_html).strip()
-                    if p_text:
-                        document.add_paragraph(p_text)
-                        
-    # 5. 문제 및 해설 영역 처리 (나머지 내용)
+        passage_html = passage_match.group(1).strip()
+        
+        # 문단 요약 필드를 찾아 표로 변환
+        parts = re.split(r'(📝 문단 요약 :.*?)(?:<\/p>|<div class="summary-blank">)', passage_html, flags=re.DOTALL)
+        
+        current_paragraph_content = ""
+        
+        for part in parts:
+            if not part or re.match(r'📝 문단 요약 :', part):
+                continue
+            
+            if "📝 문단 요약" in part:
+                # 문단 요약 테이블 추가
+                summary_table = document.add_table(rows=1, cols=1)
+                summary_table.width = Inches(6.5)
+                sum_cell = summary_table.cell(0, 0)
+                sum_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+                sum_cell.paragraphs[0].add_run("📝 문단 요약 :").bold = True
+                # 빈 줄 추가 (칸 확보)
+                sum_cell.add_paragraph(' \n \n')
+            else:
+                # 일반 지문 문단 처리
+                current_paragraph_content += part
+        
+        # 현재까지 추출된 지문 내용을 테이블 셀에 추가
+        passage_paragraphs = re.split(r'<\/p>', current_paragraph_content)
+        
+        for p_html in passage_paragraphs:
+            # (가), (나) 라벨 처리
+            label_match = re.search(r'<span class="passage-label">(.*?)<\/span>', p_html)
+            if label_match:
+                 label = label_match.group(1).strip()
+                 cell.paragraphs[0].add_run(f"[{label}]\n").bold = True
+                 p_html = re.sub(r'<span class="passage-label">.*?<\/span><br>', '', p_html)
+
+            p_text = re.sub(r'<[^>]+>', '', p_html).strip()
+            if p_text:
+                cell.add_paragraph(p_text)
+                
+    # 5. 문제 및 해설 영역 처리
     
     # 해설 영역(answer-sheet) 추출
     answer_sheet_match = re.search(r'<div class="answer-sheet">(.*?)<\/div>', clean_html_body, re.DOTALL)
@@ -867,11 +897,9 @@ def non_fiction_app():
                     """)
 
 
-                # **[수정 반영] 추천 문제가 누락되지 않도록 강하게 요청하는 지시 추가**
                 if use_recommendation:
-                    
-                    # 새로운 프롬프트 템플릿을 추가하여 모델에게 반드시 생성하도록 유도
-                    reqs.append(f"""
+                    # **[수정 반영] 추천 문제가 누락되지 않도록 강하게 요청하는 지시 추가**
+                    rec_prompt = f"""
                     <div class="type-box bonus-box">
                         <h3>🌟 영역 맞춤 추천 문제 (필수 출력)</h3>
                         <div class="question-box">
@@ -886,7 +914,8 @@ def non_fiction_app():
                             <p>정답: (정답 번호)</p>
                         </div>
                     </div>
-                    """)
+                    """
+                    reqs.append(rec_prompt)
                 
                 # --- 객관식 해설 규칙 텍스트 (비문학용) ---
                 # **[오류 회피를 위해 빈 문자열로 대체]**
@@ -1014,7 +1043,7 @@ def non_fiction_app():
                         "topic": current_topic,
                         "type": "non_fiction"
                     }
-                    st.success(f"✅ 생성 완료! (사용 모델: {model_name})")
+                    status.success(f"✅ 생성 완료! (사용 모델: {model_name})")
                     clear_generation_status()
 
 
@@ -1382,6 +1411,7 @@ def display_results():
     col1, col2, col3 = st.columns([1, 1, 1])
     
     with col1:
+        # 버튼을 누르면 request_generation 함수가 실행되고 Session State가 초기화되며 앱이 재실행됨
         st.button("🔄 다시 생성하기 (같은 내용으로 재요청)", on_click=request_generation)
     
     # 파일 이름 설정
@@ -1397,6 +1427,7 @@ def display_results():
     
     with col3:
         # DOCX 파일 생성 (Session State에 저장된 full_html 사용)
+        # 다운로드 버튼 클릭 시 Streamlit이 이 함수를 호출하여 BytesIO 스트림을 가져감
         docx_file = create_docx(full_html, docx_file_name, current_topic_doc, is_fiction=(app_type=="fiction"))
         st.download_button(
             label="📄 워드 파일 다운로드 (.docx)",
