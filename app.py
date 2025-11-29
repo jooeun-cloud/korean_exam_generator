@@ -5,9 +5,7 @@ import re
 import os
 from docx import Document
 from io import BytesIO
-from docx.shared import Inches # Inches도 필요할 수 있으니 추가합니다.
-from docx.enum.table import WD_ALIGN_VERTICAL, WD_ALIGN_HORIZONTAL
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.shared import Inches
 
 # ==========================================
 # [설정] API 키 연동 (Streamlit Cloud Secrets 권장)
@@ -257,38 +255,7 @@ def get_best_model():
 # [DOCX 생성 및 다운로드 함수]
 # ==========================================
 
-def create_docx(html_content, file_name, current_topic, is_fiction=False):
-    """HTML 내용을 기반으로 DOCX 문서를 생성하고 BytesIO 객체를 반환"""
-    document = Document()
-    
-    # ------------------ [DOCX 파싱 로직 수정] --------------------
-    
-    # 0. HTML <head> 및 <body> 태그 이전/이후의 불필요한 부분을 제거
-    # 이 부분은 DOCX에 포함될 본문(body) 내용만 남깁니다.
-    clean_html_body = re.sub(r'.*?<body[^>]*>', '', html_content, flags=re.DOTALL | re.IGNORECASE)
-    clean_html_body = re.sub(r'<\/body>.*?<\/html>', '', clean_html_body, flags=re.DOTALL | re.IGNORECASE)
-    
-    
-    # 1. <h1> 사계국어 비문학 스펙트럼 </h1> 추출
-    h1_match = re.search(r'<h1>(.*?)<\/h1>', clean_html_body, re.DOTALL)
-    if h1_match:
-        h1_text = re.sub(r'<[^>]+>', '', h1_match.group(1)).strip()
-        document.add_heading(h1_text, level=0)
-    
-    # 2. <h2> [영역: 주제] </h2> 추출
-    h2_match = re.search(r'<h2>(.*?)<\/h2>', clean_html_body, re.DOTALL)
-    if h2_match:
-        h2_text = re.sub(r'<[^>]+>', '', h2_match.group(1)).strip()
-        document.add_heading(h2_text, level=2) 
-        
-    # 3. 시간 박스 추출 및 추가
-    time_box_match = re.search(r'<div class="time-box">(.*?)<\/div>', clean_html_body, re.DOTALL)
-    if time_box_match:
-        time_text = re.sub(r'<[^>]+>', '', time_box_match.group(1)).strip()
-        document.add_paragraph(f"--- {time_text} ---") 
-    
-    
-    # 4. 지문 영역 추출 및 처리
+# 4. 지문 영역 추출 및 처리
     passage_match = re.search(r'<div class="passage">(.*?)<\/div>', clean_html_body, re.DOTALL)
     
     # --- DOCX 박스 구현 시작 ---
@@ -316,7 +283,7 @@ def create_docx(html_content, file_name, current_topic, is_fiction=False):
                 summary_table = document.add_table(rows=1, cols=1)
                 summary_table.width = Inches(6.5)
                 sum_cell = summary_table.cell(0, 0)
-                sum_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+                # sum_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER # Enum 오류 방지
                 sum_cell.paragraphs[0].add_run("📝 문단 요약 :").bold = True
                 # 빈 줄 추가 (칸 확보)
                 sum_cell.add_paragraph(' \n \n')
