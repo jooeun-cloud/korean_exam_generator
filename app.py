@@ -1,8 +1,11 @@
 import streamlit as st
 import google.generativeai as genai
 from google.generativeai.types import GenerationConfig
+from docx import Document
+from io import BytesIO
 import re 
 import os
+
 
 # ==========================================
 # [설정] API 키 연동 (Streamlit Cloud Secrets 권장)
@@ -16,6 +19,82 @@ except (KeyError, AttributeError):
     GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "DUMMY_API_KEY_FOR_LOCAL_TEST") 
 
 st.set_page_config(page_title="사계국어 AI 모의고사 제작 시스템", page_icon="📚", layout="wide")
+
+
+# ==========================================
+# [DOCX 생성 및 다운로드 함수]
+# ==========================================
+
+def create_docx(html_content, file_name, work_name, is_fiction=False):
+    """HTML 내용을 기반으로 DOCX 문서를 생성하고 BytesIO 객체를 반환"""
+    document = Document()
+    
+    # 제목 및 기본 정보 추가
+    document.add_heading(file_name.replace(".docx", ""), level=0)
+    
+    # HTML에서 텍스트 및 태그를 추출하여 구조화
+    clean_text = html_content
+    
+    # 1. 지문 영역 추출 및 처리 (가장 먼저)
+    passage_match = re.search(r'<div class="passage">(.*?)<\/div>', clean_text, re.DOTALL)
+    if passage_match:
+        passage_html = passage_match.group(1).strip()
+        
+        document.add_heading("I. 지문", level=1)
+        
+        # (가), (나) 지문 분리
+        sub_passages = re.split(r'(<span class="passage-label">.*?<\/span>)', passage_html)
+        
+        for part in sub_passages:
+            if part.startswith('<span class="passage-label">'):
+                # (가) 또는 (나) 라벨 처리
+                label = re.search(r'>(.*?)<', part).group(1).strip()
+                document.add_heading(f"[{label}]", level=2)
+            elif part.strip():
+                # 문단 텍스트 처리 (HTML 태그 제거)
+                paragraphs = re.split(r'<\/p>', part)
+                for p_html in paragraphs:
+                    p_text = re.sub(r'<[^>]+>', '', p_html).strip()
+                    if p_text:
+                        document.add_paragraph(p_text)
+                        
+    # 2. 문제 및 해설 영역 처리 (나머지 내용)
+    questions_and_answers = re.split(r'(<h3>.*?<\/h3>|<h4>.*?<\/h4>|\[지문 문단별 핵심 요약 정답\])', clean_text)
+    
+    for qa_block in questions_and_answers:
+        if not qa_block.strip() or re.match(r'<div class="passage">', qa_block):
+            continue
+            
+        # 제목 태그 처리
+        if re.match(r'<h[34]>', qa_block):
+            level = int(re.match(r'<h([34])>', qa_block).group(1))
+            title = re.sub(r'<[^>]+>', '', qa_block).strip()
+            document.add_heading(title, level=level - 1)
+        
+        # 정답지 헤딩 처리
+        elif "[지문 문단별 핵심 요약 정답]" in qa_block:
+             document.add_heading("IV. 정답 및 해설", level=1)
+             document.add_heading("[지문 문단별 핵심 요약 정답]", level=2)
+             
+        # 일반 텍스트 및 문제 포맷팅 처리
+        else:
+            # HTML 태그 제거 및 줄 바꿈(\n) 정리
+            text = re.sub(r'<br\s*\/?>', '\n', qa_block)
+            text = re.sub(r'<[^>]+>', '', text).strip()
+            
+            if text:
+                # 문제 번호 등으로 시작하는 줄은 새 문단으로 처리
+                lines = text.split('\n')
+                for line in lines:
+                    line = line.strip()
+                    if line:
+                        document.add_paragraph(line)
+
+    # DOCX 파일을 메모리에 저장
+    file_stream = BytesIO()
+    document.save(file_stream)
+    file_stream.seek(0)
+    return file_stream
 
 # ==========================================
 # [공통 HTML/CSS 정의]
@@ -875,14 +954,27 @@ def non_fiction_app():
                     status.success(f"✅ 생성 완료! (사용 모델: {model_name})")
                     
                     # --- [재생성 버튼 및 다운로드 추가] ---
-                    col1, col2 = st.columns([1, 1])
+                    col1, col2, col3 = st.columns([1, 1, 1]) # 컬럼 3개로 분할
+                    
                     with col1:
                         st.button("🔄 다시 생성하기 (같은 내용으로 재요청)", on_click=request_generation)
+                    
                     with col2:
                         st.download_button("📥 시험지 다운로드 (HTML)", full_html, f"사계국어_모의고사.html", "text/html")
+                    
+                    # **[수정 추가: DOCX 다운로드]**
+                    docx_file_name = f"{current_domain.replace(' ', '_')}_모의고사.docx"
+                    docx_file = create_docx(clean_content, docx_file_name, current_topic)
+                    with col3:
+                        st.download_button(
+                            label="📄 워드 파일 다운로드 (.docx)",
+                            data=docx_file,
+                            file_name=docx_file_name,
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        )
+                    # ------------------------------------
 
                     st.components.v1.html(full_html, height=800, scrolling=True)
-
                 st.session_state.generation_requested = False
 
 
@@ -1194,11 +1286,26 @@ def fiction_app():
                     full_html = HTML_HEAD + clean_content + HTML_TAIL
                     status.success(f"✅ 분석 학습지 생성 완료! (사용 모델: {model_name})")
                     
-                    col1, col2 = st.columns([1, 1])
+                    # --- [재생성 버튼 및 다운로드 추가] ---
+                    col1, col2, col3 = st.columns([1, 1, 1]) # 컬럼 3개로 분할
+                    
                     with col1:
                         st.button("🔄 다시 생성하기 (같은 내용으로 재요청)", on_click=request_generation)
+                    
                     with col2:
                         st.download_button("📥 학습지 다운로드 (HTML)", full_html, f"{current_work_name}_분석_학습지.html", "text/html")
+                    
+                    # **[수정 추가: DOCX 다운로드]**
+                    docx_file_name = f"{current_work_name}_분석_학습지.docx"
+                    docx_file = create_docx(clean_content, docx_file_name, current_work_name, is_fiction=True)
+                    with col3:
+                         st.download_button(
+                            label="📄 워드 파일 다운로드 (.docx)",
+                            data=docx_file,
+                            file_name=docx_file_name,
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        )
+                    # ------------------------------------
 
                     st.components.v1.html(full_html, height=800, scrolling=True)
 
