@@ -950,11 +950,13 @@ def non_fiction_app():
                 if len(clean_content) < 100 and not current_manual_passage:
                     st.error("⚠️ 생성 오류: AI가 내용을 충분히 생성하지 못했습니다. **다시 생성하기** 버튼을 눌러주세요.")
                     st.session_state.generation_requested = False
+                # [기존 코드에서 변경할 부분]
+
                 else:
                     status.success(f"✅ 생성 완료! (사용 모델: {model_name})")
                     
                     # --- [재생성 버튼 및 다운로드 추가] ---
-                    col1, col2, col3 = st.columns([1, 1, 1]) # 컬럼 3개로 분할
+                    col1, col2, col3 = st.columns([1, 1, 1])
                     
                     with col1:
                         st.button("🔄 다시 생성하기 (같은 내용으로 재요청)", on_click=request_generation)
@@ -962,10 +964,15 @@ def non_fiction_app():
                     with col2:
                         st.download_button("📥 시험지 다운로드 (HTML)", full_html, f"사계국어_모의고사.html", "text/html")
                     
-                    # **[수정 추가: DOCX 다운로드]**
-                    docx_file_name = f"{current_domain.replace(' ', '_')}_모의고사.docx"
-                    docx_file = create_docx(clean_content, docx_file_name, current_topic)
+                    # **[이 부분을 아래와 같이 수정하세요]**
                     with col3:
+                        # 1. 파일 이름 정의
+                        docx_file_name = f"{current_domain.replace(' ', '_')}_모의고사.docx"
+                        
+                        # 2. DOCX 파일 생성 (페이지 로드/재실행 시마다 실행되어야 함)
+                        docx_file = create_docx(clean_content, docx_file_name, current_topic)
+                        
+                        # 3. 다운로드 버튼 렌더링
                         st.download_button(
                             label="📄 워드 파일 다운로드 (.docx)",
                             data=docx_file,
@@ -1282,12 +1289,14 @@ def fiction_app():
                 
                 if len(clean_content) < 1000 and (current_count_t1 + current_count_t2 + current_count_t3 + current_count_t8 > 0 or any([select_t4, select_t5, select_t6, select_t7])):
                     st.error(f"⚠️ 생성 오류: AI가 내용을 충분히 생성하지 못했습니다. (생성 길이: {len(clean_content)}). **다시 생성하기** 버튼을 눌러주세요.")
+                # [기존 코드에서 변경할 부분]
+
                 else:
                     full_html = HTML_HEAD + clean_content + HTML_TAIL
                     status.success(f"✅ 분석 학습지 생성 완료! (사용 모델: {model_name})")
                     
                     # --- [재생성 버튼 및 다운로드 추가] ---
-                    col1, col2, col3 = st.columns([1, 1, 1]) # 컬럼 3개로 분할
+                    col1, col2, col3 = st.columns([1, 1, 1])
                     
                     with col1:
                         st.button("🔄 다시 생성하기 (같은 내용으로 재요청)", on_click=request_generation)
@@ -1295,10 +1304,15 @@ def fiction_app():
                     with col2:
                         st.download_button("📥 학습지 다운로드 (HTML)", full_html, f"{current_work_name}_분석_학습지.html", "text/html")
                     
-                    # **[수정 추가: DOCX 다운로드]**
-                    docx_file_name = f"{current_work_name}_분석_학습지.docx"
-                    docx_file = create_docx(clean_content, docx_file_name, current_work_name, is_fiction=True)
+                    # **[이 부분을 아래와 같이 수정하세요]**
                     with col3:
+                         # 1. 파일 이름 정의
+                         docx_file_name = f"{current_work_name}_분석_학습지.docx"
+                         
+                         # 2. DOCX 파일 생성 (페이지 로드/재실행 시마다 실행되어야 함)
+                         docx_file = create_docx(clean_content, docx_file_name, current_work_name, is_fiction=True)
+                         
+                         # 3. 다운로드 버튼 렌더링
                          st.download_button(
                             label="📄 워드 파일 다운로드 (.docx)",
                             data=docx_file,
