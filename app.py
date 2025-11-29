@@ -7,7 +7,7 @@ from docx import Document
 from io import BytesIO
 from docx.shared import Inches
 from docx.shared import Pt
-# from google.generativeai.types import Part # **[오류 발생 원인] 이 라인을 삭제하고 genai.types.Part 사용**
+from google.generativeai.types import Part # Import for safety workaround
 
 
 # ==========================================
@@ -25,8 +25,8 @@ st.set_page_config(page_title="사계국어 AI 모의고사 제작 시스템", p
 
 # ==========================================
 # [공통 HTML/CSS 정의]
+# ... (중략: HTML/CSS 정의는 동일) ...
 # ==========================================
-
 HTML_HEAD = """
 <!DOCTYPE html>
 <html lang="ko">
@@ -260,7 +260,6 @@ def get_best_model():
 # DOCX 테이블에 테두리를 설정하는 헬퍼 함수
 def set_table_borders(table):
     """테이블 및 셀에 기본 테두리 스타일을 설정합니다."""
-    # NOTE: Enum 오류 방지를 위해 XML 직접 조작 코드는 삭제하고, 기본 API만 사용합니다.
     try:
         from docx.oxml.ns import qn
         from docx.oxml import OxmlElement
@@ -853,7 +852,7 @@ def non_fiction_app():
                         # (나) 지문 포맷팅
                         if passage_b_text:
                             re_prompt_p_tag_b = f"""
-                            입력된 텍스트를 분석하여 문단별로 <p> 태그와 </p> 태그를 사용하여 HTML 형식으로 출력하시오. **결과는 오직 HTML 태그와 지문 내용으로만 출력해야 합니다.** [텍스트]: {passage_b_text}
+                            입력된 텍스트를 분석하여 문단별로 <p> 태그와 </p> 태그를 정확히 사용하여 HTML 형식으로 출력하시오. **결과는 오직 HTML 태그와 지문 내용으로만 출력해야 합니다.** [텍스트]: {passage_b_text}
                             """
                             p_tag_response_b = model.generate_content(
                                 re_prompt_p_tag_b,
@@ -1164,7 +1163,10 @@ def fiction_app():
     # **[수정] NameError 방지를 위해 global 명시**
     global GOOGLE_API_KEY
     
-    # 이 함수는 이제 UI를 직접 출력하지 않고, 사이드바와 메인 콘텐츠의 세부 로직만 담당합니다.
+    # --------------------------------------------------------------------------
+    # [설정값 정의]
+    # --------------------------------------------------------------------------
+    # 이 함수는 UI를 직접 출력하지 않고, 사이드바와 메인 콘텐츠의 세부 로직만 담당합니다.
 
     # 1. 입력 설정 (사이드바)
     with st.sidebar:
@@ -1440,7 +1442,7 @@ def fiction_app():
                 """
                 
                 # 최종 prompt 결합
-                prompt = prompt_start + prompt_answer_obj + prompt_end
+                prompt = prompt_start + prompt_answer_content + prompt_end
                 
                 
                 response = model.generate_content(prompt, generation_config=generation_config)
