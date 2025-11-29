@@ -8,6 +8,7 @@ from io import BytesIO
 from docx.shared import Inches
 # from docx.enum.table import WD_ALIGN_VERTICAL, WD_ALIGN_HORIZONTAL # 오류 방지
 # from docx.enum.text import WD_ALIGN_PARAGRAPH # 오류 방지
+from docx.shared import Pt # 텍스트 크기 조정을 위해 추가
 
 # ==========================================
 # [설정] API 키 연동 (Streamlit Cloud Secrets 권장)
@@ -289,6 +290,9 @@ def create_docx(html_content, file_name, current_topic, is_fiction=False):
     # 4. 지문 영역 추출 및 처리
     passage_match = re.search(r'<div class="passage">(.*?)<\/div>', clean_html_body, re.DOTALL)
     
+    # 지문 영역 끝 인덱스를 미리 계산
+    passage_end_index = passage_match.end() if passage_match else -1
+    
     # --- DOCX 박스 구현 시작 ---
     if passage_match:
         document.add_heading("I. 지문", level=1)
@@ -301,7 +305,7 @@ def create_docx(html_content, file_name, current_topic, is_fiction=False):
         passage_html = passage_match.group(1).strip()
         
         # 4-1. 지문 내용과 문단 요약 필드를 분리하여 셀에 추가
-        # 이 루프를 통해 지문과 문단 요약 박스를 구분하여 처리
+        # 문단 요약 필드를 <div class="summary-blank"> 태그로 찾습니다.
         parts = re.split(r'(<div class="summary-blank">.*?<\/div>|<div class="source-info">.*?<\/div>)', passage_html, flags=re.DOTALL)
         
         for part in parts:
@@ -313,7 +317,10 @@ def create_docx(html_content, file_name, current_topic, is_fiction=False):
                 summary_table = document.add_table(rows=1, cols=1)
                 summary_table.width = Inches(6.5)
                 sum_cell = summary_table.cell(0, 0)
-                sum_cell.paragraphs[0].add_run("📝 문단 요약 :").bold = True
+                # sum_cell.vertical_alignment = 1 # Enum 오류 방지
+                p = sum_cell.paragraphs[0]
+                p.paragraph_format.space_after = Pt(0)
+                p.add_run("📝 문단 요약 :").bold = True
                 sum_cell.add_paragraph(' \n \n') # 빈 줄 추가 (칸 확보)
             
             elif part.startswith('<div class="source-info">'):
