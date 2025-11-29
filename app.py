@@ -786,11 +786,15 @@ def non_fiction_app():
 
 
                         # **[핵심 수정] 지문 분석 강제 지시**
+                        # **[서술형/문단요약 누락 방지: 답변 형식에 반드시 포함하도록 지시 강화]**
                         passage_instruction = f"""
                             2. [분석 대상 지문]:
                             - **[최중요 지시]**: 아래에 [사용자 제공 지문]을 첨부하니, **이 지문만을 분석하여 문제를 생성하시오.**
                             - **[금지]**: **지문을 다시 출력하거나, 지문의 내용 이외의 정보를 임의로 지어내어 문제나 해설에 포함하지 마시오.**
                             - **[지시 사항]**: 문제 생성은 3. 문제 출제 섹션부터 HTML 형식으로 출력하시오.
+                            
+                            **[반드시 포함할 내용]**: 1. 핵심 주장 요약 (서술형)의 모범 답안과, 문단별 요약 요청이 있을 경우 그 정답을 **정답 및 해설 섹션**에 **절대로 누락 없이** 포함할 것.
+                            
 
                             [사용자 제공 지문]:
                             {current_manual_passage} 
@@ -800,11 +804,14 @@ def non_fiction_app():
                         # 통합 지문 처리 (프롬프트에 결합된 current_manual_passage 사용)
                         
                         # **[핵심 수정] 지문 분석 강제 지시**
+                        # **[서술형/문단요약 누락 방지: 답변 형식에 반드시 포함하도록 지시 강화]**
                         passage_instruction = f"""
                             2. [분석 대상 지문 (가) + (나)]:
                             - **[최중요 지시]**: 아래에 [사용자 제공 지문]을 첨부하니, **이 지문만을 분석하여 문제를 생성하시오.**
                             - **[금지]**: **지문을 다시 출력하거나, 지문의 내용 이외의 정보를 임의로 지어내어 문제나 해설에 포함하지 마시오.**
                             - **[지시 사항]**: 문제 생성은 3. 문제 출제 섹션부터 HTML 형식으로 출력하시오.
+                            
+                            **[반드시 포함할 내용]**: 1. (가),(나) 요약 및 연관성 서술 (서술형)의 모범 답안을 **정답 및 해설 섹션**에 **절대로 누락 없이** 포함할 것.
 
                             [사용자 제공 지문]:
                             {current_manual_passage} 
@@ -961,7 +968,7 @@ def non_fiction_app():
                         <h3>객관식 (일치/불일치) ({count_t5}문항)</h3>
                         - [유형5] 객관식 일치/불일치 {count_t5}문제 (지문 재구성 필요). 
                         **선지 항목은 <div>태그로 감싸서 출력하고 <br> 태그를 사용하지 말 것.**
-                        **모든 문제는 <div class="question-box"> 안에 번호. <b>문제 발문</b>과 선지 목록(<div class='choices'>)을 사용하여 출제할 것.**
+                        **모든 문제는 <div class='question-box'> 안에 번호. <b>문제 발문</b>과 선지 목록(<div class='choices'>)을 사용하여 출제할 것.**
                     </div>
                     """)
                     
@@ -971,7 +978,7 @@ def non_fiction_app():
                         <h3>객관식 (추론) ({count_t6}문항)</h3>
                         - [유형6] 객관식 추론 {count_t6}문제 (비판적 사고 요구). 
                         **선지 항목은 <div>태그로 감싸서 출력하고 <br> 태그를 사용하지 말 것.**
-                        **모든 문제는 <div class="question-box"> 안에 번호. <b>문제 발문</b>과 선지 목록(<div class='choices'>)을 사용하여 출제할 것.**
+                        **모든 문제는 <div class='question-box'> 안에 번호. <b>문제 발문</b>과 선지 목록(<div class='choices'>)을 사용하여 출제할 것.**
                     </div>
                     """)
                     
@@ -980,7 +987,7 @@ def non_fiction_app():
                     <div class="type-box">
                         <h3>객관식 (보기 적용 3점) ({count_t7}문항)</h3>
                         - [유형7] 보기 적용 고난도 {count_t7}문제 (3점, 킬러 문항). 
-                        **<보기> 내용은 반드시 <div class="example-box"> 태그 안에 삽입하고, 선지는 <div class='choices'>를 사용하며 <div>로 항목을 감쌀 것.** **모든 문제는 <div class="question-box"> 안에 번호. <b>문제 발문</b>을 사용하여 출제할 것.**
+                        **<보기> 내용은 반드시 <div class="example-box"> 태그 안에 삽입하고, 선지는 <div class='choices'>를 사용하며 <div>로 항목을 감쌀 것.** **모든 문제는 <div class='question-box'> 안에 번호. <b>문제 발문</b>을 사용하여 출제할 것.**
                     </div>
                     """)
 
@@ -1108,8 +1115,7 @@ def non_fiction_app():
                     full_html += manual_passage_content
                     
                     # AI가 생성한 문제 내용 중 불필요한 헤더 부분을 제거 (AI의 출력물에서 문제 부분만 추출하기 위함)
-                    # **[강화된 지시문 제거]**
-                    clean_content = re.sub(r'<h1>.*?<\/div>.*?<div class="time-box">.*?<\/div>|2\. \[분석 대상 지문\].*?\[사용자 제공 지문\].*?{current_manual_passage}.*?\[지시 사항\]: 문제 생성은 3\. 문제 출제 섹션부터 HTML 형식으로 출력하시오\.', '', clean_content, 1, re.DOTALL)
+                    clean_content = re.sub(r'<h1>.*?<\/div>.*?<div class="time-box">.*?<\/div>|2\. \[분석 대상 지문\].*?\[사용자 제공 지문\].*?{re.escape(current_manual_passage)}.*?(?=\[지시 사항\])', '', clean_content, 1, re.DOTALL)
                 
                 
                 # 지문 아래에 나머지 문제 내용 및 정답지 추가
@@ -1138,7 +1144,7 @@ def non_fiction_app():
             except Exception as e:
                 status.error(f"오류 발생: {e}")
                 clear_generation_status()
-
+                
 
 # ==========================================
 # 📖 문학 문제 제작 함수
@@ -1552,7 +1558,7 @@ with col_input:
     current_app_mode = st.session_state.get('app_mode')
 
     if current_app_mode == "⚡ 비문학 문제 제작":
-        # 머리말을 컬럼 맨 위에 출력
+        # **[수정] 머리말을 컬럼 맨 위에 출력 (중복 방지)**
         st.header("⚡ 비문학 모의평가 출제")
         
         current_d_mode = st.session_state.get('domain_mode_select', 'AI 생성')
@@ -1581,7 +1587,7 @@ with col_input:
 
     elif current_app_mode == "📖 문학 문제 제작":
         # 머리말 및 입력창 출력
-        st.header("📖 문학 모의평가 출제")
+        st.header("📖 문학 심층 분석 콘텐츠 제작")
         st.subheader("📖 분석할 소설 텍스트 입력")
         
         # 문학 영역일 경우, 소설 텍스트를 입력받음
@@ -1600,8 +1606,9 @@ with col_input:
 st.markdown("---") # 메인 콘텐츠 분할선
 
 # 2. 선택에 따른 함수 실행 (메인 콘텐츠 영역 아래에서 실행)
+# **[수정] 이 함수들이 AI 생성 로직을 실행**
 if problem_type == "⚡ 비문학 문제 제작":
-    non_fiction_app()
+    non_fiction_app() 
 elif problem_type == "📖 문학 문제 제작":
     fiction_app()
 
