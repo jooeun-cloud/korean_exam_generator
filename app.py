@@ -7,7 +7,7 @@ from docx import Document
 from io import BytesIO
 from docx.shared import Inches
 from docx.shared import Pt
-from google.generativeai.types import Part # Import for safety workaround
+# from google.generativeai.types import Part # **[오류 발생 원인 제거]**
 
 
 # ==========================================
@@ -25,8 +25,8 @@ st.set_page_config(page_title="사계국어 AI 모의고사 제작 시스템", p
 
 # ==========================================
 # [공통 HTML/CSS 정의]
-# ... (중략: HTML/CSS 정의는 동일) ...
 # ==========================================
+
 HTML_HEAD = """
 <!DOCTYPE html>
 <html lang="ko">
@@ -402,7 +402,7 @@ def create_docx(html_content, file_name, current_topic, is_fiction=False):
         # **[수정] 추천 문제의 정답 노출 방지**
         problem_block = re.sub(r'<p style=\'display: none;\'>정답:.*?<\/p>', '', problem_block, flags=re.DOTALL)
         
-        # 문제 블록을 문제 유형별로 나누기 (<h3> 또는 <h4> 태그 기준으로)
+        # 문제 블록을 문제 유형별로 나누기 (<h3> 또는 #### 태그 기준으로)
         question_parts = re.split(r'(<h3>.*?<\/h3>|<h4>.*?<\/h4>)', problem_block, flags=re.DOTALL)
         
         for part in question_parts:
@@ -852,7 +852,7 @@ def non_fiction_app():
                         # (나) 지문 포맷팅
                         if passage_b_text:
                             re_prompt_p_tag_b = f"""
-                            입력된 텍스트를 분석하여 문단별로 <p> 태그와 </p> 태그를 정확히 사용하여 HTML 형식으로 출력하시오. **결과는 오직 HTML 태그와 지문 내용으로만 출력해야 합니다.** [텍스트]: {passage_b_text}
+                            입력된 텍스트를 분석하여 문단별로 <p> 태그와 </p> 태그를 사용하여 HTML 형식으로 출력하시오. **결과는 오직 HTML 태그와 지문 내용으로만 출력해야 합니다.** [텍스트]: {passage_b_text}
                             """
                             p_tag_response_b = model.generate_content(
                                 re_prompt_p_tag_b,
@@ -1442,7 +1442,7 @@ def fiction_app():
                 """
                 
                 # 최종 prompt 결합
-                prompt = prompt_start + prompt_answer_content + prompt_end
+                prompt = prompt_start + prompt_answer_obj + prompt_end
                 
                 
                 response = model.generate_content(prompt, generation_config=generation_config)
