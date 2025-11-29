@@ -5,7 +5,7 @@ import re
 import os
 from docx import Document
 from io import BytesIO
-from docx.shared import Inches
+from docx.shared import Inches # Inches도 필요할 수 있으니 추가합니다.
 from docx.enum.table import WD_ALIGN_VERTICAL, WD_ALIGN_HORIZONTAL
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
