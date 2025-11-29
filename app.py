@@ -6,8 +6,8 @@ import os
 from docx import Document
 from io import BytesIO
 from docx.shared import Inches
-# from docx.enum.table import WD_ALIGN_VERTICAL, WD_ALIGN_HORIZONTAL # 오류 발생 원인 제거
-# from docx.enum.text import WD_ALIGN_PARAGRAPH # 오류 발생 원인 제거
+# from docx.enum.table import WD_ALIGN_VERTICAL, WD_ALIGN_HORIZONTAL # 오류 방지
+# from docx.enum.text import WD_ALIGN_PARAGRAPH # 오류 방지
 
 # ==========================================
 # [설정] API 키 연동 (Streamlit Cloud Secrets 권장)
@@ -301,6 +301,7 @@ def create_docx(html_content, file_name, current_topic, is_fiction=False):
         passage_html = passage_match.group(1).strip()
         
         # 문단 요약 필드를 찾아 표로 변환
+        # 먼저, 문단 요약 필드를 지문 내용에서 분리합니다.
         parts = re.split(r'(📝 문단 요약 :.*?)(?:<\/p>|<div class="summary-blank">)', passage_html, flags=re.DOTALL)
         
         current_paragraph_content = ""
@@ -314,7 +315,7 @@ def create_docx(html_content, file_name, current_topic, is_fiction=False):
                 summary_table = document.add_table(rows=1, cols=1)
                 summary_table.width = Inches(6.5)
                 sum_cell = summary_table.cell(0, 0)
-                # sum_cell.vertical_alignment = 1 # WD_ALIGN_VERTICAL.CENTER 대신 1 사용 (Enum 오류 방지)
+                # sum_cell.vertical_alignment = 1 # Enum 오류 방지
                 sum_cell.paragraphs[0].add_run("📝 문단 요약 :").bold = True
                 # 빈 줄 추가 (칸 확보)
                 sum_cell.add_paragraph(' \n \n')
@@ -349,6 +350,10 @@ def create_docx(html_content, file_name, current_topic, is_fiction=False):
         problem_block = clean_html_body[problem_block_start:problem_block_end]
         
         document.add_heading("II. 문제", level=1)
+        
+        # **[수정] 추천 문제의 정답 노출 방지**
+        # <p>정답: (정답 번호)</p> 패턴을 문제 블록에서 제거합니다.
+        problem_block = re.sub(r'<p>정답: \(정답 번호\)<\/p>', '', problem_block, flags=re.DOTALL)
         
         # 문제 블록을 문제 유형별로 나누기 (<h3> 또는 <h4> 태그 기준으로)
         question_parts = re.split(r'(<h3>.*?<\/h3>|<h4>.*?<\/h4>)', problem_block, flags=re.DOTALL)
@@ -1044,7 +1049,7 @@ def non_fiction_app():
                         "topic": current_topic,
                         "type": "non_fiction"
                     }
-                    status.success(f"✅ 생성 완료! (사용 모델: {model_name})")
+                    st.success(f"✅ 생성 완료! (사용 모델: {model_name})")
                     clear_generation_status()
 
 
@@ -1493,7 +1498,7 @@ with col_input:
 
     elif current_app_mode == "📖 문학 문제 제작":
         # 머리말 및 입력창 출력
-        st.header("📖 문학 모의평가 출제")
+        st.header("📖 문학 심층 분석 콘텐츠 제작")
         st.subheader("📖 분석할 소설 텍스트 입력")
         
         # 문학 영역일 경우, 소설 텍스트를 입력받음
