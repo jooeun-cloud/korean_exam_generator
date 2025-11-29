@@ -6,11 +6,9 @@ import os
 from docx import Document
 from io import BytesIO
 from docx.shared import Inches
+from google.generativeai.types import Part # **[수정] Part 임포트 추가**
 from docx.shared import Pt
-# from docx.oxml.ns import qn # 오류 유발 가능성 있는 import 제거
-# from docx.oxml import OxmlElement # 오류 유발 가능성 있는 import 제거
-from docx.enum.table import WD_ALIGN_VERTICAL as WD_ALIGN_VERTICAL_SAFE # 안전한 우회용
-from docx.enum.text import WD_ALIGN_PARAGRAPH as WD_ALIGN_PARAGRAPH_SAFE # 안전한 우회용
+
 
 # ==========================================
 # [설정] API 키 연동 (Streamlit Cloud Secrets 권장)
@@ -21,13 +19,9 @@ try:
     GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"] 
 except (KeyError, AttributeError):
     # Secrets 설정이 안 되어 있을 경우 (로컬 테스트용)
-    GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "DUMMY_API_KEY_FOR_LOCAL_TEST")
+    GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "DUMMY_API_KEY_FOR_LOCAL_TEST") 
 
 st.set_page_config(page_title="사계국어 AI 모의고사 제작 시스템", page_icon="📚", layout="wide")
-
-# ==========================================
-# [공통 HTML/CSS 정의]
-# ==========================================
 
 HTML_HEAD = """
 <!DOCTYPE html>
@@ -284,7 +278,6 @@ def set_table_borders(table):
             except Exception:
                 pass
 
-
 def create_docx(html_content, file_name, current_topic, is_fiction=False):
     """HTML 내용을 기반으로 DOCX 문서를 생성하고 BytesIO 객체를 반환"""
     document = Document()
@@ -375,6 +368,7 @@ def create_docx(html_content, file_name, current_topic, is_fiction=False):
     answer_sheet_match = re.search(r'<div class="answer-sheet">(.*?)<\/div>', clean_html_body, re.DOTALL)
     
     if answer_sheet_match:
+        
         # **[수정] 문제 블록 시작점과 끝점을 명확히 정의**
         
         problem_block_end = answer_sheet_match.start()
@@ -384,11 +378,9 @@ def create_docx(html_content, file_name, current_topic, is_fiction=False):
         
         # 문제 블록 시작 인덱스를 정확히 설정
         if passage_match:
-             # 지문 섹션 닫는 태그의 끝 지점을 찾음
-             passage_div_end = clean_html_body.find('</div>', passage_match.end())
-             if passage_div_end != -1:
-                 problem_block_start = passage_div_end + len('</div>')
-             # 이 사이에 있는 공백이나 줄바꿈은 무시
+             last_div_end = clean_html_body.rfind('</div>', 0, problem_block_end) # 지문 이전의 </div> 중 가장 마지막
+             if last_div_end != -1:
+                 problem_block_start = last_div_end + len('</div>')
         
         problem_block = clean_html_body[problem_block_start:problem_block_end].strip()
         
@@ -446,7 +438,7 @@ def create_docx(html_content, file_name, current_topic, is_fiction=False):
                         if line.strip():
                             q_cell.add_paragraph(line.strip())
 
-            
+        
         # 해설 부분
         answer_html = answer_sheet_match.group(1).strip()
         document.add_heading("III. 정답 및 해설", level=1)
@@ -1374,7 +1366,7 @@ def fiction_app():
                     prompt_answer_content += f"<h4>유형 1. 어휘 문제 정답 및 풀이 ({current_count_t1}문항)</h4><br>[지시]: {current_count_t1}문항의 정답과 뜻풀이를 모두 작성. 각 문제의 해설은 줄 바꿈(<br>)하여 구분할 것.<br><br>"
 
                 if current_count_t2 > 0:
-                    prompt_answer_content += f"<h4>유 유형 2. 서술형 심화 문제 모범 답안 ({current_count_t2}문항)</h4><br>[지시]: {current_count_t2}문항의 모범 답안을 상세하게 작성하되, **각 문제의 모범 답안이 끝날 때마다 <br><br><br> 태그를 사용하여 충분히 간격을 확보하여 분리할 것.**<br><br>"
+                    prompt_answer_content += f"<h4>유형 2. 서술형 심화 문제 모범 답안 ({current_count_t2}문항)</h4><br>[지시]: {current_count_t2}문항의 모범 답안을 상세하게 작성하되, **각 문제의 모범 답안이 끝날 때마다 <br><br><br> 태그를 사용하여 충분히 간격을 확보하여 분리할 것.**<br><br>"
 
                 if current_count_t3 > 0:
                     # **오류 방지 위해 rule_text를 빈 문자열로 사용**
@@ -1562,7 +1554,7 @@ with col_input:
 
     elif current_app_mode == "📖 문학 문제 제작":
         # 머리말 및 입력창 출력
-        st.header("📖 문학 심층 분석 콘텐츠 제작")
+        st.header("📖 문학 모의평가 출제")
         st.subheader("📖 분석할 소설 텍스트 입력")
         
         # 문학 영역일 경우, 소설 텍스트를 입력받음
