@@ -259,8 +259,8 @@ def create_docx(html_content, file_name, current_topic, is_fiction=False):
     document = Document()
     
     # ------------------ [DOCX 파싱 로직 수정] --------------------
+    # 0. HTML <head> 및 <body> 태그 이전/이후의 불필요한 부분을 제거
     
-    # 0. HTML <head> 및 <style> 블록 전체를 제거하고 <body> 내용만 추출
     # <head> 태그와 <body> 태그 이전의 모든 것을 제거합니다.
     clean_html_body = re.sub(r'.*?<body[^>]*>', '', html_content, flags=re.DOTALL | re.IGNORECASE)
     # </body> 태그와 </html> 태그를 제거합니다.
@@ -867,12 +867,15 @@ def non_fiction_app():
                     """)
 
 
+                # **[수정 반영] 추천 문제가 누락되지 않도록 강하게 요청하는 지시 추가**
                 if use_recommendation:
-                    rec_prompt = f"""
+                    
+                    # 새로운 프롬프트 템플릿을 추가하여 모델에게 반드시 생성하도록 유도
+                    reqs.append(f"""
                     <div class="type-box bonus-box">
-                        <h3>[보너스] {current_domain} 심화 탐구</h3>
+                        <h3>🌟 영역 맞춤 추천 문제 (필수 출력)</h3>
                         <div class="question-box">
-                            <b>다음은 {current_domain} 심화 문제입니다. 알맞은 답을 고르시오. (3점)</b><br><br>
+                            <b>다음은 {current_domain} 영역의 심화 추천 문제입니다. 반드시 5개 선지의 객관식 문제 1개를 생성하고 정답(번호)을 제시하시오.</b><br><br>
                             <div class="choices">
                                 <div>① 보기1</div>
                                 <div>② 보기2</div>
@@ -880,10 +883,10 @@ def non_fiction_app():
                                 <div>④ 보기4</div>
                                 <div>⑤ 보기5</div>
                             </div>
+                            <p>정답: (정답 번호)</p>
                         </div>
                     </div>
-                    """
-                    reqs.append(rec_prompt)
+                    """)
                 
                 # --- 객관식 해설 규칙 텍스트 (비문학용) ---
                 # **[오류 회피를 위해 빈 문자열로 대체]**
@@ -1011,7 +1014,7 @@ def non_fiction_app():
                         "topic": current_topic,
                         "type": "non_fiction"
                     }
-                    status.success(f"✅ 생성 완료! (사용 모델: {model_name})")
+                    st.success(f"✅ 생성 완료! (사용 모델: {model_name})")
                     clear_generation_status()
 
 
@@ -1379,7 +1382,6 @@ def display_results():
     col1, col2, col3 = st.columns([1, 1, 1])
     
     with col1:
-        # 버튼을 누르면 request_generation 함수가 실행되고 Session State가 초기화되며 앱이 재실행됨
         st.button("🔄 다시 생성하기 (같은 내용으로 재요청)", on_click=request_generation)
     
     # 파일 이름 설정
@@ -1395,7 +1397,6 @@ def display_results():
     
     with col3:
         # DOCX 파일 생성 (Session State에 저장된 full_html 사용)
-        # 다운로드 버튼 클릭 시 Streamlit이 이 함수를 호출하여 BytesIO 스트림을 가져감
         docx_file = create_docx(full_html, docx_file_name, current_topic_doc, is_fiction=(app_type=="fiction"))
         st.download_button(
             label="📄 워드 파일 다운로드 (.docx)",
