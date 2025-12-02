@@ -1056,6 +1056,18 @@ def non_fiction_app():
                     - **[해설]** **오답(X)인 경우**, **왜 틀렸는지** 지문에 근거하여 그 **틀린 이유**를 명확하게 설명할 것.
                     <br><br>
                     """
+
+                prompt_answer_blank = ""
+                count_t3 = st.session_state.get("t3", 0) # 유형 3의 개수
+                
+                if count_t3 > 0:
+                    prompt_answer_blank = f"""
+                    <h4>빈칸 채우기 문제 정답 및 해설 ({count_t3}문항)</h4><br>
+                    [지시]: {count_t3}문항의 정답과 해설을 작성.
+                    - **[필수]** 각 빈칸의 정답(핵심어)과 해설을 **번호별로 명확하게 분리**하여 제시할 것.
+                    - **[핵심]** 각 문제 해설 사이에 <br><br><br> 태그를 사용하여 충분히 간격을 확보할 것.
+                    <br><br>
+                    """
                 # 2. 객관식 해설 부분 (조건부 연결)
                 prompt_answer_obj = ""
                 total_objective_count = count_t5 + count_t6 + count_t7
@@ -1072,7 +1084,7 @@ def non_fiction_app():
                 """
                 
                 # 최종 prompt 결합
-                prompt = prompt_start + prompt_answer_ox + prompt_answer_obj + prompt_end
+                prompt = prompt_start + prompt_answer_ox + prompt_answer_blank + prompt_answer_obj + prompt_end
                 
                 
                 response = model.generate_content(prompt, generation_config=generation_config)
