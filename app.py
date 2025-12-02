@@ -7,7 +7,6 @@ from docx import Document
 from io import BytesIO
 from docx.shared import Inches
 from docx.shared import Pt
-# from google.generativeai.types import Part # **[오류 발생 원인 제거]**
 
 
 # ==========================================
@@ -770,7 +769,9 @@ def non_fiction_app():
                 if current_d_mode == '직접 입력':
                     
                     # --- 직접 입력 지문 포맷팅: Python에서 처리 (지문 잘림 문제 해결) ---
-                    if current_mode == "단일 지문":
+                    if current_mode == '단일 지문':
+                        current_manual_passage = st.session_state.get("manual_passage_input_col_main", "")
+                        
                         # 사용자의 입력 텍스트를 두 번 이상의 줄 바꿈('\n\n' 이상)을 기준으로 분리
                         paragraphs = [p.strip() for p in current_manual_passage.split('\n\n') if p.strip()]
                         manual_passage_content_temp = ""
@@ -785,6 +786,7 @@ def non_fiction_app():
                         manual_passage_content = f'<div class="passage">{manual_passage_content_temp}</div>'
                         
                         if use_summary:
+                            # [핵심 수정] 통합 지문이 아닌 경우의 summary_answer_inst 정의
                             summary_answer_inst = """
                             - 정답지 맨 앞부분에 **[지문 문단별 핵심 요약 정답]** 섹션을 만드시오.
                             - 각 문단의 요약 정답을 <div class='summary-answer'> 태그 안에 작성하시오.
@@ -804,6 +806,9 @@ def non_fiction_app():
                         """
                         
                     elif current_mode == "주제 통합 (가) + (나)":
+                        passage_a_text = st.session_state.get("manual_passage_input_a", "")
+                        passage_b_text = st.session_state.get("manual_passage_input_b", "")
+
                         # 지문 분석 강제 지시
                         passage_instruction = f"""
                         2. [분석 대상 지문 (가) + (나)]:
@@ -811,16 +816,13 @@ def non_fiction_app():
                         - **[금지]**: **지문을 다시 출력하거나, 지문의 내용 이외의 정보를 임의로 지어내어 문제나 해설에 포함하지 마시오.**
                         - **[지시 사항]**: 문제 생성은 3. 문제 출제 섹션부터 HTML 형식으로 출력하시오.
                         
-                        **[반드시 포함할 내용]**: 1. (가),(나) 요약 및 연관성 서술 (서술형)의 모범 답안을 **정답 및 해설 섹션**에 **절대로 누락 없이** 포함할 것.
+                        **[반드시 포함할 내용]**: 1. (가),(나) 요약 및 연관성 서술 (서술형)의 모범 답안과, 문단별 요약 요청이 있을 경우 그 정답을 **정답 및 해설 섹션**에 **절대로 누락 없이** 포함할 것.
 
                         [사용자 제공 지문]:
                         {current_manual_passage} 
                         """
                         
                         # 지문 포맷팅: (가), (나) 라벨과 <div class="passage">를 Python에서 수동으로 생성 (AI 요청 삭제)
-                        passage_a_text = st.session_state.get("manual_passage_input_a", "")
-                        passage_b_text = st.session_state.get("manual_passage_input_b", "")
-                        
                         formatted_passage = ""
                         
                         # (가) 지문 포맷팅
@@ -828,10 +830,14 @@ def non_fiction_app():
                             paragraphs_a = [p.strip() for p in passage_a_text.split('\n\n') if p.strip()]
                             formatted_text_a = "".join([f"<p>{p}</p>" for p in paragraphs_a])
                             
+                            summary_box_a = "<div class='summary-blank'>📝 문단 요약 : </div>" if use_summary else ""
+                            # 문단마다 요약 칸을 넣기 위해 다시 포맷팅
+                            formatted_text_a_with_summary = "".join([f"<p>{p}</p>{summary_box_a}\n" for p in paragraphs_a])
+
                             formatted_passage += f"""
                             <div class="passage">
                             <span class="passage-label">(가)</span><br>
-                            {formatted_text_a}
+                            {formatted_text_a_with_summary}
                             </div>
                             """
                         
@@ -840,16 +846,27 @@ def non_fiction_app():
                             paragraphs_b = [p.strip() for p in passage_b_text.split('\n\n') if p.strip()]
                             formatted_text_b = "".join([f"<p>{p}</p>" for p in paragraphs_b])
                             
+                            summary_box_b = "<div class='summary-blank'>📝 문단 요약 : </div>" if use_summary else ""
+                            # 문단마다 요약 칸을 넣기 위해 다시 포맷팅
+                            formatted_text_b_with_summary = "".join([f"<p>{p}</p>{summary_box_b}\n" for p in paragraphs_b])
+
                             formatted_passage += f"""
                             <div class="passage">
                             <span class="passage-label">(나)</span><br>
-                            {formatted_text_b}
+                            {formatted_text_b_with_summary}
                             </div>
                             """
                         
                         # 메인 출력에 사용될 내용
                         manual_passage_content = formatted_passage
                         
+                        if use_summary:
+                            # [핵심 수정] 통합 지문의 summary_answer_inst 정의
+                            summary_answer_inst = """
+                            - 정답지 맨 앞부분에 **[지문 문단별 핵심 요약 정답]** 섹션을 만드시오.
+                            - **[핵심]** 통합 지문의 경우, **(가) 지문 요약 정답**과 **(나) 지문 요약 정답**을 **번호별로** 명확히 구분하여 작성하시오.
+                            - 각 문단의 요약 정답을 <div class='summary-answer'> 태그 안에 작성하시오.
+                            """
                         
                 else: # AI 생성 모드
                     # **[수정 반영] 난이도 가이드 조건문 추가**
@@ -869,9 +886,18 @@ def non_fiction_app():
                     # **[수정 끝]**
                     
                     if use_summary:
-                        summary_passage_inst = "<p> 태그로 문단이 끝날 때마다 <div class='summary-blank'>📝 문단 요약 : </div> 태그를 삽입하시오."
+                        # 1. 지문 포맷팅에 대한 지시 (AI 생성 모드일 경우)
+                        if current_mode == "단일 지문 (기본)":
+                            summary_passage_inst = "<p> 태그로 문단이 끝날 때마다 <div class='summary-blank'>📝 문단 요약 : </div> 태그를 삽입하시오."
+                        else: # 주제 통합 (가) + (나)
+                            # AI에게 (가)와 (나) 지문 내부에 모두 요약 칸을 넣도록 지시
+                            summary_passage_inst = "(가), (나) 각 지문의 모든 문단이 끝날 때마다 <p> 태그와 <div class='summary-blank'>📝 문단 요약 : </div> 태그를 삽입하시오."
+
+                        # 2. 정답지 출력에 대한 지시 (AI, 직접 입력 공통 적용)
+                        # **[핵심 수정] 통합 지문의 구분 지시를 명확히 추가**
                         summary_answer_inst = """
                         - 정답지 맨 앞부분에 **[지문 문단별 핵심 요약 정답]** 섹션을 만드시오.
+                        - **[핵심]** 통합 지문의 경우, **(가) 지문 요약 정답**과 **(나) 지문 요약 정답**을 **번호별로** 명확히 구분하여 작성하시오.
                         - 각 문단의 요약 정답을 <div class='summary-answer'> 태그 안에 작성하시오.
                         """
                     
@@ -908,7 +934,6 @@ def non_fiction_app():
                         
                         {difficulty_guide}
                         """
-                        # (Part 1/2에서 이어짐)
 
                 # 4. 문제 요청 리스트 구성
                 reqs = []
@@ -985,7 +1010,7 @@ def non_fiction_app():
                     # **[수정 반영] 추천 문제가 누락되지 않도록 강하게 요청하는 지시 추가**
                     rec_prompt = f"""
                     <div class="type-box bonus-box">
-                        <h3>🌟 영역 맞춤 추천 문제</h3>
+                        <h3>🌟 영역 맞춤 추천 문제 (필수 출력)</h3>
                         <div class="question-box">
                             <b>다음은 {current_domain} 영역의 심화 추천 문제입니다. 반드시 5개 선지의 객관식 문제 1개를 생성하고 정답(번호)을 제시하시오.</b><br><br>
                             <div class="choices">
@@ -1004,7 +1029,7 @@ def non_fiction_app():
                 # **[오류 회피를 위해 빈 문자열로 대체]**
                 objective_rule_text_nonfiction = ''
                 # ------------------------------------------------------------------------------------------------
-                
+
                 # 5. 최종 프롬프트 구성 및 AI 호출
                 
                 # **[핵심 수정] f-string 내부에서 '\n'.join(reqs) 사용을 피하기 위해 미리 문자열로 합칩니다.**
@@ -1041,33 +1066,18 @@ def non_fiction_app():
                 - **[최중요]** **문서의 맨 마지막에 딱 한 번만 <div class="answer-sheet"> 태그를 사용하여 정답지를 작성하시오.**
                 {summary_answer_inst}
                 - **[최고강조]** **지금부터 작성하는 모든 정답 및 해설은 문제 번호 1번부터 마지막 번호까지 순서대로(오름차순) 작성해야 합니다. 번호 순서를 임의로 변경하거나 섞지 마십시오. 모든 해설은 단일 섹션으로 묶어 문제 번호 순서로 출력합니다.**
+
                 
-                <h4>정답 및 해설 (문제 번호 순서대로)</h4>
-                [통합 지시]: 아래는 문제 번호 순서대로 정답 및 해설을 작성하기 위한 상세 규칙입니다.
-                - **[핵심]** 각 문제의 해설이 끝날 때마다 **<br><br><br> 태그를 사용하여** 충분히 간격을 확보하여 분리할 것.
-                
-                1. **유형 1 (서술형 요약):** 모범 답안을 상세하게 작성.
-                2. **유형 2, 4 (O/X 정오판단):**
-                    - 정답은 반드시 **'O' 또는 'X'** 기호로 명확하게 표기할 것.
-                    - **오답(X)인 경우**, **왜 틀렸는지** 지문에 근거하여 그 **틀린 이유**를 명확하게 설명할 것.
-                3. **유형 3 (빈칸 채우기):**
-                    - 각 빈칸의 정답(핵심어)과 해설을 **번호별로 명확하게 분리**하여 제시할 것.
-                4. **유형 5, 6, 7 (객관식):**
-                    - 정답은 **정답 번호**로 표기할 것.
-                    - **[절대 금지 및 최중요] 해설을 작성할 때, 문제의 선지 내용을 **절대로** 복사하거나 반복하지 마십시오. 선지 번호 옆에 (O), (X)와 같은 정오 판단 기호를 포함하여 선지 전체 내용을 다시 쓰는 것을 **엄격히 금지**합니다.**
-                    - 각 선지에 대해 다음과 같이 **간결한 판단 근거**만 제시할 것:
-                        - **정답 선지:** "해당 선지는 지문의 이러이러한 내용을 근거로 ~하기 때문에 정답이다."와 같이 **결정적 이유**만 간결하게 제시.
-                        - **오답 선지:** "해당 선지는 지문에서 제시한 ~와는 반대되는 내용을 포함하므로 오답이다."와 같이 **틀린 이유** 또는 **지문과의 불일치 근거**만 간결하게 제시.
-                    - **[출력 형식]** 해설은 **선지 번호**와 **판단 근거**로만 구성해야 하며, 선지 내용이 포함되어서는 안 됩니다.
-                    - **[추가 지시]** 각 선지의 해설이 끝날 때마다 **`<br><br>` 태그를 사용하여** 줄바꿈을 하여 해설 간 간격을 명확하게 구분할 것.
                 """
+                
+                # 2. 정오판단 문제 (유형 2, 4) 해설 요청 블록 추가
                 prompt_answer_ox = ""
                 total_ox_count = count_t2 + count_t4 # 유형 2와 유형 4의 총 개수
-                
+
                 if total_ox_count > 0:
                     # 정오판단 문제는 정답(O/X)과 해설(오답의 경우 틀린 이유)이 모두 필요
                     prompt_answer_ox = f"""
-                    <h4>정오판단 문제 정답 및 해설 ({total_ox_count}문항)</h4><br>
+                    <h4>정오판단 문제 정답 및 해설 (문제 번호 순서대로 {total_ox_count}문항)</h4><br>
                     [지시]: {total_ox_count}문항의 정답과 해설을 **문제 번호 순서대로** 작성.
                     - **[필수]** 정답은 반드시 **'O' 또는 'X'** 기호로 명확하게 표기할 것.
                     - **[핵심]** 각 문제 해설 사이에 <br><br><br> 태그를 사용하여 충분히 간격을 확보할 것.
@@ -1075,18 +1085,37 @@ def non_fiction_app():
                     <br><br>
                     """
 
+                # 3. 빈칸 채우기 문제 (유형 3) 해설 요청 블록 추가
                 prompt_answer_blank = ""
                 count_t3 = st.session_state.get("t3", 0) # 유형 3의 개수
+
+                if count_t3 > 0:
+                    prompt_answer_blank = f"""
+                    <h4>빈칸 채우기 문제 정답 및 해설 (문제 번호 순서대로 {count_t3}문항)</h4><br>
+                    [지시]: {count_t3}문항의 정답과 해설을 **문제 번호 순서대로** 작성.
+                    - **[필수]** 각 빈칸의 정답(핵심어)과 해설을 **번호별로 명확하게 분리**하여 제시할 것.
+                    - **[핵심]** 각 문제 해설 사이에 <br><br><br> 태그를 사용하여 충분히 간격을 확보할 것.
+                    <br><br>
+                    """
+
+                # 4. 객관식 해설 요청 블록 (기존 로직)
+                prompt_answer_obj = ""
+                total_objective_count = count_t5 + count_t6 + count_t7
                 
+                if total_objective_count > 0:
+                    # **오류 방지 위해 rule_text를 빈 문자열로 사용**
+                    rule_text = objective_rule_text_nonfiction
+                    count_text = f"<h4>객관식 정답 및 해설 (문제 번호 순서대로 {total_objective_count}문항)</h4><br>[지시]: {total_objective_count}문항의 정답(번호) 및 상세 해설을 **문제 번호 순서대로** 작성. <br>[상세 지시]<br> 1. 정답은 **정답 번호**로 표기.<br> 2. **[최중요] 해설 시, 선지의 내용을 그대로 복사하여 반복하지 마십시오.**<br> 3. 각 선지에 대해 선지 내용 반복 없이 정오 판단 근거만 간결하게 설명할 것.<br> 4. 각 선지의 해설이 끝날 때마다 **<br><br>** 태그를 사용하여 줄바꿈을 할 것.<br> 5. 각 문제 해설 사이에 <br><br><br> 태그를 사용하여 충분히 간격을 확보할 것.<br><br>"
+                    prompt_answer_obj = rule_text + count_text
                 
-                # 3. 프롬프트 최종 마침 부분
+                # 5. 프롬프트 최종 마침 부분
                 prompt_end = """
                 </div>
                 """
                 
-                # 최종 prompt 결합
-                prompt = prompt_start + prompt_end
-                
+                # 최종 prompt 결합: (프롬프트 시작) + (정오판단 해설) + (빈칸채우기 해설) + (객관식 해설) + (프롬프트 끝)
+                prompt = prompt_start + prompt_answer_ox + prompt_answer_blank + prompt_answer_obj + prompt_end 
+
                 
                 response = model.generate_content(prompt, generation_config=generation_config)
                 
