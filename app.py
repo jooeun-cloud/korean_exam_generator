@@ -1040,10 +1040,22 @@ def non_fiction_app():
                 [지시사항 5: 정답 및 해설]
                 - **문서의 맨 마지막에 딱 한 번만 <div class="answer-sheet"> 태그를 사용하여 정답지를 작성하시오.**
                 {summary_answer_inst}
-                - **[필수] O/X 문제 정답 표기:** 반드시 **'O', 'X'** 기호 사용 (정/오 금지).
+
                 
                 """
+                prompt_answer_ox = ""
+                total_ox_count = count_t2 + count_t4 # 유형 2와 유형 4의 총 개수
                 
+                if total_ox_count > 0:
+                    # 정오판단 문제는 정답(O/X)과 해설(오답의 경우 틀린 이유)이 모두 필요
+                    prompt_answer_ox = f"""
+                    <h4>정오판단 문제 정답 및 해설 ({total_ox_count}문항)</h4><br>
+                    [지시]: {total_ox_count}문항의 정답과 해설을 작성.
+                    - **[필수]** 정답은 반드시 **'O' 또는 'X'** 기호로 명확하게 표기할 것.
+                    - **[핵심]** 각 문제 해설 사이에 <br><br><br> 태그를 사용하여 충분히 간격을 확보할 것.
+                    - **[해설]** **오답(X)인 경우**, **왜 틀렸는지** 지문에 근거하여 그 **틀린 이유**를 명확하게 설명할 것.
+                    <br><br>
+                    """
                 # 2. 객관식 해설 부분 (조건부 연결)
                 prompt_answer_obj = ""
                 total_objective_count = count_t5 + count_t6 + count_t7
@@ -1060,7 +1072,7 @@ def non_fiction_app():
                 """
                 
                 # 최종 prompt 결합
-                prompt = prompt_start + prompt_answer_obj + prompt_end
+                prompt = prompt_start + prompt_answer_ox + prompt_answer_obj + prompt_end
                 
                 
                 response = model.generate_content(prompt, generation_config=generation_config)
