@@ -1070,7 +1070,19 @@ def non_fiction_app():
                 
                 """
                 
-                # 2. 정오판단 문제 (유형 2, 4) 해설 요청 블록 추가
+                # 2. 서술형(유형 1) 해설 요청 추가
+                # 서술형 유형1(핵심 주장 요약)은 문제 번호 1번이므로, 항상 가장 먼저 작성되도록 별도 블록을 만들고 순서 준수 지시를 포함.
+                prompt_answer_narrative = ""
+                if select_t1:
+                     label_type1_title = "1. 핵심 주장 요약 (서술형)" if current_mode == "단일 지문 (기본)" or current_mode == "단일 지문" else "1. (가),(나) 요약 및 연관성 서술"
+                     prompt_answer_narrative = f"""
+                     <h4>1. {label_type1_title} 모범 답안</h4><br>
+                     [지시]: 1번 문제의 모범 답안을 상세하게 작성. 모범 답안이 끝난 후에는 **<br><br><br> 태그를 사용하여** 충분히 간격을 확보할 것.
+                     <br><br>
+                     """
+
+
+                # 3. 정오판단 문제 (유형 2, 4) 해설 요청 블록 추가
                 prompt_answer_ox = ""
                 total_ox_count = count_t2 + count_t4 # 유형 2와 유형 4의 총 개수
 
@@ -1085,7 +1097,7 @@ def non_fiction_app():
                     <br><br>
                     """
 
-                # 3. 빈칸 채우기 문제 (유형 3) 해설 요청 블록 추가
+                # 4. 빈칸 채우기 문제 (유형 3) 해설 요청 블록 추가
                 prompt_answer_blank = ""
                 count_t3 = st.session_state.get("t3", 0) # 유형 3의 개수
 
@@ -1098,7 +1110,7 @@ def non_fiction_app():
                     <br><br>
                     """
 
-                # 4. 객관식 해설 요청 블록 (기존 로직)
+                # 5. 객관식 해설 요청 블록 (기존 로직)
                 prompt_answer_obj = ""
                 total_objective_count = count_t5 + count_t6 + count_t7
                 
@@ -1108,18 +1120,19 @@ def non_fiction_app():
                     count_text = f"<h4>객관식 정답 및 해설 (문제 번호 순서대로 {total_objective_count}문항)</h4><br>[지시]: {total_objective_count}문항의 정답(번호) 및 상세 해설을 **문제 번호 순서대로** 작성. <br>[상세 지시]<br> 1. 정답은 **정답 번호**로 표기.<br> 2. **[최중요] 해설 시, 선지의 내용을 그대로 복사하여 반복하지 마십시오.**<br> 3. 각 선지에 대해 선지 내용 반복 없이 정오 판단 근거만 간결하게 설명할 것.<br> 4. 각 선지의 해설이 끝날 때마다 **<br><br>** 태그를 사용하여 줄바꿈을 할 것.<br> 5. 각 문제 해설 사이에 <br><br><br> 태그를 사용하여 충분히 간격을 확보할 것.<br><br>"
                     prompt_answer_obj = rule_text + count_text
                 
-                # 5. 프롬프트 최종 마침 부분
+                # 6. 프롬프트 최종 마침 부분
                 prompt_end = """
                 </div>
                 """
                 
-                # 최종 prompt 결합: (프롬프트 시작) + (정오판단 해설) + (빈칸채우기 해설) + (객관식 해설) + (프롬프트 끝)
-                prompt = prompt_start + prompt_answer_ox + prompt_answer_blank + prompt_answer_obj + prompt_end 
+                # 최종 prompt 결합: (프롬프트 시작) + (서술형 해설) + (정오판단 해설) + (빈칸채우기 해설) + (객관식 해설) + (프롬프트 끝)
+                # **[핵심 수정] 서술형 해설을 가장 먼저 추가하여 1번 문제 해설이 누락되지 않도록 함**
+                prompt = prompt_start + prompt_answer_narrative + prompt_answer_ox + prompt_answer_blank + prompt_answer_obj + prompt_end 
 
                 
                 response = model.generate_content(prompt, generation_config=generation_config)
                 
-                # 6. 결과 처리 및 출력
+                # 7. 결과 처리 및 출력
                 clean_content = response.text.replace("```html", "").replace("```", "").replace("##", "").strip()
                 
                 # **[핵심 수정] full_html과 clean_content를 별도로 생성 및 저장**
