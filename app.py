@@ -1065,7 +1065,7 @@ def non_fiction_app():
                 [지시사항 5: 정답 및 해설]
                 - **[최중요]** **문서의 맨 마지막에 딱 한 번만 <div class="answer-sheet"> 태그를 사용하여 정답지를 작성하시오.**
                 {summary_answer_inst}
-                - **[최고강조]** **지금부터 작성하는 모든 정답 및 해설은 문제 번호 1번부터 마지막 번호까지 반드시 순서대로(오름차순) 작성해야 합니다. 번호 순서를 임의로 변경하거나 섞지 마십시오. 모든 해설은 단일 섹션으로 묶어 문제 번호 순서로 출력합니다.**
+                - **[최고강조]** **지금부터 작성하는 모든 정답 및 해설은 문제 번호 1번부터 마지막 번호까지 순서대로(오름차순) 작성해야 합니다. 번호 순서를 임의로 변경하거나 섞지 마십시오. 모든 해설은 단일 섹션으로 묶어 문제 번호 순서로 출력합니다.**
 
                 
                 """
@@ -1085,11 +1085,15 @@ def non_fiction_app():
                 # 3. 정오판단 문제 (유형 2, 4) 해설 요청 블록 추가
                 prompt_answer_ox = ""
                 total_ox_count = count_t2 + count_t4 # 유형 2와 유형 4의 총 개수
-
+                
+                # **[핵심 수정] 정오판단 해설 블록 제목에 시작 번호 포함**
+                start_num_ox = 1 + (1 if select_t1 else 0)
+                end_num_ox = start_num_ox + total_ox_count - 1
+                
                 if total_ox_count > 0:
                     # 정오판단 문제는 정답(O/X)과 해설(오답의 경우 틀린 이유)이 모두 필요
                     prompt_answer_ox = f"""
-                    <h4>정오판단 문제 정답 및 해설 ( {total_ox_count}문항)</h4><br>
+                    <h4>정오판단 문제 정답 및 해설 (문제 번호 {start_num_ox}번부터 {end_num_ox}번까지 순서대로)</h4><br>
                     [지시]: {total_ox_count}문항의 정답과 해설을 **문제 번호 순서대로** 작성.
                     - **[필수]** 정답은 반드시 **'O' 또는 'X'** 기호로 명확하게 표기할 것.
                     - **[핵심]** 각 문제 해설 사이에 <br><br><br> 태그를 사용하여 충분히 간격을 확보할 것.
@@ -1100,10 +1104,14 @@ def non_fiction_app():
                 # 4. 빈칸 채우기 문제 (유형 3) 해설 요청 블록 추가
                 prompt_answer_blank = ""
                 count_t3 = st.session_state.get("t3", 0) # 유형 3의 개수
+                
+                # **[핵심 수정] 빈칸 채우기 해설 블록 제목에 시작 번호 포함**
+                start_num_blank = start_num_ox + total_ox_count
+                end_num_blank = start_num_blank + count_t3 - 1
 
                 if count_t3 > 0:
                     prompt_answer_blank = f"""
-                    <h4>빈칸 채우기 문제 정답 및 해설 ( {count_t3}문항)</h4><br>
+                    <h4>빈칸 채우기 문제 정답 및 해설 (문제 번호 {start_num_blank}번부터 {end_num_blank}번까지 순서대로)</h4><br>
                     [지시]: {count_t3}문항의 정답과 해설을 **문제 번호 순서대로** 작성.
                     - **[필수]** 각 빈칸의 정답(핵심어)과 해설을 **번호별로 명확하게 분리**하여 제시할 것.
                     - **[핵심]** 각 문제 해설 사이에 <br><br><br> 태그를 사용하여 충분히 간격을 확보할 것.
@@ -1114,10 +1122,16 @@ def non_fiction_app():
                 prompt_answer_obj = ""
                 total_objective_count = count_t5 + count_t6 + count_t7
                 
-                if total_objective_count > 0:
+                # **[핵심 수정] 객관식 해설 블록 제목에 시작 번호 포함**
+                start_num_obj = start_num_blank + count_t3
+                # 추천 문제가 있다면 추천 문제도 객관식에 포함되므로 +1
+                total_problems = start_num_obj + total_objective_count + (1 if use_recommendation else 0)
+                end_num_obj = total_problems - 1
+                
+                if total_objective_count > 0 or use_recommendation:
                     # **오류 방지 위해 rule_text를 빈 문자열로 사용**
                     rule_text = objective_rule_text_nonfiction
-                    count_text = f"<h4>객관식 정답 및 해설 ( {total_objective_count}문항)</h4><br>[지시]: {total_objective_count}문항의 정답(번호) 및 상세 해설을 **문제 번호 순서대로** 작성. <br>[상세 지시]<br> 1. 정답은 **정답 번호**로 표기.<br> 2. **[최중요] 해설 시, 선지의 내용을 그대로 복사하여 반복하지 마십시오.**<br> 3. 각 선지에 대해 선지 내용 반복 없이 정오 판단 근거만 간결하게 설명할 것.<br> 4. 각 선지의 해설이 끝날 때마다 **<br><br>** 태그를 사용하여 줄바꿈을 할 것.<br> 5. 각 문제 해설 사이에 <br><br><br> 태그를 사용하여 충분히 간격을 확보할 것.<br><br>"
+                    count_text = f"<h4>객관식 정답 및 해설 (문제 번호 {start_num_obj}번부터 {end_num_obj}번까지 순서대로)</h4><br>[지시]: {total_objective_count + (1 if use_recommendation else 0)}문항의 정답(번호) 및 상세 해설을 **문제 번호 순서대로** 작성. <br>[상세 지시]<br> 1. 정답은 **정답 번호**로 표기.<br> 2. **[최중요] 해설 시, 선지의 내용을 그대로 복사하여 반복하지 마십시오.**<br> 3. 각 선지에 대해 선지 내용 반복 없이 정오 판단 근거만 간결하게 설명할 것.<br> 4. 각 선지의 해설이 끝날 때마다 **<br><br>** 태그를 사용하여 줄바꿈을 할 것.<br> 5. 각 문제 해설 사이에 <br><br><br> 태그를 사용하여 충분히 간격을 확보할 것.<br><br>"
                     prompt_answer_obj = rule_text + count_text
                 
                 # 6. 프롬프트 최종 마침 부분
@@ -1126,7 +1140,6 @@ def non_fiction_app():
                 """
                 
                 # 최종 prompt 결합: (프롬프트 시작) + (서술형 해설) + (정오판단 해설) + (빈칸채우기 해설) + (객관식 해설) + (프롬프트 끝)
-                # **[핵심 수정] 서술형 해설을 가장 먼저 추가하여 1번 문제 해설이 누락되지 않도록 함**
                 prompt = prompt_start + prompt_answer_narrative + prompt_answer_ox + prompt_answer_blank + prompt_answer_obj + prompt_end 
 
                 
