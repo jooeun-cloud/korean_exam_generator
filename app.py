@@ -1038,11 +1038,23 @@ def non_fiction_app():
                 - [유형7] 및 보기는 <div class="example-box">.
                 
                 [지시사항 5: 정답 및 해설]
-                - **문서의 맨 마지막에 딱 한 번만 <div class="answer-sheet"> 태그를 사용하여 정답지를 작성하시오.**
+                - **[최중요]** **문서의 맨 마지막에 딱 한 번만 <div class="answer-sheet"> 태그를 사용하여 정답지를 작성하시오.**
                 {summary_answer_inst}
-                - **[최중요] 정답 및 해설은 반드시 문제 번호 1번부터 마지막 번호까지 순서대로(오름차순) 작성해야 합니다. 번호 순서를 임의로 변경하거나 섞지 마십시오.**
-                - **[필수] O/X 문제 정답 표기:** 반드시 **'O', 'X'** 기호 사용 (정/오 금지).
-
+                - **[최고강조]** **지금부터 작성하는 모든 정답 및 해설은 문제 번호 1번부터 마지막 번호까지 순서대로(오름차순) 작성해야 합니다. 번호 순서를 임의로 변경하거나 섞지 마십시오. 모든 해설은 단일 섹션으로 묶어 문제 번호 순서로 출력합니다.**
+                
+                <h4>정답 및 해설 (문제 번호 순서대로)</h4>
+                [통합 지시]: 아래는 문제 번호 순서대로 정답 및 해설을 작성하기 위한 상세 규칙입니다.
+                - **[핵심]** 각 문제의 해설이 끝날 때마다 **<br><br><br> 태그를 사용하여** 충분히 간격을 확보하여 분리할 것.
+                
+                1. **유형 1 (서술형 요약):** 모범 답안을 상세하게 작성.
+                2. **유형 2, 4 (O/X 정오판단):**
+                    - 정답은 반드시 **'O' 또는 'X'** 기호로 명확하게 표기할 것.
+                    - **오답(X)인 경우**, **왜 틀렸는지** 지문에 근거하여 그 **틀린 이유**를 명확하게 설명할 것.
+                3. **유형 3 (빈칸 채우기):**
+                    - 각 빈칸의 정답(핵심어)과 해설을 **번호별로 명확하게 분리**하여 제시할 것.
+                4. **유형 5, 6, 7 (객관식):**
+                    - 정답은 **정답 번호**로 표기할 것.
+                    - **오답 선지 각각의 틀린 이유**를 명확하게 설명하고, **모든 선지의 정오(正誤) 판별 이유**를 명시할 것.
                 
                 """
                 prompt_answer_ox = ""
@@ -1062,23 +1074,6 @@ def non_fiction_app():
                 prompt_answer_blank = ""
                 count_t3 = st.session_state.get("t3", 0) # 유형 3의 개수
                 
-                if count_t3 > 0:
-                    prompt_answer_blank = f"""
-                    <h4>빈칸 채우기 문제 정답 및 해설 ({count_t3}문항)</h4><br>
-                    [지시]: {count_t3}문항의 정답과 해설을 문제 번호 순서대로 작성.
-                    - **[필수]** 각 빈칸의 정답(핵심어)과 해설을 **번호별로 명확하게 분리**하여 제시할 것.
-                    - **[핵심]** 각 문제 해설 사이에 <br><br><br> 태그를 사용하여 충분히 간격을 확보할 것.
-                    <br><br>
-                    """
-                # 2. 객관식 해설 부분 (조건부 연결)
-                prompt_answer_obj = ""
-                total_objective_count = count_t5 + count_t6 + count_t7
-                
-                if total_objective_count > 0:
-                    # **오류 방지 위해 rule_text를 빈 문자열로 사용**
-                    rule_text = objective_rule_text_nonfiction
-                    count_text = f"<h4>객관식 정답 및 해설 ({total_objective_count}문항)</h4><br>[지시]: {total_objective_count}문항의 정답(번호) 및 상세 해설을 작성. 각 문제 해설 사이에 <br><br><br> 태그를 사용하여 **[최중요] 정답뿐만 아니라 오답 선지 각각의 틀린 이유를 명확하게 설명하고, 반드시 모든 선지의 정오(正誤) 판별 이유를 명시**할 것.<br><br>"
-                    prompt_answer_obj = rule_text + count_text
                 
                 # 3. 프롬프트 최종 마침 부분
                 prompt_end = """
@@ -1086,7 +1081,7 @@ def non_fiction_app():
                 """
                 
                 # 최종 prompt 결합
-                prompt = prompt_start + prompt_answer_ox + prompt_answer_blank + prompt_answer_obj + prompt_end
+                prompt = prompt_start + prompt_end
                 
                 
                 response = model.generate_content(prompt, generation_config=generation_config)
