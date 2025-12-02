@@ -1098,19 +1098,25 @@ def non_fiction_app():
                 # AI 생성 모드일 경우: AI가 생성한 HTML 헤더(제목/시간/지문) 추출
                 # -----------------------------------------------------------
                 if current_d_mode == 'AI 생성':
+    
+                    # 1. 제목/시간 박스를 수동으로 생성
+                    html_header_manual = f"<h1>사계국어 비문학 스펙트럼</h1><h2>[{current_domain} 영역: {current_topic}]</h2>"
+                    html_header_manual += f"<div class='time-box'> ⏱️ 실제 소요 시간: <span class='time-blank'></span> 분 </div>"
+                    full_html += html_header_manual
                     
-                    header_and_passage_match = re.search(r'(<h1>.*?<\/div>.*?<div class="passage">.*?<\/div>)', clean_content, re.DOTALL)
+                    # 2. AI가 생성한 '지문'을 clean_content에서 추출
+                    passage_match = re.search(r'<div class="passage">.*?<\/div>', clean_content, re.DOTALL)
+                    if passage_match:
+                        extracted_passage = passage_match.group(0)
+                        full_html += extracted_passage
+                        # clean_content는 지문, 문제, 해설이 모두 포함되어 있으므로, 지문 부분을 제거
+                        clean_content = clean_content.replace(extracted_passage, "", 1)
                     
-                    if header_and_passage_match:
-                        extracted_content = header_and_passage_match.group(0)
-                        full_html += extracted_content
-                        # clean_content는 순수 문제/해설 부분만 남깁니다.
-                        clean_content = clean_content.replace(extracted_content, "", 1)
-                    else:
-                        full_html += clean_content
-                        
+                    # AI 응답 내부에 포함되었을 수 있는 제목/시간 태그를 한 번 더 제거하여 중복 방지
+                    clean_content = re.sub(r'<h1>.*?<\/h1>.*?<h2>.*?<\/h2>.*?<div class="time-box">.*?<\/div>', '', clean_content, 1, re.DOTALL)
+                    
                 # -----------------------------------------------------------
-                # 직접 입력 모드일 경우: Python이 헤더/지문 수동 생성
+                # 직접 입력 모드일 경우: 기존 로직 유지 (Python이 제목/시간/지문 수동 생성)
                 # -----------------------------------------------------------
                 elif current_d_mode == '직접 입력':
                     
@@ -1120,11 +1126,12 @@ def non_fiction_app():
                     full_html += html_header_manual
                     
                     # 2. 지문 본문 (manual_passage_content에 저장된 포맷팅된 지문)
+                    # 이 부분은 이전에 AI에게 요청하여 포맷팅한 결과입니다.
                     full_html += manual_passage_content
                     
                     # AI가 생성한 문제 내용 중 불필요한 헤더 부분을 제거 (AI의 출력물에서 문제 부분만 추출하기 위함)
                     clean_content = re.sub(r'<h1>.*?<\/div>.*?<div class="time-box">.*?<\/div>|2\. \[분석 대상 지문\].*?\[사용자 제공 지문\].*?{re.escape(current_manual_passage)}.*?(?=\[지시 사항\])', '', clean_content, 1, re.DOTALL)
-                
+                    # **[핵심 수정 끝]**
                 
                 # 지문 아래에 나머지 문제 내용 및 정답지 추가
                 full_html += clean_content
