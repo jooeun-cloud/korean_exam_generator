@@ -1010,9 +1010,9 @@ def non_fiction_app():
                     # **[수정 반영] 추천 문제가 누락되지 않도록 강하게 요청하는 지시 추가**
                     rec_prompt = f"""
                     <div class="type-box bonus-box">
-                        <h3>🌟 영역 맞춤 추천 문제 (필수 출력)</h3>
+                        <h3>🌟 영역 맞춤 추천 문제</h3>
                         <div class="question-box">
-                            <b>다음은 {current_domain} 영역의 심화 추천 문제입니다. 반드시 5개 선지의 객관식 문제 1개를 생성하고 정답(번호)을 제시하시오.</b><br><br>
+                            **다음은 {current_domain} 영역의 심화 추천 문제입니다. 반드시 5개 선지의 객관식 문제 1개를 생성하고 정답(번호)을 제시하시오.**
                             <div class="choices">
                                 <div>① 보기1</div>
                                 <div>② 보기2</div>
