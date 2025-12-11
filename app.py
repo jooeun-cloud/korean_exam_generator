@@ -233,23 +233,44 @@ HTML_TAIL = """
 </html>
 """
 
-# 모델 자동 선택 함수 
 def get_best_model():
-    """API 환경에서 유효한 최신 Gemini 모델 ID를 찾아서 반환합니다."""
-    if "DUMMY_API_KEY_FOR_LOCAL_TEST" in GOOGLE_API_KEY or "APIKEY" in GOOGLE_API_KEY:
-          return 'gemini-2.5-flash'
-        
+    """
+    API 환경에서 유효한 최신 모델 ID를 찾아서 반환합니다.
+    (선생님 계정 특성에 맞춰 할당량이 넉넉한 Gemma-3를 최우선으로 선택합니다.)
+    """
+    # 1. 테스트용 더미 키일 경우
+    if "DUMMY" in GOOGLE_API_KEY or "APIKEY" in GOOGLE_API_KEY:
+         return 'models/gemma-3-27b-it'
+    
     try:
         genai.configure(api_key=GOOGLE_API_KEY)
-        models = [m.name for m in genai.list_models()]
         
-        if 'gemini-2.5-flash' in models: return 'gemini-2.5-flash'
-        elif 'gemini-2.5-pro' in models: return 'gemini-2.5-pro'
-        elif 'gemini-1.5-flash' in models: return 'gemini-1.5-flash'
-        elif 'gemini-pro' in models: return 'gemini-pro'
-        else: return 'gemini-2.5-flash'
+        # 실제 사용 가능한 모델 목록 가져오기 (예: ['models/gemini-1.5-flash', ...])
+        available_models = [m.name for m in genai.list_models()]
+        
+        # -------------------------------------------------------
+        # [핵심] 우선순위 리스트 (위에서부터 순서대로 확인)
+        # -------------------------------------------------------
+        priority_candidates = [
+            'models/gemma-3-27b-it',      # 1순위: 하루 14,400회 (무료 용량 깡패)
+            'models/gemma-3-12b-it',      # 2순위: 27b가 없으면 차선책
+            'models/gemini-2.5-flash',    # 3순위: 똑똑하지만 하루 20회 제한
+            'models/gemini-2.0-flash',    # 4순위: 정식 버전
+            'models/gemini-1.5-flash',    # 5순위: 만약 리스트에 뜬다면 무조건 추천
+            'models/gemini-1.5-flash-001' # 6순위: 구버전 명시
+        ]
+
+        # 우선순위 순서대로 리스트에 있는지 확인
+        for model_name in priority_candidates:
+            if model_name in available_models:
+                return model_name
+        
+        # 리스트 매칭 실패 시, 강제로라도 Gemma 3 반환 (히든 메뉴일 수 있음)
+        return 'models/gemma-3-27b-it'
+
     except Exception: 
-        return 'gemini-2.5-flash'
+        # API 오류 발생 시에도 안전하게 Gemma 3 반환
+        return 'models/gemma-3-27b-it'
 
 
 # ==========================================
