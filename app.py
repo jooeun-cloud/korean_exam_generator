@@ -114,6 +114,10 @@ HTML_HEAD = """
             color: #777; font-size: 0.85em; background-color: #fafafa;
         }
 
+        .blank {
+            display: inline-block; width: 60px; border-bottom: 1px solid #000;
+        }
+
         /* 정답 및 해설 */
         .answer-sheet { 
             background: #f8f9fa; padding: 30px; margin-top: 50px; 
@@ -261,23 +265,32 @@ def non_fiction_app():
             current_difficulty = "사용자 지정"
 
         st.markdown("---")
-        st.header("2️⃣ 문제 유형 선택")
+        st.header("2️⃣ 문제 유형 및 개수 선택")
         
-        select_t1 = st.checkbox("1. 핵심 내용 요약 (서술형)", value=True)
-        select_t2 = st.checkbox("2. 내용 일치 (O/X)", key="select_t2")
+        # [수정] 모든 문제 유형 선택지 부활
+        label_type1 = "1. 핵심 주장 요약 (서술형)" if current_mode.startswith("단일") else "1. (가),(나) 요약 및 연관성 서술"
+        
+        select_t1 = st.checkbox(label_type1, value=True, key="select_t1")
+        
+        select_t2 = st.checkbox("2. 내용 일치 O/X", key="select_t2")
         count_t2 = st.number_input(" - 문항 수", 1, 10, 2, key="t2") if select_t2 else 0
         
-        select_t5 = st.checkbox("3. 객관식 (세부 내용 파악)", value=True, key="select_t5")
+        select_t3 = st.checkbox("3. 빈칸 채우기", key="select_t3")
+        count_t3 = st.number_input(" - 문항 수", 1, 10, 2, key="t3") if select_t3 else 0
+        
+        select_t4 = st.checkbox("4. 변형 문장 정오판단", key="select_t4")
+        count_t4 = st.number_input(" - 문항 수", 1, 10, 2, key="t4") if select_t4 else 0
+        
+        select_t5 = st.checkbox("5. 객관식 (일치/불일치)", key="select_t5")
         count_t5 = st.number_input(" - 문항 수", 1, 10, 2, key="t5") if select_t5 else 0
         
-        select_t6 = st.checkbox("4. 객관식 (추론)", value=True, key="select_t6")
-        count_t6 = st.number_input(" - 문항 수", 1, 10, 1, key="t6") if select_t6 else 0
+        select_t6 = st.checkbox("6. 객관식 (추론)", key="select_t6")
+        count_t6 = st.number_input(" - 문항 수", 1, 10, 2, key="t6") if select_t6 else 0
         
-        st.markdown("##### 🌟 고난도 유형")
-        select_t7 = st.checkbox("5. 객관식 (보기 적용 3점)", value=True, key="select_t7")
+        select_t7 = st.checkbox("7. 객관식 (보기 적용 3점)", key="select_t7")
         count_t7 = st.number_input(" - 문항 수", 1, 10, 1, key="t7") if select_t7 else 0
         
-        use_summary = st.checkbox("📌 문단별 요약 훈련 칸 생성", value=False)
+        use_summary = st.checkbox("📌 문단별 요약 훈련 칸 생성", value=False, key="select_summary")
 
     # --- 메인 실행 로직 ---
     if st.session_state.generation_requested:
@@ -312,9 +325,9 @@ def non_fiction_app():
                 
                 # 1. 요약 문제
                 if select_t1: 
-                    reqs.append("""
+                    reqs.append(f"""
                     <div class="question-box">
-                        <span class="question-text">1. 윗글의 핵심 내용을 요약하시오.</span>
+                        <span class="question-text">1. {label_type1}</span>
                         <div class="write-box"></div>
                     </div>
                     """)
@@ -328,7 +341,25 @@ def non_fiction_app():
                         - 문항 끝에 ( O / X ) 표시를 포함하시오.
                     </div>""")
 
-                # 3. 객관식 (일치)
+                # 3. 빈칸 채우기
+                if select_t3:
+                    reqs.append(f"""
+                    <div class="type-box">
+                        <h3>빈칸 채우기 ({count_t3}문항)</h3>
+                        - 지문의 핵심 키워드나 문장을 빈칸으로 만든 문제를 {count_t3}개 출제하시오.
+                        - 빈칸은 `<span class='blank'></span>` 태그를 사용하시오.
+                    </div>""")
+
+                # 4. 변형 문장 정오판단
+                if select_t4:
+                    reqs.append(f"""
+                    <div class="type-box">
+                        <h3>변형 문장 정오판단 ({count_t4}문항)</h3>
+                        - 지문의 문장을 살짝 변형하여 맞는지 틀리는지 판단하는 문제를 {count_t4}개 출제하시오.
+                        - 문항 끝에 ( O / X ) 표시를 포함하시오.
+                    </div>""")
+
+                # 5. 객관식 (일치)
                 if select_t5: 
                     reqs.append(f"""
                     <div class="type-box">
@@ -346,7 +377,7 @@ def non_fiction_app():
                         </div>
                     </div>""")
 
-                # 4. 객관식 (추론)
+                # 6. 객관식 (추론)
                 if select_t6: 
                     reqs.append(f"""
                     <div class="type-box">
@@ -355,7 +386,7 @@ def non_fiction_app():
                         - [형식] 위와 동일한 객관식 포맷 사용.
                     </div>""")
 
-                # 5. 보기 적용 (핵심 수정)
+                # 7. 보기 적용 (핵심 수정)
                 if select_t7: 
                     reqs.append(f"""
                     <div class="type-box">
@@ -438,7 +469,7 @@ def non_fiction_app():
                 # HTML 조립
                 full_html = HTML_HEAD
                 full_html += f"<h1>사계국어 AI 모의고사</h1><h2>[{current_domain}] {current_topic}</h2>"
-                full_html += "<div class='time-box'>⏱️ 소요 시간:  </div>"
+                full_html += "<div class='time-box'>⏱️ 목표 시간: 12분</div>"
                 
                 # 직접 입력 모드일 경우 지문을 Python에서 삽입
                 if current_d_mode == '직접 입력':
