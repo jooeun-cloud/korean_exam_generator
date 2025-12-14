@@ -11,7 +11,7 @@ import time
 # ==========================================
 # [설정] 페이지 기본 설정 (반드시 가장 먼저 실행)
 # ==========================================
-st.set_page_config(page_title="사계국어 모의고사 시스템", page_icon="📚", layout="wide")
+st.set_page_config(page_title="사계국어 AI 모의고사 시스템", page_icon="📚", layout="wide")
 
 # ==========================================
 # [설정] API 키 연동
@@ -131,9 +131,9 @@ HTML_HEAD = """
         /* 문단 요약 빈칸 스타일 (높이 확장) */
         .summary-blank {
             border: 1px dashed #aaa; padding: 15px; margin: 15px 0 25px 0;
-            min-height: 50px;
+            min-height: 100px; /* 높이를 100px로 확장 */
             color: #666; font-size: 0.9em; background-color: #fcfcfc;
-            font-weight: bold; display: flex; align-items: center;
+            font-weight: bold; display: flex; align-items: flex-start; /* 텍스트 상단 정렬 */
         }
 
         /* 정답 및 해설 */
@@ -224,7 +224,7 @@ HTML_TAIL = """
 """
 
 def get_best_model():
-    """안정적인 모델 선택"""
+    """사용자가 요청한 Gemma-3 27B IT 모델을 최우선으로 사용"""
     return 'models/gemma-3-27b-it'
 
 # ==========================================
@@ -240,7 +240,7 @@ def create_docx(html_content, file_name, current_topic):
     clean_text = re.sub(r'<[^>]+>', '\n', html_content)
     clean_text = re.sub(r'\n+', '\n', clean_text).strip()
     
-    document.add_heading("사계국어 모의고사", 0)
+    document.add_heading("사계국어 AI 모의고사", 0)
     document.add_heading(current_topic, 1)
     document.add_paragraph(clean_text)
 
@@ -564,33 +564,29 @@ def non_fiction_app():
                 generation_config_ans = GenerationConfig(max_output_tokens=8192, temperature=0.3)
                 response_answers = model.generate_content(prompt_answers, generation_config=generation_config_ans)
                 html_answers = response_answers.text.replace("```html", "").replace("```", "").strip()
-                
+
                 # HTML 조립
                 full_html = HTML_HEAD
-                full_html += f"<h1>사계국어 모의고사</h1><h2>[{current_domain}] {current_topic}</h2>"
+                full_html += f"<h1>사계국어 AI 모의고사</h1><h2>[{current_domain}] {current_topic}</h2>"
                 full_html += "<div class='time-box'>⏱️ 소요 시간: <span class='time-blank'></span></div>"
                 
                 # 직접 입력 모드일 경우 지문을 Python에서 삽입
                 if current_d_mode == '직접 입력':
-                    def add_summary_box(text):
-                        if not use_summary: return f"<p>{text}</p>"
-                        return f"<p>{text}</p><div class='summary-blank'>📝 문단 요약 연습: (이곳에 핵심 내용을 요약해보세요)</div>"
+                    def make_p_with_summary(text):
+                        box = f"<p>{text}</p>"
+                        if use_summary:
+                            box += "<div class='summary-blank'>📝 문단 요약 연습: </div>"
+                        return box
 
-                    if current_mode == '단일 지문':
-                        # [수정] 직접 입력 모드에서 엔터 두 번(\n\n)으로 구분된 문단에만 요약 칸 추가
-                        paragraphs = [p.strip() for p in re.split(r'\n\s*\n', current_manual_passage.strip()) if p.strip()]
-                        formatted_p = "".join([add_summary_box(p) for p in paragraphs])
-                        formatted_p = f'<div class="passage">{formatted_p}</div>'
-                    else:
-                        paragraphs_a = [p.strip() for p in st.session_state.manual_passage_input_a.split('\n\n') if p.strip()]
-                        formatted_a = "".join([add_summary_box(p) for p in paragraphs_a])
-                        paragraphs_b = [p.strip() for p in st.session_state.manual_passage_input_b.split('\n\n') if p.strip()]
-                        formatted_b = "".join([add_summary_box(p) for p in paragraphs_b])
-                        formatted_p = f'<div class="passage"><b>(가)</b><br>{formatted_a}<br><br><b>(나)</b><br>{formatted_b}</div>'
+                    # 문단 나누기 (엔터 두번 기준 - 정규식 강화)
+                    raw_paras = [p.strip() for p in re.split(r'\n\s*\n', current_manual_passage.strip()) if p.strip()]
+                    formatted_paras = "".join([make_p_with_summary(p) for p in raw_paras])
                     
-                    full_html += formatted_p
+                    if current_mode == '단일 지문':
+                        full_html += f'<div class="passage">{formatted_paras}</div>'
+                    else:
+                        full_html += f'<div class="passage">{formatted_paras}</div>'
                 
-                # 문제와 해설 결합
                 full_html += html_problems
                 full_html += html_answers
                 full_html += HTML_TAIL
@@ -616,8 +612,8 @@ def fiction_app():
     
     with st.sidebar:
         st.header("1️⃣ 작품 정보")
-        work_name = st.text_input("작품명", key="fiction_work_name_input")
-        author_name = st.text_input("작가명", key="fiction_author_name_input")
+        work_name = st.text_input("작품명", key="fic_name")
+        author_name = st.text_input("작가명", key="fic_auth")
         st.markdown("---")
         st.header("2️⃣ 출제 유형")
         count_t3 = st.number_input("객관식 문제 수", 1, 10, 3, key="fiction_c_t3")
@@ -760,8 +756,6 @@ def display_results():
     if st.session_state.generated_result:
         res = st.session_state.generated_result
         st.markdown("---")
-        st.subheader("📊 생성 결과")
-        
         c1, c2, c3 = st.columns([1, 1, 1])
         with c1:
             if st.button("🔄 다시 생성"):
@@ -769,15 +763,15 @@ def display_results():
                 st.session_state.generation_requested = True
                 st.rerun()
         with c2:
-            st.download_button("📥 HTML 다운로드", res["full_html"], f"{res['domain']}.html", "text/html")
+            st.download_button("📥 HTML 저장", res["full_html"], "exam.html", "text/html")
         with c3:
-            docx = create_docx(res["full_html"], "result.docx", res["topic"])
-            st.download_button("📄 워드 다운로드", docx, f"{res['domain']}.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+            docx = create_docx(res["full_html"], "exam.docx", res["topic"])
+            st.download_button("📄 Word 저장", docx, "exam.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
             
         st.components.v1.html(res["full_html"], height=800, scrolling=True)
 
-# 앱 시작
-st.title("📚 사계국어 모의고사 제작 시스템")
+# 앱 레이아웃
+st.title("📚 사계국어 AI 모의고사 제작 시스템")
 st.markdown("---")
 
 col_L, col_R = st.columns([1.5, 3])
@@ -788,11 +782,10 @@ with col_L:
 with col_R:
     if st.session_state.app_mode == "⚡ 비문학 문제 제작":
         st.header("⚡ 비문학 모의평가")
-        
         if st.session_state.get("domain_mode_select") == "직접 입력":
             current_manual_mode = st.session_state.get("manual_mode", "단일 지문")
             if current_manual_mode == "단일 지문":
-                st.text_area("지문 입력", height=300, key="manual_passage_input_col_main")
+                st.text_area("지문 입력 (엔터 두번으로 문단 구분)", height=300, key="manual_passage_input_col_main")
             else:
                 c1, c2 = st.columns(2)
                 with c1: st.text_area("(가) 지문", height=300, key="manual_passage_input_a")
@@ -803,13 +796,11 @@ with col_R:
         
         non_fiction_app()
 
-    else: # 문학
+    else:
         st.header("📖 문학 심층 분석")
-        st.text_area("소설/시 본문 입력", height=300, key="fiction_novel_text_input_area")
-        
-        if st.button("🚀 문제 생성", key="run_fiction"):
+        st.text_area("작품 본문 입력", height=300, key="fiction_novel_text_input_area")
+        if st.button("🚀 분석 생성", key="run_fiction"):
             st.session_state.generation_requested = True
-            
         fiction_app()
 
 display_results()
