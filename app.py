@@ -9,6 +9,11 @@ from docx.shared import Inches, Pt
 import time
 
 # ==========================================
+# [설정] 페이지 기본 설정 (가장 먼저 실행되어야 함)
+# ==========================================
+st.set_page_config(page_title="사계국어 AI 모의고사 시스템", page_icon="📚", layout="wide")
+
+# ==========================================
 # [설정] API 키 연동
 # ==========================================
 try:
@@ -17,8 +22,6 @@ try:
 except (KeyError, AttributeError):
     # 로컬 환경 변수 등 Fallback
     GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "") 
-
-st.set_page_config(page_title="사계국어 모의고사 시스템", page_icon="📚", layout="wide")
 
 # ==========================================
 # [초기화] Session State 설정
@@ -609,7 +612,7 @@ def non_fiction_app():
                 
                 # HTML 조립
                 full_html = HTML_HEAD
-                full_html += f"<h1>사계국어 모의고사</h1><h2>[{current_domain}] {current_topic}</h2>"
+                full_html += f"<h1>사계국어 AI 모의고사</h1><h2>[{current_domain}] {current_topic}</h2>"
                 full_html += "<div class='time-box'>⏱️ 소요 시간: <span class='time-blank'></span></div>"
                 
                 # 직접 입력 모드일 경우 지문을 Python에서 삽입
@@ -649,3 +652,207 @@ def non_fiction_app():
             except Exception as e:
                 status.error(f"오류 발생: {e}")
                 st.session_state.generation_requested = False
+
+# ==========================================
+# 📖 문학 문제 제작 함수 (업데이트)
+# ==========================================
+
+def fiction_app():
+    global GOOGLE_API_KEY
+    
+    with st.sidebar:
+        st.header("1️⃣ 작품 정보")
+        work_name = st.text_input("작품명", key="fiction_work_name_input")
+        author_name = st.text_input("작가명", key="fiction_author_name_input")
+        st.markdown("---")
+        st.header("2️⃣ 출제 유형")
+        count_t3 = st.number_input("객관식 문제 수", 1, 10, 3, key="fiction_c_t3")
+        select_t7 = st.checkbox("보기(외적 준거) 적용 문제", value=True, key="fiction_select_t7")
+        select_t6 = st.checkbox("인물 관계도 및 갈등 분석", key="fiction_select_t6")
+
+    if st.session_state.generation_requested:
+        current_novel_text = st.session_state.fiction_novel_text_input_area
+        
+        if not current_novel_text or not work_name:
+            st.warning("작품명과 본문을 입력해주세요.")
+            st.session_state.generation_requested = False
+        else:
+            status = st.empty()
+            status.info("⚡ 문학 문제 출제 중...")
+            
+            try:
+                model_name = get_best_model()
+                genai.configure(api_key=GOOGLE_API_KEY)
+                model = genai.GenerativeModel(model_name)
+                
+                reqs = []
+                reqs.append(f"- 작품의 내용 이해를 묻는 객관식 5지 선다형 문제를 {count_t3}문항 출제하시오.")
+                
+                if select_t7:
+                    reqs.append(f"""
+                    - **[고난도 보기 문제]**: 
+                      `<div class="example-box">` 안에 이 작품과 관련된 **시대적 상황**, **작가의 다른 경향**, 또는 **비평문의 일부**를 [보 기]로 제시하시오.
+                      그리고 이를 바탕으로 작품을 감상한 내용으로 적절하지 않은 것을 묻는 문제를 1문항 출제하시오.
+                    """)
+                
+                if select_t6:
+                    reqs.append("- **[서술형]**: 주요 등장인물 간의 갈등 구조와 그 원인을 분석하여 서술하시오.")
+
+                reqs_str = "\n".join(reqs)
+                
+                # ----------------------------------------------------------------
+                # [1단계] 문학 문제 생성
+                # ----------------------------------------------------------------
+                prompt_problems = f"""
+                당신은 수능 문학 출제위원입니다.
+                작품: {work_name} ({author_name})
+                
+                **[지시 1] 지문 분석**
+                아래 텍스트를 바탕으로 문제를 출제하시오. (지문은 출력하지 않음)
+                {current_novel_text}
+                
+                **[지시 2] 문제 출제**
+                {reqs_str}
+                
+                **[HTML 형식 규칙]**
+                - 문제는 `<div class="question-box">` 사용.
+                - 보기 박스는 `<div class="example-box">` 사용.
+                - 선지는 `<div class="choices">` 사용.
+                
+                **[중요] 정답 및 해설은 아직 작성하지 마시오. 문제까지만 출력하시오.**
+                """
+                
+                generation_config = GenerationConfig(max_output_tokens=8192, temperature=0.7)
+                response_problems = model.generate_content(prompt_problems, generation_config=generation_config)
+                html_problems = response_problems.text.replace("```html", "").replace("```", "").strip()
+
+                # [중복 방지] 문학도 지문 중복 생성 가능성 차단
+                html_problems = re.sub(r'<div class="passage">.*?</div>', '', html_problems, flags=re.DOTALL).strip()
+
+                # ----------------------------------------------------------------
+                # [2단계] 문학 정답 및 해설 생성
+                # ----------------------------------------------------------------
+                prompt_answers = f"""
+                당신은 수능 문학 출제위원입니다.
+                
+                아래는 방금 출제된 문학 작품의 문제들입니다.
+                이 내용을 바탕으로 **정답 및 해설 섹션**(`<div class="answer-sheet">`...)만 완벽하게 작성하시오.
+
+                **[입력된 문제]**
+                {html_problems}
+
+                **[지시사항]**
+                - 문서 끝에 `<div class="answer-sheet">`를 만들고, 모든 문제에 대해 **정답**, **해설(근거)**, **오답 분석**을 상세히 작성하시오.
+                - **[매우 중요 - 중복 방지]**: 위에서 입력받은 **지문과 문제(발문, 보기, 선지 등)를 결과에 절대 다시 적지 마시오.** 오직 정답과 해설 내용만 작성하시오.
+                - **[주의] 해설 작성 시 토큰 낭비를 막기 위해 문제의 발문이나 보기를 절대 다시 적지 마시오. 문제 번호, 정답, 해설만 작성하시오.**
+                - 절대 중간에 끊지 말고, 위에서 출제한 모든 문제에 대한 정답과 해설을 끝까지 작성하시오.
+                - 해설이 짤리면 안 됩니다. 마지막 문제까지 완벽하게 작성하십시오.
+                - **[형식 준수]**: 각 문제마다 아래 포맷을 따르시오.
+                - **[해설 작성 규칙]**:
+                  1. **객관식 문제**:
+                     - 반드시 `[객관식 내용 일치]`와 같이 문제 유형을 크게 명시하시오.
+                     - **[중요] 보기(외적 준거) 적용 문제도 반드시 오답 분석을 작성해야 합니다.**
+                     - 정답 해설과 함께 **오답 상세 분석**을 필수 작성하시오.
+                     - "보기에 명시되어 있다"와 같은 단순한 서술은 **금지**합니다. 
+                     - 각 오답 선지(①, ②, ...)별로 지문이나 보기의 **어느 부분과 배치되는지** 구체적인 근거를 들어 설명하시오.
+                  2. **서술형 문제**:
+                     - 예시 답안과 채점 기준을 제시하시오.
+                
+                <div class="ans-item">
+                    <div class="ans-type-badge">[문제유형 예: 객관식 보기적용]</div>
+                    <span class="ans-num">[번호] 정답: ④</span>
+                    <span class="ans-content-title">1. 정답 상세 해설</span>
+                    <span class="ans-text">...</span>
+                    <!-- 객관식일 경우 -->
+                    <span class="ans-content-title">2. 오답 상세 분석</span>
+                    <div class="ans-wrong-box">
+                        <span class="ans-text">① (X): ...<br>② (X): ...</span>
+                    </div>
+                </div>
+                """
+                
+                generation_config_ans = GenerationConfig(max_output_tokens=8192, temperature=0.3)
+                response_answers = model.generate_content(prompt_answers, generation_config=generation_config_ans)
+                html_answers = response_answers.text.replace("```html", "").replace("```", "").strip()
+
+                # HTML 조립
+                full_html = HTML_HEAD
+                full_html += f"<h1>{work_name} 실전 문제</h1><h2>{author_name}</h2>"
+                full_html += f'<div class="passage">{current_novel_text.replace(chr(10), "<br>")}</div>'
+                full_html += html_problems
+                full_html += html_answers
+                full_html += HTML_TAIL
+                
+                st.session_state.generated_result = {
+                    "full_html": full_html,
+                    "clean_content": html_problems + html_answers,
+                    "domain": work_name,
+                    "topic": author_name
+                }
+                status.success("✅ 생성 완료!")
+                st.session_state.generation_requested = False
+                
+            except Exception as e:
+                status.error(f"오류: {e}")
+                st.session_state.generation_requested = False
+
+# ==========================================
+# 🚀 메인 실행 로직
+# ==========================================
+def display_results():
+    if st.session_state.generated_result:
+        res = st.session_state.generated_result
+        st.markdown("---")
+        st.subheader("📊 생성 결과")
+        
+        c1, c2, c3 = st.columns([1, 1, 1])
+        with c1:
+            if st.button("🔄 다시 생성"):
+                st.session_state.generated_result = None
+                st.session_state.generation_requested = True
+                st.rerun()
+        with c2:
+            st.download_button("📥 HTML 다운로드", res["full_html"], f"{res['domain']}.html", "text/html")
+        with c3:
+            docx = create_docx(res["full_html"], "result.docx", res["topic"])
+            st.download_button("📄 워드 다운로드", docx, f"{res['domain']}.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+            
+        st.components.v1.html(res["full_html"], height=800, scrolling=True)
+
+# 앱 시작
+st.title("📚 사계국어 AI 모의고사 제작 시스템")
+st.markdown("---")
+
+col_L, col_R = st.columns([1.5, 3])
+
+with col_L:
+    st.radio("모드 선택", ["⚡ 비문학 문제 제작", "📖 문학 문제 제작"], key="app_mode")
+
+with col_R:
+    if st.session_state.app_mode == "⚡ 비문학 문제 제작":
+        st.header("⚡ 비문학 모의평가")
+        
+        if st.session_state.get("domain_mode_select") == "직접 입력":
+            current_manual_mode = st.session_state.get("manual_mode", "단일 지문")
+            if current_manual_mode == "단일 지문":
+                st.text_area("지문 입력", height=300, key="manual_passage_input_col_main")
+            else:
+                c1, c2 = st.columns(2)
+                with c1: st.text_area("(가) 지문", height=300, key="manual_passage_input_a")
+                with c2: st.text_area("(나) 지문", height=300, key="manual_passage_input_b")
+        
+        if st.button("🚀 모의고사 생성", key="run_non_fiction"):
+            st.session_state.generation_requested = True
+        
+        non_fiction_app()
+
+    else: # 문학
+        st.header("📖 문학 심층 분석")
+        st.text_area("소설/시 본문 입력", height=300, key="fiction_novel_text_input_area")
+        
+        if st.button("🚀 문제 생성", key="run_fiction"):
+            st.session_state.generation_requested = True
+            
+        fiction_app()
+
+display_results()
