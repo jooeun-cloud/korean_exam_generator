@@ -128,12 +128,22 @@ HTML_HEAD = """
             line-height: 30px; 
         }
 
-        /* 문단 요약 빈칸 스타일 (높이 확장) */
+        /* 문단 요약 빈칸 스타일 */
         .summary-blank {
             border: 1px dashed #aaa; padding: 15px; margin: 15px 0 25px 0;
-            min-height: 100px; /* 높이를 100px로 확장 */
+            min-height: 100px; /* 높이 확보 */
             color: #666; font-size: 0.9em; background-color: #fcfcfc;
-            font-weight: bold; display: flex; align-items: flex-start; /* 텍스트 상단 정렬 */
+            font-weight: bold; display: flex; align-items: flex-start;
+        }
+
+        /* 빈칸 채우기 스타일 (수정됨) */
+        .blank {
+            display: inline-block;
+            min-width: 60px; /* 최소 너비 확보 */
+            border-bottom: 1px solid #000; /* 밑줄 */
+            margin: 0 5px;
+            height: 1.2em;
+            vertical-align: middle;
         }
 
         /* 정답 및 해설 */
@@ -296,26 +306,17 @@ def non_fiction_app():
         st.markdown("---")
         st.header("2️⃣ 문제 유형 및 개수 선택")
         
-        # [복구] 모든 문제 유형 선택지 부활 및 최대 10개로 증가
-        label_type1 = "1. 핵심 주장 요약 (서술형)" if current_mode.startswith("단일") else "1. (가),(나) 요약 및 연관성 서술"
-        
-        select_t1 = st.checkbox(label_type1, value=True, key="select_t1")
-        
+        select_t1 = st.checkbox("1. 핵심 요약 (서술형)", value=True, key="select_t1")
         select_t2 = st.checkbox("2. 내용 일치 O/X", key="select_t2")
         count_t2 = st.number_input(" - 문항 수", 1, 10, 2, key="t2") if select_t2 else 0
-        
         select_t3 = st.checkbox("3. 빈칸 채우기", key="select_t3")
         count_t3 = st.number_input(" - 문항 수", 1, 10, 2, key="t3") if select_t3 else 0
-        
         select_t4 = st.checkbox("4. 변형 문장 정오판단", key="select_t4")
         count_t4 = st.number_input(" - 문항 수", 1, 10, 2, key="t4") if select_t4 else 0
-        
         select_t5 = st.checkbox("5. 객관식 (일치/불일치)", value=True, key="select_t5")
         count_t5 = st.number_input(" - 문항 수", 1, 10, 2, key="t5") if select_t5 else 0
-        
         select_t6 = st.checkbox("6. 객관식 (추론)", value=True, key="select_t6")
         count_t6 = st.number_input(" - 문항 수", 1, 10, 2, key="t6") if select_t6 else 0
-        
         select_t7 = st.checkbox("7. 객관식 (보기 적용 3점)", value=True, key="select_t7")
         count_t7 = st.number_input(" - 문항 수", 1, 10, 1, key="t7") if select_t7 else 0
         
@@ -349,7 +350,7 @@ def non_fiction_app():
                 genai.configure(api_key=GOOGLE_API_KEY)
                 model = genai.GenerativeModel(model_name)
                 
-                # --- 프롬프트 구성 (핵심 수정 부분) ---
+                # --- 프롬프트 구성 ---
                 reqs = []
                 
                 # 1. 요약 문제
@@ -378,7 +379,7 @@ def non_fiction_app():
                     <div class="type-box">
                         <h3>빈칸 채우기 ({count_t3}문항)</h3>
                         - 위 지문의 핵심 어휘나 구절을 빈칸으로 만든 문제를 {count_t3}개 출제하시오.
-                        - **[중요]**: 빈칸에는 정답을 절대 넣지 마시오. `<span class='blank'></span>` 태그만 사용하여 빈칸을 만드시오.
+                        - **[중요]**: 빈칸에는 정답을 절대 넣지 마시오. `<span class='blank'>&nbsp;&nbsp;&nbsp;&nbsp;</span>` 태그를 사용하여 밑줄이 보이도록 하시오.
                     </div>""")
 
                 # 4. 변형 문장 정오판단
@@ -422,12 +423,12 @@ def non_fiction_app():
                         - [형식] {mcq_template}
                     </div>""")
 
-                # 7. 보기 적용 (핵심 수정 - 이미지 금지)
+                # 7. 보기 적용
                 if select_t7: 
                     reqs.append(f"""
                     <div class="type-box">
                         <h3>객관식: [보기] 적용 문제 ({count_t7}문항) [3점]</h3>
-                        - **[절대 금지]**: "다음 그림은...", "그래프는..." 등 시각 자료를 언급하거나 암시하지 마시오. AI는 이미지를 생성할 수 없습니다.
+                        - **[절대 금지]**: "다음 그림은...", "그래프는..." 등 시각 자료를 언급하거나 암시하지 마시오.
                         - **[필수]**: `<div class="example-box">` 태그 안에 **[보 기]**를 작성하시오.
                         - [보 기] 내용은 반드시 **구체적 사례(Case Study), 실험 과정의 줄글 묘사, 관련 신문 기사, 다른 학자의 견해(텍스트)** 등 텍스트로 된 자료여야 합니다.
                         - 위 지문의 원리를 이 [보기]의 텍스트 상황에 적용하는 3점짜리 고난도 문제를 {count_t7}개 작성하시오.
@@ -499,7 +500,7 @@ def non_fiction_app():
                 response_problems = model.generate_content(prompt_p1, generation_config=generation_config)
                 html_problems = response_problems.text.replace("```html", "").replace("```", "").strip()
 
-                # [중복 방지] 직접 입력 모드인데 AI가 지문을 또 생성한 경우 제거
+                # [중복 방지 1차] 직접 입력 모드인데 AI가 지문을 또 생성한 경우 제거
                 if current_d_mode == '직접 입력':
                      html_problems = re.sub(r'<div class="passage">.*?</div>', '', html_problems, flags=re.DOTALL).strip()
 
@@ -511,7 +512,6 @@ def non_fiction_app():
                 
                 if use_summary:
                     if current_d_mode == '직접 입력':
-                        # 문단 수 계산 (사용자 입력과 일치시키기 위함)
                         user_paras = [p for p in re.split(r'\n\s*\n', current_manual_passage.strip()) if p.strip()]
                         para_count = len(user_paras)
                         summary_prompt_add = f"""
@@ -576,8 +576,9 @@ def non_fiction_app():
                 response_answers = model.generate_content(prompt_answers, generation_config=generation_config_ans)
                 html_answers = response_answers.text.replace("```html", "").replace("```", "").strip()
                 
-                # [중복 방지 2차] AI가 해설 부분에 지문을 또 넣었을 경우 제거
+                # [중복 방지 2차 - 강력 삭제] 정답 섹션에 지문이나 문제가 포함되면 제거
                 html_answers = re.sub(r'<div class="passage">.*?</div>', '', html_answers, flags=re.DOTALL).strip()
+                html_answers = re.sub(r'<div class="question-box">.*?</div>', '', html_answers, flags=re.DOTALL).strip()
 
                 # HTML 조립
                 full_html = HTML_HEAD
@@ -592,7 +593,7 @@ def non_fiction_app():
                             box += "<div class='summary-blank'>📝 문단 요약 연습: </div>"
                         return box
 
-                    # 문단 나누기 (엔터 두번 기준 - 정규식 강화)
+                    # 문단 나누기 (엔터 두번 기준)
                     raw_paras = [p.strip() for p in re.split(r'\n\s*\n', current_manual_passage.strip()) if p.strip()]
                     formatted_paras = "".join([make_p_with_summary(p) for p in raw_paras])
                     
@@ -618,150 +619,78 @@ def non_fiction_app():
                 st.session_state.generation_requested = False
 
 # ==========================================
-# 📖 문학 문제 제작 함수 (업데이트)
+# 📖 문학 문제 제작 함수
 # ==========================================
-
 def fiction_app():
     global GOOGLE_API_KEY
-    
     with st.sidebar:
         st.header("1️⃣ 작품 정보")
         work_name = st.text_input("작품명", key="fic_name")
         author_name = st.text_input("작가명", key="fic_auth")
         st.markdown("---")
-        st.header("2️⃣ 출제 유형")
-        count_t3 = st.number_input("객관식 문제 수", 1, 10, 3, key="fiction_c_t3")
-        select_t7 = st.checkbox("보기(외적 준거) 적용 문제", value=True, key="fiction_select_t7")
-        select_t6 = st.checkbox("인물 관계도 및 갈등 분석", key="fiction_select_t6")
+        st.header("2️⃣ 문제 유형")
+        count_q = st.number_input("객관식 문제 수", 1, 10, 3, key="fic_q_count")
+        select_bogey = st.checkbox("보기(외적 준거) 적용", value=True, key="fic_bogey")
+        select_desc = st.checkbox("서술형(감상)", key="fic_desc")
 
     if st.session_state.generation_requested:
-        current_novel_text = st.session_state.fiction_novel_text_input_area
-        
-        if not current_novel_text or not work_name:
-            st.warning("작품명과 본문을 입력해주세요.")
+        text_input = st.session_state.fiction_novel_text_input_area
+        if not text_input:
+            st.warning("작품 내용을 입력하세요.")
             st.session_state.generation_requested = False
-        else:
-            status = st.empty()
-            status.info("⚡ 문학 문제 출제 중...")
+            return
+
+        status = st.empty()
+        status.info("⚡ 문학 문제 생성 중...")
+        
+        try:
+            model = genai.GenerativeModel(get_best_model())
             
-            try:
-                model_name = get_best_model()
-                genai.configure(api_key=GOOGLE_API_KEY)
-                model = genai.GenerativeModel(model_name)
-                
-                reqs = []
-                reqs.append(f"- 작품의 내용 이해를 묻는 객관식 5지 선다형 문제를 {count_t3}문항 출제하시오.")
-                
-                if select_t7:
-                    reqs.append(f"""
-                    - **[고난도 보기 문제]**: 
-                      `<div class="example-box">` 안에 이 작품과 관련된 **시대적 상황**, **작가의 다른 경향**, 또는 **비평문의 일부(텍스트)**를 [보 기]로 제시하시오.
-                      **[주의] 그림이나 이미지를 암시하는 보기는 절대 금지.** 오직 텍스트 자료만 제시하시오.
-                      그리고 이를 바탕으로 작품을 감상한 내용으로 적절하지 않은 것을 묻는 문제를 1문항 출제하시오.
-                    """)
-                
-                if select_t6:
-                    reqs.append("- **[서술형]**: 주요 등장인물 간의 갈등 구조와 그 원인을 분석하여 서술하시오.")
-
-                reqs_str = "\n".join(reqs)
-                
-                # ----------------------------------------------------------------
-                # [1단계] 문학 문제 생성
-                # ----------------------------------------------------------------
-                prompt_problems = f"""
-                당신은 수능 문학 출제위원입니다.
-                작품: {work_name} ({author_name})
-                
-                **[지시 1] 지문 분석**
-                아래 텍스트를 바탕으로 문제를 출제하시오. (지문은 출력하지 않음)
-                {current_novel_text}
-                
-                **[지시 2] 문제 출제**
-                {reqs_str}
-                
-                **[HTML 형식 규칙]**
-                - 문제는 `<div class="question-box">` 사용.
-                - 보기 박스는 `<div class="example-box">` 사용.
-                - 선지는 `<div class="choices">` 사용.
-                
-                **[중요] 정답 및 해설은 아직 작성하지 마시오. 문제까지만 출력하시오.**
-                """
-                
-                generation_config = GenerationConfig(max_output_tokens=8192, temperature=0.7)
-                response_problems = model.generate_content(prompt_problems, generation_config=generation_config)
-                html_problems = response_problems.text.replace("```html", "").replace("```", "").strip()
-
-                # [중복 방지] 문학도 지문 중복 생성 가능성 차단
-                html_problems = re.sub(r'<div class="passage">.*?</div>', '', html_problems, flags=re.DOTALL).strip()
-
-                # ----------------------------------------------------------------
-                # [2단계] 문학 정답 및 해설 생성
-                # ----------------------------------------------------------------
-                prompt_answers = f"""
-                당신은 수능 문학 출제위원입니다.
-                
-                아래는 방금 출제된 문학 작품의 문제들입니다.
-                이 내용을 바탕으로 **정답 및 해설 섹션**(`<div class="answer-sheet">`...)만 완벽하게 작성하시오.
-
-                **[입력된 문제]**
-                {html_problems}
-
-                **[지시사항]**
-                - 문서 맨 마지막에 반드시 `<div class="answer-sheet">`를 생성하시오.
-                - `<div class="answer-sheet">` 태그 바로 직후에 `<h2 class='ans-main-title'>정답 및 해설</h2>`를 출력하시오.
-                - **[매우 중요 - 중복 방지]**: 위에서 입력받은 **지문과 문제(발문, 보기, 선지 등)를 결과에 절대 다시 적지 마시오.** 오직 정답과 해설 내용만 작성하시오.
-                - **[주의] 해설 작성 시 토큰 낭비를 막기 위해 문제의 발문이나 보기를 절대 다시 적지 마시오. 문제 번호, 정답, 해설만 작성하시오.**
-                - 절대 중간에 끊지 말고, 위에서 출제한 모든 문제에 대한 정답과 해설을 끝까지 작성하시오.
-                - 해설이 짤리면 안 됩니다. 마지막 문제까지 완벽하게 작성하십시오.
-                - 형식: `<div class="ans-item"><span class="ans-num">[번호] <span class="ans-type">[문제유형]</span> 정답</span><br><span class="ans-exp">해설...</span></div>`
-                - **[해설 작성 규칙]**:
-                  1. **객관식 문제**:
-                     - 반드시 `[객관식 내용 일치]`와 같이 문제 유형을 크게 명시하시오.
-                     - **[중요] 보기(외적 준거) 적용 문제도 반드시 오답 분석을 작성해야 합니다.**
-                     - 정답 해설과 함께 **오답 상세 분석**을 필수 작성하시오.
-                     - 각 오답 선지(①, ②, ...)별로 왜 답이 아닌지 줄바꿈하여 구체적으로 설명하시오.
-                  2. **서술형 문제**:
-                     - 예시 답안과 채점 기준을 제시하시오.
-                
-                <div class="ans-item">
-                    <div class="ans-type-badge">[문제유형 예: 객관식 보기적용]</div>
-                    <span class="ans-num">[번호] 정답: ④</span>
-                    <span class="ans-content-title">1. 정답 상세 해설</span>
-                    <span class="ans-text">...</span>
-                    <!-- 객관식일 경우 -->
-                    <span class="ans-content-title">2. 오답 상세 분석</span>
-                    <div class="ans-wrong-box">
-                        <span class="ans-text">① (X): ...<br>② (X): ...</span>
-                    </div>
-                </div>
-                """
-                
-                generation_config_ans = GenerationConfig(max_output_tokens=8192, temperature=0.3)
-                response_answers = model.generate_content(prompt_answers, generation_config=generation_config_ans)
-                html_answers = response_answers.text.replace("```html", "").replace("```", "").strip()
-                
-                # [중복 방지 2차] AI가 해설 부분에 지문을 또 넣었을 경우 제거
-                html_answers = re.sub(r'<div class="passage">.*?</div>', '', html_answers, flags=re.DOTALL).strip()
-
-                # HTML 조립
-                full_html = HTML_HEAD
-                full_html += f"<h1>{work_name} 실전 문제</h1><h2>{author_name}</h2>"
-                full_html += f'<div class="passage">{current_novel_text.replace(chr(10), "<br>")}</div>'
-                full_html += html_problems
-                full_html += html_answers
-                full_html += HTML_TAIL
-                
-                st.session_state.generated_result = {
-                    "full_html": full_html,
-                    "domain": work_name,
-                    "topic": author_name
-                }
-                status.success("✅ 생성 완료!")
-                st.session_state.generation_requested = False
-                
-            except Exception as e:
-                status.error(f"오류: {e}")
-                st.session_state.generation_requested = False
+            # 문제 생성 (문학)
+            prompt_1 = f"""
+            당신은 수능 문학 출제위원입니다.
+            작품: {work_name} ({author_name})
+            본문: {text_input}
+            
+            다음 조건에 맞춰 HTML 포맷으로 문제만 출제하시오 (해설 제외).
+            1. 5지 선다형 문제 {count_q}개.
+            2. { '`<div class="example-box">`를 활용한 보기 적용 3점 문제 포함. 단, **그림이나 도표 언급 금지**. 대신 **비평문, 시대적 배경, 작가의 말 등 텍스트 자료**를 보기로 제시할 것.' if select_bogey else '' }
+            3. { '서술형 감상 문제 1개 포함' if select_desc else '' }
+            
+            **[중요]**: 문제에 정답을 표시하지 마시오. 학생용 문제지입니다.
+            형식: `<div class="question-box">...</div>`
+            """
+            res_1 = model.generate_content(prompt_1)
+            html_q = res_1.text.replace("```html","").replace("```","").strip()
+            
+            # 해설 생성 (문학)
+            prompt_2 = f"""
+            위에서 출제한 문학 문제의 **정답 및 해설**을 작성하시오.
+            입력된 문제: {html_q}
+            작품 본문: {text_input}
+            
+            규칙:
+            1. `<div class="answer-sheet">` 내부에 작성.
+            2. **객관식 해설 필수**: 
+               - [정답 상세 해설]: 지문의 근거를 들어 설명.
+               - [오답 상세 분석]: 각 선지별로 왜 답이 아닌지 구체적 근거를 들어 줄바꿈하여 작성. "보기에 있다" 식의 단순 서술 금지.
+            3. 서술형은 예시 답안 제시.
+            """
+            res_2 = model.generate_content(prompt_2)
+            html_a = res_2.text.replace("```html","").replace("```","").strip()
+            
+            full_html = HTML_HEAD
+            full_html += f"<h1>{work_name}</h1><h2>{author_name}</h2>"
+            full_html += f'<div class="passage">{text_input.replace(chr(10), "<br>")}</div>'
+            full_html += html_q + html_a + HTML_TAIL
+            
+            st.session_state.generated_result = {"full_html": full_html, "domain": "문학", "topic": work_name}
+            status.success("완료")
+            st.session_state.generation_requested = False
+            
+        except Exception as e:
+            status.error(f"Error: {e}")
+            st.session_state.generation_requested = False
 
 # ==========================================
 # 🚀 메인 실행 로직
