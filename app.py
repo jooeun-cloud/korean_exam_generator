@@ -357,6 +357,7 @@ def non_fiction_app():
                     reqs.append(f"""
                     <div class="question-box">
                         <span class="question-text">1. {label_type1}</span>
+                        - (주의: 반드시 위 지문의 내용을 바탕으로 요약하시오.)
                         <div class="write-box"></div>
                     </div>
                     """)
@@ -366,7 +367,7 @@ def non_fiction_app():
                     reqs.append(f"""
                     <div class="type-box">
                         <h3>내용 일치 O/X ({count_t2}문항)</h3>
-                        - 지문의 세부 정보와 일치하는지 묻는 문제를 {count_t2}개 출제하시오.
+                        - 위 지문의 세부 내용과 일치 여부를 묻는 O/X 문제를 {count_t2}개 출제하시오.
                         - 문항 끝에 ( O / X ) 표시를 포함하시오.
                     </div>""")
 
@@ -375,7 +376,7 @@ def non_fiction_app():
                     reqs.append(f"""
                     <div class="type-box">
                         <h3>빈칸 채우기 ({count_t3}문항)</h3>
-                        - 지문의 핵심 키워드나 문장을 빈칸으로 만든 문제를 {count_t3}개 출제하시오.
+                        - 위 지문의 핵심 어휘나 구절을 빈칸으로 만든 문제를 {count_t3}개 출제하시오.
                         - 빈칸은 `<span class='blank'></span>` 태그를 사용하시오.
                     </div>""")
 
@@ -384,7 +385,7 @@ def non_fiction_app():
                     reqs.append(f"""
                     <div class="type-box">
                         <h3>변형 문장 정오판단 ({count_t4}문항)</h3>
-                        - 지문의 문장을 살짝 변형하여 맞는지 틀리는지 판단하는 문제를 {count_t4}개 출제하시오.
+                        - 위 지문의 문장을 살짝 변형하여 맞는지 틀리는지 판단하는 문제를 {count_t4}개 출제하시오.
                         - 문항 끝에 ( O / X ) 표시를 포함하시오.
                     </div>""")
 
@@ -407,7 +408,7 @@ def non_fiction_app():
                     reqs.append(f"""
                     <div class="type-box">
                         <h3>객관식: 세부 내용 파악 ({count_t5}문항)</h3>
-                        - [지시] 지문의 내용과 일치/불일치를 묻는 5지 선다형 문제를 {count_t5}개 작성하시오.
+                        - [지시] 위 지문의 내용과 일치/불일치를 묻는 5지 선다형 문제를 {count_t5}개 작성하시오.
                         - [형식] {mcq_template}
                     </div>""")
 
@@ -416,7 +417,7 @@ def non_fiction_app():
                     reqs.append(f"""
                     <div class="type-box">
                         <h3>객관식: 추론 및 비판 ({count_t6}문항)</h3>
-                        - [지시] 지문을 바탕으로 논리적으로 추론하거나 비판하는 5지 선다형 문제를 {count_t6}개 작성하시오.
+                        - [지시] 위 지문을 바탕으로 논리적으로 추론하거나 비판하는 5지 선다형 문제를 {count_t6}개 작성하시오.
                         - [형식] {mcq_template}
                     </div>""")
 
@@ -428,7 +429,7 @@ def non_fiction_app():
                         - **[절대 금지]**: "다음 그림은...", "그래프는..." 등 시각 자료를 언급하거나 암시하지 마시오. AI는 이미지를 생성할 수 없습니다.
                         - **[필수]**: `<div class="example-box">` 태그 안에 **[보 기]**를 작성하시오.
                         - [보 기] 내용은 반드시 **구체적 사례(Case Study), 실험 과정의 줄글 묘사, 관련 신문 기사, 다른 학자의 견해(텍스트)** 등 텍스트로 된 자료여야 합니다.
-                        - 지문의 원리를 이 [보기]의 텍스트 상황에 적용하는 3점짜리 고난도 문제를 {count_t7}개 작성하시오.
+                        - 위 지문의 원리를 이 [보기]의 텍스트 상황에 적용하는 3점짜리 고난도 문제를 {count_t7}개 작성하시오.
                         - [형식]
                         <div class="question-box">
                              <span class="question-text">[문제번호] 윗글을 바탕으로 [보기]를 이해한 내용으로 적절하지 않은 것은? [3점]</span>
@@ -455,7 +456,9 @@ def non_fiction_app():
                     - **중요**: 이 부분은 학생이 직접 푸는 공간이므로 내용은 비워두시오.
                     """
 
-                # 지문 처리 지시
+                # 지문 처리 지시 (강화됨)
+                passage_inst = ""
+                user_passage_block = ""
                 if current_d_mode == 'AI 생성':
                     passage_inst = f"""
                     **[Step 1] 지문 작성**
@@ -466,7 +469,13 @@ def non_fiction_app():
                     {summary_inst_passage}
                     """
                 else:
-                    passage_inst = """**[Step 1] 지문 인식** (사용자가 입력한 지문을 바탕으로 문제만 출제할 것. 지문은 다시 출력하지 마시오.)"""
+                    passage_inst = """
+                    **[Step 1] 지문 인식 (매우 중요)**
+                    - 아래 제공된 [사용자 입력 지문]을 끝까지 정독하고 분석하시오.
+                    - **경고**: 문제 출제 시 절대 지문에 없는 내용을 상상하거나 외부 지식을 가져오지 마시오. 오직 아래 입력된 지문의 내용만을 근거로 출제해야 합니다.
+                    - 지문 텍스트 자체는 결과물에 다시 출력하지 마시오.
+                    """
+                    user_passage_block = f"\n[사용자 입력 지문 시작]\n{current_manual_passage}\n[사용자 입력 지문 끝]\n"
 
                 # 1단계: 문제 생성 프롬프트
                 prompt_p1 = f"""
@@ -478,6 +487,7 @@ def non_fiction_app():
                 - **중요**: 정답 및 해설은 아직 작성하지 마시오. 문제까지만 출력하시오.
 
                 {passage_inst}
+                {user_passage_block}
 
                 **[Step 2] 문제 출제**
                 다음 유형에 맞춰 문제를 순서대로 출제하시오. 문항 번호를 매기시오.
@@ -560,7 +570,6 @@ def non_fiction_app():
                 </div>
                 """
                 
-                # 해설 생성 시 temperature 낮춤 (간결하고 정확하게)
                 generation_config_ans = GenerationConfig(max_output_tokens=8192, temperature=0.3)
                 response_answers = model.generate_content(prompt_answers, generation_config=generation_config_ans)
                 html_answers = response_answers.text.replace("```html", "").replace("```", "").strip()
@@ -708,7 +717,7 @@ def fiction_app():
                      - **1. 정답 상세 해설**: 정답인 이유를 지문의 근거를 들어 설명하시오.
                      - **2. 오답 상세 분석 (필수 - 생략 금지)**:
                        - "보기에 명시되어 있다", "지문과 일치한다"와 같은 단순한 서술은 **절대 금지**합니다.
-                       - 각 오답 선지(①, ②, ...)별로 왜 답이 될 수 없는지 **"지문의 [몇 문단]에서 [어떤 내용]을 다루고 있으므로..."**와 같이 구체적인 근거를 들어 줄바꿈(`<br>`)하여 상세히 작성하시오.
+                       - 각 오답 선지(①~⑤)별로 왜 답이 될 수 없는지 **"지문의 [몇 문단]에서 [어떤 내용]을 다루고 있으므로..."**와 같이 구체적인 근거를 들어 줄바꿈(`<br>`)하여 상세히 작성하시오.
                   2. **서술형 문제**:
                      - 예시 답안과 채점 기준을 제시하시오.
                 
