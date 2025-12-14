@@ -18,7 +18,7 @@ except (KeyError, AttributeError):
     # 로컬 환경 변수 등 Fallback
     GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "") 
 
-st.set_page_config(page_title="사계국어 모의고사 시스템", page_icon="📚", layout="wide")
+st.set_page_config(page_title="사계국어 AI 모의고사 시스템", page_icon="📚", layout="wide")
 
 # ==========================================
 # [초기화] Session State 설정
@@ -554,10 +554,10 @@ def non_fiction_app():
                 - **[형식 준수]**: 각 문제마다 아래 포맷을 따르시오.
                 
                 - **[해설 작성 규칙 (유형별 - 매우 중요)]**:
-                  1. **객관식 문제**:
-                     - 반드시 `[객관식 3점 보기적용]`과 같이 문제 유형을 크게 명시하시오.
-                     - 정답 해설: 정답인 이유를 지문의 근거를 들어 설명하시오.
-                     - **오답 상세 분석 (필수)**: 각 오답 선지 번호(①, ②, ...)별로 왜 틀렸는지 지문 근거를 들어 **반드시** 줄바꿈(`<br>`)하여 상세히 작성하시오. (예: ① 3문단에서 ...하므로 틀림)
+                  1. **객관식 문제 (추론, 비판, 보기 적용, 일치 등 5지선다형 전체)**:
+                     - 반드시 `[객관식 추론]`, `[객관식 보기적용]` 등과 같이 문제 유형을 배지 형태로 명시하시오.
+                     - **1. 정답 상세 해설**: 정답인 이유를 지문의 근거를 들어 설명하시오.
+                     - **2. 오답 상세 분석 (필수 - 생략 금지)**: 추론형이나 비판형 문제라도 각 오답 선지(①, ②, ...)별로 왜 답이 될 수 없는지 논리적으로 분석하여 **반드시** 줄바꿈(`<br>`)하여 상세히 작성하시오. 절대 생략하지 마시오.
                   2. **O/X 및 빈칸 채우기 문제**:
                      - 유형을 명시하고, **[오답 상세 분석] 항목을 아예 작성하지 마시오.** 오직 **[정답 상세 해설]**만 작성하시오.
                 
@@ -583,7 +583,7 @@ def non_fiction_app():
                 
                 # HTML 조립
                 full_html = HTML_HEAD
-                full_html += f"<h1>사계국어 모의고사</h1><h2>[{current_domain}] {current_topic}</h2>"
+                full_html += f"<h1>사계국어 AI 모의고사</h1><h2>[{current_domain}] {current_topic}</h2>"
                 full_html += "<div class='time-box'>⏱️ 소요 시간: <span class='time-blank'></span></div>"
                 
                 # 직접 입력 모드일 경우 지문을 Python에서 삽입
@@ -788,7 +788,7 @@ def display_results():
         st.components.v1.html(res["full_html"], height=800, scrolling=True)
 
 # 앱 시작
-st.title("📚 사계국어 모의고사 제작 시스템")
+st.title("📚 사계국어 AI 모의고사 제작 시스템")
 st.markdown("---")
 
 col_L, col_R = st.columns([1.5, 3])
