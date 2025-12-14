@@ -390,13 +390,47 @@ def non_fiction_app():
                 if select_t2: reqs.append(f"""<div class="type-box"><h3>내용 일치 O/X ({count_t2}문항)</h3>- 문항 끝에 (O/X) 표시 필수.</div>""")
                 if select_t3: reqs.append(f"""<div class="type-box"><h3>빈칸 채우기 ({count_t3}문항)</h3>- 문장에 <span class='blank'></span> 태그 사용.</div>""")
                 if select_t4: reqs.append(f"""<div class="type-box"><h3>변형 문장 정오판단 ({count_t4}문항)</h3></div>""")
-                if select_t5: reqs.append(f"""<div class="type-box"><h3>객관식 일치/불일치 ({count_t5}문항)</h3>- 선지는 <div class='choices'> 사용.</div>""")
-                if select_t6: reqs.append(f"""<div class="type-box"><h3>객관식 추론 ({count_t6}문항)</h3></div>""")
-                if select_t7: reqs.append(f"""<div class="type-box"><h3>객관식 보기 적용 ({count_t7}문항)</h3>- <div class="example-box"> 사용.</div>""")
-                if use_recommendation: reqs.append(f"""<div class="type-box"><h3>🌟 영역 맞춤 추천 문제</h3>- 5지 선다 객관식 1문항.</div>""")
+                
+                # [수정] 객관식 5지 선다 및 줄바꿈 지시 강화
+                if select_t5: 
+                    reqs.append(f"""
+                    <div class="type-box">
+                        <h3>객관식 일치/불일치 ({count_t5}문항)</h3>
+                        - <b>반드시 5개의 선지(①~⑤)</b>를 생성하시오.
+                        - 선지는 `<div class='choices'>` 안에 각 선지마다 `<div>① ...</div>` 태그로 감싸서 <b>줄바꿈</b>되도록 하시오.
+                    </div>""")
+                if select_t6: 
+                    reqs.append(f"""
+                    <div class="type-box">
+                        <h3>객관식 추론 ({count_t6}문항)</h3>
+                        - <b>반드시 5개의 선지(①~⑤)</b>를 생성하시오.
+                        - 선지는 `<div class='choices'>` 안에 각 선지마다 `<div>① ...</div>` 태그로 감싸서 <b>줄바꿈</b>되도록 하시오.
+                    </div>""")
+                if select_t7: 
+                    reqs.append(f"""
+                    <div class="type-box">
+                        <h3>객관식 보기 적용 ({count_t7}문항)</h3>
+                        - `<div class="example-box">` 태그를 사용하여 보기를 작성하시오.
+                        - <b>반드시 5개의 선지(①~⑤)</b>를 생성하시오.
+                        - 선지는 `<div class='choices'>` 안에 각 선지마다 `<div>① ...</div>` 태그로 감싸서 <b>줄바꿈</b>되도록 하시오.
+                    </div>""")
+                if use_recommendation: 
+                    reqs.append(f"""
+                    <div class="type-box">
+                        <h3>🌟 영역 맞춤 추천 문제</h3>
+                        - 5지 선다 객관식 1문항.
+                        - 선지는 `<div class='choices'>` 안에 각 선지마다 `<div>① ...</div>` 태그로 감싸서 <b>줄바꿈</b>되도록 하시오.
+                    </div>""")
                 
                 reqs_content = "\n".join(reqs)
                 
+                # [수정] 지문 요약 및 출력 지시 강화
+                summary_inst = ""
+                if use_summary:
+                    summary_inst = """
+                    - **[필수]** 지문 작성 시, 각 문단(`<p>...</p>`)이 끝날 때마다 **반드시** `<div class='summary-blank'>📝 문단 요약 : </div>` 태그를 바로 뒤에 삽입하여 출력하시오.
+                    """
+
                 # 지문 처리 지시 (AI 모드 vs 직접 입력 모드)
                 if current_d_mode == 'AI 생성':
                     passage_inst = f"""
@@ -405,6 +439,7 @@ def non_fiction_app():
                     - 난이도: {current_difficulty}
                     - **반드시** 수능형 지문을 작성하고 `<div class="passage">` 태그로 감싸서 출력하시오.
                     - 문단 구분은 `<p>` 태그를 사용하시오.
+                    {summary_inst}
                     """
                 else:
                     passage_inst = f"""
@@ -438,14 +473,27 @@ def non_fiction_app():
                 # HTML 조립
                 full_html = HTML_HEAD
                 full_html += f"<h1>사계국어 비문학 모의고사</h1><h2>[{current_domain}] {current_topic}</h2>"
-                full_html += "<div class='time-box'>⏱️ 목표 시간: 10분</div>"
+                full_html += "<div class='time-box'>⏱️ 소요 시간:  </div>"
                 
                 # 직접 입력 모드일 경우 지문을 Python에서 삽입
                 if current_d_mode == '직접 입력':
+                    # [수정] 직접 입력 모드에서도 요약 칸 기능 적용
+                    def add_summary_box(text):
+                        if not use_summary: return f"<p>{text}</p>"
+                        return f"<p>{text}</p><div class='summary-blank'>📝 문단 요약 : </div>"
+
                     if current_mode == '단일 지문':
-                        formatted_p = f'<div class="passage">{current_manual_passage.replace(chr(10), "<br>")}</div>'
+                        paragraphs = [p.strip() for p in current_manual_passage.split('\n\n') if p.strip()]
+                        formatted_p = "".join([add_summary_box(p) for p in paragraphs])
+                        formatted_p = f'<div class="passage">{formatted_p}</div>'
                     else:
-                        formatted_p = f'<div class="passage"><b>(가)</b><br>{st.session_state.manual_passage_input_a.replace(chr(10),"<br>")}<br><br><b>(나)</b><br>{st.session_state.manual_passage_input_b.replace(chr(10),"<br>")}</div>'
+                        paragraphs_a = [p.strip() for p in st.session_state.manual_passage_input_a.split('\n\n') if p.strip()]
+                        formatted_a = "".join([add_summary_box(p) for p in paragraphs_a])
+                        
+                        paragraphs_b = [p.strip() for p in st.session_state.manual_passage_input_b.split('\n\n') if p.strip()]
+                        formatted_b = "".join([add_summary_box(p) for p in paragraphs_b])
+                        
+                        formatted_p = f'<div class="passage"><b>(가)</b><br>{formatted_a}<br><br><b>(나)</b><br>{formatted_b}</div>'
                     full_html += formatted_p
                 
                 full_html += clean_content
@@ -512,7 +560,7 @@ def fiction_app():
                 reqs = []
                 if count_t1 > 0: reqs.append(f"- 어휘 문제 {count_t1}문항 (단답형)")
                 if count_t2 > 0: reqs.append(f"- 서술형 심화 문제 {count_t2}문항")
-                if count_t3 > 0: reqs.append(f"- 객관식 문제 {count_t3}문항 (5지 선다)")
+                if count_t3 > 0: reqs.append(f"- 객관식 문제 {count_t3}문항 (5지 선다). 선지는 `<div class='choices'>` 안에 각 선지마다 `<div>① ...</div>` 태그로 감싸서 줄바꿈.")
                 if select_t4: reqs.append("- 주요 등장인물 정리 표 작성")
                 if select_t5: reqs.append("- 소설 속 상황 요약")
                 if select_t6: reqs.append("- 인물 관계도 및 갈등 서술")
@@ -535,7 +583,7 @@ def fiction_app():
                 
                 **[지시 3] 태그 규칙**
                 - 문제는 `<div class="question-box">` 사용.
-                - 객관식 선지는 `<div class="choices">` 사용.
+                - 객관식 선지는 `<div class="choices">` 사용. 각 선지는 `<div>`로 감싸 줄바꿈.
                 
                 **[지시 4] 정답 및 해설**
                 - 문서 맨 마지막에 `<div class="answer-sheet">`를 열고 정답을 작성하시오.
