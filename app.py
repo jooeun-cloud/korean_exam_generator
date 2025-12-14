@@ -297,15 +297,15 @@ def non_fiction_app():
         
         select_t1 = st.checkbox("1. 핵심 요약 (서술형)", value=True, key="select_t1")
         select_t2 = st.checkbox("2. 내용 일치 O/X", key="select_t2")
-        count_t2 = st.number_input(" - 문항 수", 1, 10, 2, key="t2") if select_t2 else 0
+        count_t2 = st.number_input(" - 문항 수", 1, 5, 2, key="t2") if select_t2 else 0
         select_t3 = st.checkbox("3. 빈칸 채우기", key="select_t3")
-        count_t3 = st.number_input(" - 문항 수", 1, 10, 2, key="t3") if select_t3 else 0
+        count_t3 = st.number_input(" - 문항 수", 1, 5, 2, key="t3") if select_t3 else 0
         select_t5 = st.checkbox("4. 객관식 (일치)", value=True, key="select_t5")
-        count_t5 = st.number_input(" - 문항 수", 1, 10, 2, key="t5") if select_t5 else 0
+        count_t5 = st.number_input(" - 문항 수", 1, 5, 2, key="t5") if select_t5 else 0
         select_t6 = st.checkbox("5. 객관식 (추론)", value=True, key="select_t6")
-        count_t6 = st.number_input(" - 문항 수", 1, 10, 1, key="t6") if select_t6 else 0
+        count_t6 = st.number_input(" - 문항 수", 1, 5, 1, key="t6") if select_t6 else 0
         select_t7 = st.checkbox("6. 객관식 (보기 적용 3점)", value=True, key="select_t7")
-        count_t7 = st.number_input(" - 문항 수", 1, 10, 1, key="t7") if select_t7 else 0
+        count_t7 = st.number_input(" - 문항 수", 1, 3, 1, key="t7") if select_t7 else 0
         
         use_summary = st.checkbox("📌 문단별 요약 훈련 추가", value=True, key="select_summary")
 
@@ -357,7 +357,17 @@ def non_fiction_app():
                 
                 if select_t5: reqs.append(f"""<div class="type-box"><h3>객관식: 세부 내용 파악 ({count_t5}문항)</h3>- 내용 일치/불일치 5지선다 문제 {count_t5}개를 작성하시오. 형식: {mcq_template}</div>""")
                 if select_t6: reqs.append(f"""<div class="type-box"><h3>객관식: 추론 ({count_t6}문항)</h3>- 지문을 바탕으로 추론하는 5지선다 문제 {count_t6}개를 작성하시오. 형식: {mcq_template}</div>""")
-                if select_t7: reqs.append(f"""<div class="type-box"><h3>객관식: 보기 적용 ({count_t7}문항)</h3>- `<div class="example-box">`에 구체적 사례(보기)를 제시하고 이를 적용하는 3점짜리 고난도 문제를 {count_t7}개 작성하시오. 형식: {mcq_template}</div>""")
+                
+                # [수정] 보기 적용 문제 시 이미지 금지 지시 추가
+                if select_t7: 
+                    reqs.append(f"""
+                    <div class="type-box">
+                        <h3>객관식: 보기 적용 ({count_t7}문항)</h3>
+                        - **[절대 금지]**: "다음 그림은...", "그래프는..." 등 시각 자료를 언급하거나 암시하지 마시오. AI는 이미지를 생성할 수 없습니다.
+                        - **[필수]**: `<div class="example-box">` 안에 **구체적 사례(Case Study), 실험 과정의 줄글 묘사, 관련 신문 기사, 다른 학자의 견해(텍스트)** 등을 작성하여 [보기]로 제시하시오.
+                        - 지문의 원리를 이 [보기]의 텍스트 상황에 적용하는 3점짜리 고난도 문제를 {count_t7}개 작성하시오. 
+                        - 형식: {mcq_template}
+                    </div>""")
                 
                 reqs_content = "\n".join(reqs)
                 
@@ -404,11 +414,17 @@ def non_fiction_app():
                 summary_prompt_add = ""
                 if use_summary:
                     # 사용자 입력 지문의 문단 수 계산 (엔터 두번 기준)
-                    para_count = len(re.split(r'\n\s*\n', current_manual_passage.strip())) if current_d_mode == '직접 입력' else "지문의 실제 문단 수"
-                    summary_prompt_add = f"""
-                    - **[최우선 작성]**: 정답표 맨 위에 `<div class="summary-ans-box">`를 만들고, **[문단별 요약 예시 답안]**을 작성하시오.
-                    - 사용자가 입력한 지문은 총 {para_count}개의 문단입니다. 반드시 **{para_count}개의 문단 요약**을 순서대로 작성하시오.
-                    """
+                    if current_d_mode == '직접 입력':
+                        user_paras = [p for p in re.split(r'\n\s*\n', current_manual_passage.strip()) if p.strip()]
+                        para_count = len(user_paras)
+                        summary_prompt_add = f"""
+                        - **[필수 - 최우선 작성]**: 정답표 맨 위에 `<div class="summary-ans-box">`를 만들고, **[문단별 요약 예시 답안]**을 작성하시오.
+                        - **[매우 중요]**: 사용자가 입력한 지문은 정확히 **{para_count}개의 문단**으로 나누어져 있습니다. AI 마음대로 문단을 합치거나 나누지 말고, 입력된 {para_count}개 덩어리에 대해 각각 하나씩, 총 {para_count}개의 요약문을 작성하시오.
+                        """
+                    else:
+                        summary_prompt_add = """
+                        - **[필수 - 최우선 작성]**: 정답표 맨 위에 `<div class="summary-ans-box">`를 만들고, **[문단별 요약 예시 답안]**을 작성하시오. 지문의 각 문단별 핵심 내용을 요약하여 리스트로 제시하시오.
+                        """
 
                 prompt_p2 = f"""
                 당신은 수능 국어 출제 위원장입니다.
@@ -420,13 +436,15 @@ def non_fiction_app():
                 **[원문 참고]**
                 {current_manual_passage if current_d_mode == '직접 입력' else '위에서 생성한 지문 참고'}
 
-                **[해설 작성 규칙 (매우 중요)]**
+                **[해설 작성 규칙 (매우 중요 - 엄격 준수)]**
                 1. 문서 마지막에 `<div class="answer-sheet">`를 생성하고 `<h2 class='ans-main-title'>정답 및 해설</h2>`를 붙이시오.
                 {summary_prompt_add}
                 2. **객관식 문제 해설**:
                    - 반드시 `[객관식 보기적용]`, `[객관식 추론]` 등 문제 유형을 배지(`ans-type-badge`)로 표시하시오.
-                   - **1. 정답 상세 해설**: 정답인 이유를 지문 내 근거를 들어 설명하시오.
-                   - **2. 오답 상세 분석 (필수)**: 각 오답 선지(①~⑤)별로 왜 답이 아닌지, 지문의 어느 부분과 배치되는지 구체적으로 줄바꿈(`<br>`)하여 설명하시오. "보기에 있다" 같은 단순 서술은 금지.
+                   - **1. 정답 상세 해설**: 정답인 이유를 지문의 근거를 들어 설명하시오.
+                   - **2. 오답 상세 분석 (필수)**: 
+                     - **금지어**: "보기에 명시되어 있다", "지문과 일치한다" (이런 표현 절대 사용 금지)
+                     - **필수 포함**: 각 오답 선지(①~⑤)별로 **"지문 2문단에 따르면 ~이므로 틀림"** 또는 **"보기에서는 ~라고 했으나 선지는 ~라고 하므로 모순됨"** 처럼 구체적인 근거를 명시하여 상세히 줄바꿈(`<br>`) 작성하시오.
                 3. **주관식/OX 문제**:
                    - 정답과 해설만 작성하고 오답 분석은 생략하시오.
                 
@@ -435,10 +453,10 @@ def non_fiction_app():
                     <div class="ans-type-badge">[문제유형]</div>
                     <span class="ans-num">[1] 정답: ④</span>
                     <span class="ans-content-title">1. 정답 상세 해설</span>
-                    <span class="ans-text">...</span>
+                    <span class="ans-text">지문 1문단에서 중력가속기는 위치에 따라 달라진다고 하였고, 보기의 그래프에서도 위도가 높을수록 값이 커지는 경향을 보인다. 따라서...</span>
                     <span class="ans-content-title">2. 오답 상세 분석</span>
                     <div class="ans-wrong-box">
-                        <span class="ans-text">① (X): ...<br>② (X): ...</span>
+                        <span class="ans-text">① (X): 지문 2문단에서 레이저 간섭계는 진공 상태에서 작동한다고 명시했으므로 '대기 중'이라는 설명은 틀렸다.<br>② (X): 보기의 표를 보면 A지점의 수치가 B지점보다 낮으므로 '높다'는 진술은 오류다.</span>
                     </div>
                 </div>
                 """
@@ -449,7 +467,7 @@ def non_fiction_app():
 
                 # 최종 HTML 조립
                 full_html = HTML_HEAD
-                full_html += f"<h1>사계국어  모의고사</h1><h2>[{current_domain}] {current_topic}</h2>"
+                full_html += f"<h1>사계국어 모의고사</h1><h2>[{current_domain}] {current_topic}</h2>"
                 full_html += "<div class='time-box'>⏱️ 소요 시간: <span class='time-blank'></span></div>"
                 
                 # 직접 입력 시 지문 삽입 (요약 빈칸 포함)
@@ -460,19 +478,14 @@ def non_fiction_app():
                             box += "<div class='summary-blank'>📝 문단 요약 연습: </div>"
                         return box
 
-                    # 문단 나누기 (엔터 두번 기준)
-                    raw_paras = re.split(r'\n\s*\n', current_manual_passage.strip())
-                    formatted_paras = "".join([make_p_with_summary(p) for p in raw_paras if p.strip()])
+                    # 문단 나누기 (엔터 두번 기준 - 정규식 강화)
+                    raw_paras = [p.strip() for p in re.split(r'\n\s*\n', current_manual_passage.strip()) if p.strip()]
+                    formatted_paras = "".join([make_p_with_summary(p) for p in raw_paras])
                     
                     if current_mode == '단일 지문':
                         full_html += f'<div class="passage">{formatted_paras}</div>'
                     else:
-                        # (가), (나) 등 복합 지문일 경우 단순 처리 (사용자가 알아서 나누었다고 가정)
                         full_html += f'<div class="passage">{formatted_paras}</div>'
-                
-                # AI 생성 지문일 경우, 1단계 결과에 이미 passage 태그가 포함되어 있을 것임.
-                # 하지만 요약 빈칸을 AI가 안 넣었을 수 있으므로... 
-                # (AI 생성 모드에서는 프롬프트에서 요청했으니 믿고 감)
                 
                 full_html += html_problems
                 full_html += html_answers
@@ -494,7 +507,6 @@ def non_fiction_app():
 # 📖 문학 문제 제작 함수
 # ==========================================
 def fiction_app():
-    # (비문학 로직과 유사하게 구조화하여 안정성 확보)
     global GOOGLE_API_KEY
     with st.sidebar:
         st.header("1️⃣ 작품 정보")
@@ -527,7 +539,7 @@ def fiction_app():
             
             다음 조건에 맞춰 HTML 포맷으로 문제만 출제하시오 (해설 제외).
             1. 5지 선다형 문제 {count_q}개.
-            2. { '`<div class="example-box">`를 활용한 보기 적용 3점 문제 포함' if select_bogey else '' }
+            2. { '`<div class="example-box">`를 활용한 보기(외적 준거) 적용 3점 문제 포함. 단, **그림이나 도표 언급 금지**. 대신 **비평문, 시대적 배경, 작가의 말 등 텍스트 자료**를 보기로 제시할 것.' if select_bogey else '' }
             3. { '서술형 감상 문제 1개 포함' if select_desc else '' }
             
             형식: `<div class="question-box">...</div>`
@@ -539,10 +551,13 @@ def fiction_app():
             prompt_2 = f"""
             위에서 출제한 문학 문제의 **정답 및 해설**을 작성하시오.
             입력된 문제: {html_q}
+            작품 본문: {text_input}
             
             규칙:
             1. `<div class="answer-sheet">` 내부에 작성.
-            2. 객관식은 **[정답 상세 해설]**과 **[오답 상세 분석]**(각 선지별 줄바꿈 설명)을 모두 포함.
+            2. **객관식 해설 필수**: 
+               - [정답 상세 해설]: 지문의 근거를 들어 설명.
+               - [오답 상세 분석]: 각 선지별로 왜 답이 아닌지 구체적 근거를 들어 줄바꿈하여 작성. "보기에 있다" 식의 단순 서술 금지.
             3. 서술형은 예시 답안 제시.
             """
             res_2 = model.generate_content(prompt_2)
