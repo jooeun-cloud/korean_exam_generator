@@ -358,6 +358,7 @@ def non_fiction_app():
                     <div class="question-box">
                         <span class="question-text">1. {label_type1}</span>
                         - (주의: 반드시 위 지문의 내용을 바탕으로 요약하시오.)
+                        - **[필수]**: 답변을 미리 적지 말고, 학생이 직접 쓸 수 있도록 빈 칸(`<div class="write-box"></div>`)만 남겨두시오.
                         <div class="write-box"></div>
                     </div>
                     """)
@@ -368,7 +369,7 @@ def non_fiction_app():
                     <div class="type-box">
                         <h3>내용 일치 O/X ({count_t2}문항)</h3>
                         - 위 지문의 세부 내용과 일치 여부를 묻는 O/X 문제를 {count_t2}개 출제하시오.
-                        - 문항 끝에 ( O / X ) 표시를 포함하시오.
+                        - 문항 끝에 ( O / X ) 표시를 포함하되, 정답은 표시하지 마시오.
                     </div>""")
 
                 # 3. 빈칸 채우기
@@ -377,7 +378,7 @@ def non_fiction_app():
                     <div class="type-box">
                         <h3>빈칸 채우기 ({count_t3}문항)</h3>
                         - 위 지문의 핵심 어휘나 구절을 빈칸으로 만든 문제를 {count_t3}개 출제하시오.
-                        - 빈칸은 `<span class='blank'></span>` 태그를 사용하시오.
+                        - **[중요]**: 빈칸에는 정답을 절대 넣지 마시오. `<span class='blank'></span>` 태그만 사용하여 빈칸을 만드시오.
                     </div>""")
 
                 # 4. 변형 문장 정오판단
@@ -453,7 +454,7 @@ def non_fiction_app():
                 if use_summary:
                     summary_inst_passage = """
                     - 문단이 끝날 때마다 `<div class='summary-blank'>📝 문단 요약 연습: (이곳에 핵심 내용을 요약해보세요)</div>`를 삽입하시오.
-                    - **중요**: 이 부분은 학생이 직접 푸는 공간이므로 내용은 비워두시오.
+                    - **중요**: 이 부분은 학생이 직접 푸는 공간이므로 내용은 비워두시오. 절대 요약 내용을 미리 적지 마시오.
                     """
 
                 # 지문 처리 지시 (강화됨)
@@ -484,7 +485,7 @@ def non_fiction_app():
 
                 **[전체 출력 형식]**
                 - `<html>`, `<head>` 등은 생략하고 `<body>` 태그 내부의 내용만 출력하시오.
-                - **중요**: 정답 및 해설은 아직 작성하지 마시오. 문제까지만 출력하시오.
+                - **중요**: 이 부분은 "학생용 문제지"입니다. **정답 및 해설은 아직 작성하지 마시오.** - **중요**: 빈칸 채우기, 요약하기 문제 등에 정답을 미리 채워넣지 마시오. 학생이 풀 수 있도록 빈칸으로 남겨두시오.
 
                 {passage_inst}
                 {user_passage_block}
@@ -570,9 +571,13 @@ def non_fiction_app():
                 </div>
                 """
                 
+                # 해설 생성 시 temperature 낮춤 (간결하고 정확하게)
                 generation_config_ans = GenerationConfig(max_output_tokens=8192, temperature=0.3)
                 response_answers = model.generate_content(prompt_answers, generation_config=generation_config_ans)
                 html_answers = response_answers.text.replace("```html", "").replace("```", "").strip()
+                
+                # [중복 방지 2차] AI가 해설 부분에 지문을 또 넣었을 경우 제거
+                html_answers = re.sub(r'<div class="passage">.*?</div>', '', html_answers, flags=re.DOTALL).strip()
 
                 # HTML 조립
                 full_html = HTML_HEAD
@@ -708,21 +713,18 @@ def fiction_app():
                 - **[주의] 해설 작성 시 토큰 낭비를 막기 위해 문제의 발문이나 보기를 절대 다시 적지 마시오. 문제 번호, 정답, 해설만 작성하시오.**
                 - 절대 중간에 끊지 말고, 위에서 출제한 모든 문제에 대한 정답과 해설을 끝까지 작성하시오.
                 - 해설이 짤리면 안 됩니다. 마지막 문제까지 완벽하게 작성하십시오.
-                - **[형식 준수]**: 각 문제마다 아래 포맷을 따르시오.
-                
-                - **[해설 작성 규칙 (유형별 - 매우 중요)]**:
+                - 형식: `<div class="ans-item"><span class="ans-num">[번호] <span class="ans-type">[문제유형]</span> 정답</span><br><span class="ans-exp">해설...</span></div>`
+                - **[해설 작성 규칙]**:
                   1. **객관식 문제**:
-                     - 반드시 `[객관식 감상]` 등과 같이 문제 유형을 배지 형태로 명시하시오.
-                     - **[중요] 보기 적용 문제도 반드시 오답 분석을 작성해야 합니다.**
-                     - **1. 정답 상세 해설**: 정답인 이유를 지문의 근거를 들어 설명하시오.
-                     - **2. 오답 상세 분석 (필수 - 생략 금지)**:
-                       - "보기에 명시되어 있다", "지문과 일치한다"와 같은 단순한 서술은 **절대 금지**합니다.
-                       - 각 오답 선지(①~⑤)별로 왜 답이 될 수 없는지 **"지문의 [몇 문단]에서 [어떤 내용]을 다루고 있으므로..."**와 같이 구체적인 근거를 들어 줄바꿈(`<br>`)하여 상세히 작성하시오.
+                     - 반드시 `[객관식 내용 일치]`와 같이 문제 유형을 크게 명시하시오.
+                     - **[중요] 보기(외적 준거) 적용 문제도 반드시 오답 분석을 작성해야 합니다.**
+                     - 정답 해설과 함께 **오답 상세 분석**을 필수 작성하시오.
+                     - 각 오답 선지(①, ②, ...)별로 왜 답이 아닌지 줄바꿈하여 구체적으로 설명하시오.
                   2. **서술형 문제**:
                      - 예시 답안과 채점 기준을 제시하시오.
                 
                 <div class="ans-item">
-                    <div class="ans-type-badge">[문제유형 예: 객관식 감상]</div>
+                    <div class="ans-type-badge">[문제유형 예: 객관식 보기적용]</div>
                     <span class="ans-num">[번호] 정답: ④</span>
                     <span class="ans-content-title">1. 정답 상세 해설</span>
                     <span class="ans-text">...</span>
@@ -737,6 +739,9 @@ def fiction_app():
                 generation_config_ans = GenerationConfig(max_output_tokens=8192, temperature=0.3)
                 response_answers = model.generate_content(prompt_answers, generation_config=generation_config_ans)
                 html_answers = response_answers.text.replace("```html", "").replace("```", "").strip()
+                
+                # [중복 방지 2차] AI가 해설 부분에 지문을 또 넣었을 경우 제거
+                html_answers = re.sub(r'<div class="passage">.*?</div>', '', html_answers, flags=re.DOTALL).strip()
 
                 # HTML 조립
                 full_html = HTML_HEAD
