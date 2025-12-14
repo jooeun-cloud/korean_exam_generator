@@ -128,7 +128,7 @@ HTML_HEAD = """
             line-height: 30px; 
         }
 
-        /* 문단 요약 빈칸 스타일 */
+        /* 문단 요약 빈칸 스타일 (높이 확장) */
         .summary-blank {
             border: 1px dashed #aaa; padding: 15px; margin: 15px 0 25px 0;
             min-height: 100px; /* 높이 확보 */
@@ -136,7 +136,7 @@ HTML_HEAD = """
             font-weight: bold; display: flex; align-items: flex-start;
         }
 
-        /* 빈칸 채우기 스타일 (수정됨) */
+        /* 빈칸 채우기 스타일 */
         .blank {
             display: inline-block;
             min-width: 60px; /* 최소 너비 확보 */
@@ -278,9 +278,11 @@ def non_fiction_app():
         current_manual_passage = ""
         current_topic = ""
         current_domain = ""
+        # 기본값 초기화 (오류 방지)
+        current_mode = "단일 지문"
         
         if current_d_mode == 'AI 생성':
-            mode = st.radio("지문 구성", ["단일 지문", "주제 통합"], key="ai_mode")
+            mode = st.radio("구성", ["단일 지문", "주제 통합"], key="ai_mode")
             domains = ["인문", "사회", "과학", "기술", "예술"]
             
             if mode == "단일 지문":
@@ -306,17 +308,29 @@ def non_fiction_app():
         st.markdown("---")
         st.header("2️⃣ 문제 유형 및 개수 선택")
         
-        select_t1 = st.checkbox("1. 핵심 요약 (서술형)", value=True, key="select_t1")
+        # [수정] label_type1 변수 정의를 명확하게 하여 NameError 방지
+        if current_mode.startswith("단일"):
+            label_type1 = "1. 핵심 주장 요약 (서술형)"
+        else:
+            label_type1 = "1. (가),(나) 요약 및 연관성 서술"
+        
+        select_t1 = st.checkbox(label_type1, value=True, key="select_t1")
+        
         select_t2 = st.checkbox("2. 내용 일치 O/X", key="select_t2")
         count_t2 = st.number_input(" - 문항 수", 1, 10, 2, key="t2") if select_t2 else 0
+        
         select_t3 = st.checkbox("3. 빈칸 채우기", key="select_t3")
         count_t3 = st.number_input(" - 문항 수", 1, 10, 2, key="t3") if select_t3 else 0
+        
         select_t4 = st.checkbox("4. 변형 문장 정오판단", key="select_t4")
         count_t4 = st.number_input(" - 문항 수", 1, 10, 2, key="t4") if select_t4 else 0
+        
         select_t5 = st.checkbox("5. 객관식 (일치/불일치)", value=True, key="select_t5")
         count_t5 = st.number_input(" - 문항 수", 1, 10, 2, key="t5") if select_t5 else 0
+        
         select_t6 = st.checkbox("6. 객관식 (추론)", value=True, key="select_t6")
         count_t6 = st.number_input(" - 문항 수", 1, 10, 2, key="t6") if select_t6 else 0
+        
         select_t7 = st.checkbox("7. 객관식 (보기 적용 3점)", value=True, key="select_t7")
         count_t7 = st.number_input(" - 문항 수", 1, 10, 1, key="t7") if select_t7 else 0
         
@@ -428,10 +442,10 @@ def non_fiction_app():
                     reqs.append(f"""
                     <div class="type-box">
                         <h3>객관식: [보기] 적용 문제 ({count_t7}문항) [3점]</h3>
-                        - **[절대 금지]**: "다음 그림은...", "그래프는..." 등 시각 자료를 언급하거나 암시하지 마시오.
+                        - **[절대 금지]**: "다음 그림은...", "그래프는..." 등 시각 자료를 언급하거나 암시하지 마시오. AI는 이미지를 생성할 수 없습니다.
                         - **[필수]**: `<div class="example-box">` 태그 안에 **[보 기]**를 작성하시오.
                         - [보 기] 내용은 반드시 **구체적 사례(Case Study), 실험 과정의 줄글 묘사, 관련 신문 기사, 다른 학자의 견해(텍스트)** 등 텍스트로 된 자료여야 합니다.
-                        - 위 지문의 원리를 이 [보기]의 텍스트 상황에 적용하는 3점짜리 고난도 문제를 {count_t7}개 작성하시오.
+                        - 위 지문의 원리를 이 [보기]の 텍스트 상황에 적용하는 3점짜리 고난도 문제를 {count_t7}개 작성하시오.
                         - [형식]
                         <div class="question-box">
                              <span class="question-text">[문제번호] 윗글을 바탕으로 [보기]를 이해한 내용으로 적절하지 않은 것은? [3점]</span>
@@ -512,6 +526,7 @@ def non_fiction_app():
                 
                 if use_summary:
                     if current_d_mode == '직접 입력':
+                        # 문단 수 계산 (사용자 입력과 일치시키기 위함)
                         user_paras = [p for p in re.split(r'\n\s*\n', current_manual_passage.strip()) if p.strip()]
                         para_count = len(user_paras)
                         summary_prompt_add = f"""
@@ -619,7 +634,7 @@ def non_fiction_app():
                 st.session_state.generation_requested = False
 
 # ==========================================
-# 📖 문학 문제 제작 함수
+# 📖 문학 문제 제작 함수 (업데이트)
 # ==========================================
 def fiction_app():
     global GOOGLE_API_KEY
