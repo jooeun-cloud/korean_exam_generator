@@ -18,7 +18,7 @@ except (KeyError, AttributeError):
     # 로컬 환경 변수 등 Fallback
     GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "") 
 
-st.set_page_config(page_title="사계국어 모의고사 시스템", page_icon="📚", layout="wide")
+st.set_page_config(page_title="사계국어 AI 모의고사 시스템", page_icon="📚", layout="wide")
 
 # ==========================================
 # [초기화] Session State 설정
@@ -556,13 +556,14 @@ def non_fiction_app():
                 - **[해설 작성 규칙 (유형별 - 매우 중요)]**:
                   1. **객관식 문제 (추론, 비판, 보기 적용, 일치 등 5지선다형 전체)**:
                      - 반드시 `[객관식 추론]`, `[객관식 보기적용]` 등과 같이 문제 유형을 배지 형태로 명시하시오.
+                     - **[중요] 보기 적용 문제도 반드시 오답 분석을 작성해야 합니다.**
                      - **1. 정답 상세 해설**: 정답인 이유를 지문의 근거를 들어 설명하시오.
-                     - **2. 오답 상세 분석 (필수 - 생략 금지)**: 추론형이나 비판형 문제라도 각 오답 선지(①, ②, ...)별로 왜 답이 될 수 없는지 논리적으로 분석하여 **반드시** 줄바꿈(`<br>`)하여 상세히 작성하시오. 절대 생략하지 마시오.
+                     - **2. 오답 상세 분석 (필수 - 생략 금지)**: 각 오답 선지(①, ②, ...)별로 왜 답이 될 수 없는지 논리적으로 분석하여 **반드시** 줄바꿈(`<br>`)하여 상세히 작성하시오.
                   2. **O/X 및 빈칸 채우기 문제**:
                      - 유형을 명시하고, **[오답 상세 분석] 항목을 아예 작성하지 마시오.** 오직 **[정답 상세 해설]**만 작성하시오.
                 
                 <div class="ans-item">
-                    <div class="ans-type-badge">[문제유형 예: 객관식 추론]</div>
+                    <div class="ans-type-badge">[문제유형 예: 객관식 보기적용]</div>
                     <span class="ans-num">[문제 번호] 정답: ⑤</span>
                     <span class="ans-content-title">1. 정답 상세 해설</span>
                     <span class="ans-text">지문의 3문단에서 "~"라고 언급했으므로, 보기의 상황에 적용하면 ...가 된다. 따라서 적절하다.</span>
@@ -583,7 +584,7 @@ def non_fiction_app():
                 
                 # HTML 조립
                 full_html = HTML_HEAD
-                full_html += f"<h1>사계국어 모의고사</h1><h2>[{current_domain}] {current_topic}</h2>"
+                full_html += f"<h1>사계국어 AI 모의고사</h1><h2>[{current_domain}] {current_topic}</h2>"
                 full_html += "<div class='time-box'>⏱️ 소요 시간: <span class='time-blank'></span></div>"
                 
                 # 직접 입력 모드일 경우 지문을 Python에서 삽입
@@ -721,13 +722,14 @@ def fiction_app():
                 - **[해설 작성 규칙]**:
                   1. **객관식 문제**:
                      - 반드시 `[객관식 내용 일치]`와 같이 문제 유형을 크게 명시하시오.
+                     - **[중요] 보기(외적 준거) 적용 문제도 반드시 오답 분석을 작성해야 합니다.**
                      - 정답 해설과 함께 **오답 상세 분석**을 필수 작성하시오.
                      - 각 오답 선지(①, ②, ...)별로 왜 답이 아닌지 줄바꿈하여 구체적으로 설명하시오.
                   2. **서술형 문제**:
                      - 예시 답안과 채점 기준을 제시하시오.
                 
                 <div class="ans-item">
-                    <div class="ans-type-badge">[문제유형 예: 객관식 감상]</div>
+                    <div class="ans-type-badge">[문제유형 예: 객관식 보기적용]</div>
                     <span class="ans-num">[번호] 정답: ④</span>
                     <span class="ans-content-title">1. 정답 상세 해설</span>
                     <span class="ans-text">...</span>
@@ -788,7 +790,7 @@ def display_results():
         st.components.v1.html(res["full_html"], height=800, scrolling=True)
 
 # 앱 시작
-st.title("📚 사계국어 모의고사 제작 시스템")
+st.title("📚 사계국어 AI 모의고사 제작 시스템")
 st.markdown("---")
 
 col_L, col_R = st.columns([1.5, 3])
