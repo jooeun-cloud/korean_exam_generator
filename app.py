@@ -18,7 +18,7 @@ except (KeyError, AttributeError):
     # 로컬 환경 변수 등 Fallback
     GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "") 
 
-st.set_page_config(page_title="사계국어 모의고사 시스템", page_icon="📚", layout="wide")
+st.set_page_config(page_title="사계국어 AI 모의고사 시스템", page_icon="📚", layout="wide")
 
 # ==========================================
 # [초기화] Session State 설정
@@ -558,7 +558,9 @@ def non_fiction_app():
                      - 반드시 `[객관식 추론]`, `[객관식 보기적용]` 등과 같이 문제 유형을 배지 형태로 명시하시오.
                      - **[중요] 보기 적용 문제도 반드시 오답 분석을 작성해야 합니다.**
                      - **1. 정답 상세 해설**: 정답인 이유를 지문의 근거를 들어 설명하시오.
-                     - **2. 오답 상세 분석 (필수 - 생략 금지)**: 각 오답 선지(①, ②, ...)별로 왜 답이 될 수 없는지 논리적으로 분석하여 **반드시** 줄바꿈(`<br>`)하여 상세히 작성하시오.
+                     - **2. 오답 상세 분석 (필수 - 생략 금지)**:
+                       - "보기에 명시되어 있다", "지문과 일치한다"와 같은 단순한 서술은 **절대 금지**합니다.
+                       - 각 오답 선지(①, ②, ...)별로 왜 답이 될 수 없는지 **"지문의 [몇 문단]에서 [어떤 내용]을 다루고 있으므로..."**와 같이 구체적인 근거를 들어 줄바꿈(`<br>`)하여 상세히 작성하시오.
                   2. **O/X 및 빈칸 채우기 문제**:
                      - 유형을 명시하고, **[오답 상세 분석] 항목을 아예 작성하지 마시오.** 오직 **[정답 상세 해설]**만 작성하시오.
                 
@@ -584,7 +586,7 @@ def non_fiction_app():
                 
                 # HTML 조립
                 full_html = HTML_HEAD
-                full_html += f"<h1>사계국어 모의고사</h1><h2>[{current_domain}] {current_topic}</h2>"
+                full_html += f"<h1>사계국어 AI 모의고사</h1><h2>[{current_domain}] {current_topic}</h2>"
                 full_html += "<div class='time-box'>⏱️ 소요 시간: <span class='time-blank'></span></div>"
                 
                 # 직접 입력 모드일 경우 지문을 Python에서 삽입
@@ -594,7 +596,10 @@ def non_fiction_app():
                         return f"<p>{text}</p><div class='summary-blank'>📝 문단 요약 연습: (이곳에 핵심 내용을 요약해보세요)</div>"
 
                     if current_mode == '단일 지문':
+                        # [수정] 직접 입력 모드에서 엔터 두 번(\n\n)으로 구분된 문단에만 요약 칸 추가
+                        # split('\n\n')을 사용하여 문단을 나누고, 빈 문단은 제외
                         paragraphs = [p.strip() for p in current_manual_passage.split('\n\n') if p.strip()]
+                        # 각 문단 뒤에 요약 칸 추가하여 결합
                         formatted_p = "".join([add_summary_box(p) for p in paragraphs])
                         formatted_p = f'<div class="passage">{formatted_p}</div>'
                     else:
@@ -724,7 +729,8 @@ def fiction_app():
                      - 반드시 `[객관식 내용 일치]`와 같이 문제 유형을 크게 명시하시오.
                      - **[중요] 보기(외적 준거) 적용 문제도 반드시 오답 분석을 작성해야 합니다.**
                      - 정답 해설과 함께 **오답 상세 분석**을 필수 작성하시오.
-                     - 각 오답 선지(①, ②, ...)별로 왜 답이 아닌지 줄바꿈하여 구체적으로 설명하시오.
+                     - "보기에 명시되어 있다"와 같은 단순한 서술은 **금지**합니다. 
+                     - 각 오답 선지(①, ②, ...)별로 지문이나 보기의 **어느 부분과 배치되는지** 구체적인 근거를 들어 설명하시오.
                   2. **서술형 문제**:
                      - 예시 답안과 채점 기준을 제시하시오.
                 
@@ -790,7 +796,7 @@ def display_results():
         st.components.v1.html(res["full_html"], height=800, scrolling=True)
 
 # 앱 시작
-st.title("📚 사계국어 모의고사 제작 시스템")
+st.title("📚 사계국어 AI 모의고사 제작 시스템")
 st.markdown("---")
 
 col_L, col_R = st.columns([1.5, 3])
