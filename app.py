@@ -1,5 +1,6 @@
 import streamlit as st
 import google.generativeai as genai
+from google.generativeai.types import GenerationConfig # 설정 추가
 import re 
 import os
 from docx import Document
@@ -65,7 +66,6 @@ HTML_HEAD = """
             font-size: 10pt; border: 1px solid #000; padding: 25px; 
             margin-bottom: 30px; background-color: #fff; 
             line-height: 1.8; text-align: justify;
-            /* 2단 편집 제거됨 */
         }
         .passage p { text-indent: 0.5em; margin-bottom: 10px; }
         
@@ -94,9 +94,17 @@ HTML_HEAD = """
             margin-bottom: 10px;
         }
 
-        /* 선지 스타일 */
-        .choices { padding-left: 0; margin-top: 10px; font-size: 0.95em; }
-        .choices div { margin-bottom: 6px; padding-left: 15px; text-indent: -15px; }
+        /* 선지 스타일 (들여쓰기 적용) */
+        .choices { 
+            margin-top: 10px; 
+            font-size: 0.95em; 
+            margin-left: 25px; /* 문제 안쪽으로 들여쓰기 */
+        }
+        .choices div { 
+            margin-bottom: 6px; 
+            padding-left: 10px; 
+            text-indent: -10px; 
+        }
         .choices div:hover { background-color: #f0f8ff; cursor: pointer; }
 
         /* 서술형/요약 칸 */
@@ -107,9 +115,11 @@ HTML_HEAD = """
             line-height: 30px; 
         }
 
+        /* 문단 요약 빈칸 스타일 */
         .summary-blank {
             border: 1px dashed #999; padding: 10px; margin: 10px 0;
-            color: #777; font-size: 0.85em; background-color: #fafafa;
+            color: #555; font-size: 0.9em; background-color: #fafafa;
+            font-weight: bold;
         }
 
         .blank {
@@ -122,10 +132,12 @@ HTML_HEAD = """
             border-top: 2px solid #333; 
             page-break-before: always; 
         }
+        .ans-header { font-size: 1.2em; font-weight: bold; margin-bottom: 15px; color: #333; border-bottom: 2px solid #ddd; padding-bottom: 5px; }
         .ans-item { margin-bottom: 20px; border-bottom: 1px solid #ddd; padding-bottom: 10px; }
         .ans-num { font-weight: bold; color: #d63384; font-size: 1.1em; }
         .ans-exp { display: block; margin-top: 5px; color: #333; line-height: 1.6; }
         .ans-wrong { display: block; margin-top: 5px; color: #666; font-size: 0.9em; background: #eee; padding: 5px; border-radius: 4px; }
+        .summary-ans-box { background-color: #e8f4fd; padding: 15px; margin-bottom: 30px; border-radius: 5px; border: 1px solid #b6d4fe; }
         
         @media print { body { padding: 0; } }
     </style>
@@ -140,10 +152,6 @@ HTML_TAIL = """
 
 def get_best_model():
     """사용자가 요청한 Gemma-3 27B IT 모델을 최우선으로 사용"""
-    # 사용자가 지정한 우선순위:
-    # 1. models/gemma-3-27b-it (최우선)
-    # 2. models/gemma-3-12b-it
-    # 3. models/gemini-2.0-flash
     return 'models/gemma-3-27b-it'
 
 # ==========================================
@@ -411,11 +419,17 @@ def non_fiction_app():
                 
                 reqs_content = "\n".join(reqs)
                 
-                # 요약 지시
+                # 요약 지시 및 해설용 요약 지시 설정
                 summary_inst_passage = ""
+                summary_inst_answer = ""
+                
                 if use_summary:
                     summary_inst_passage = """
                     - 문단이 끝날 때마다 `<div class='summary-blank'>📝 [문단 요약 연습]: (이곳에 핵심 내용을 요약해보세요)</div>`를 삽입하시오.
+                    - **중요**: 이 부분은 학생이 직접 푸는 공간이므로 내용은 비워두시오.
+                    """
+                    summary_inst_answer = """
+                    - **[필수 추가]**: 정답 및 해설 섹션의 맨 앞부분에 `<div class="summary-ans-box">` 태그를 사용하여 **[문단별 요약 예시 답안]**을 먼저 작성하시오. 각 문단의 핵심 내용을 1줄씩 요약하여 제시하시오.
                     """
 
                 # 지문 처리 지시
@@ -453,6 +467,7 @@ def non_fiction_app():
 
                 **[Step 3] 정답 및 해설 (매우 중요)**
                 - 문서 맨 마지막에 반드시 `<div class="answer-sheet">`를 생성하시오.
+                {summary_inst_answer}
                 - **[주의] 절대 중간에 끊지 말고, 위에서 출제한 모든 문제(서술형, O/X, 객관식 포함)에 대한 정답과 상세 해설을 끝까지 작성하시오.**
                 - 해설이 짤리면 안 됩니다. 마지막 문제까지 완벽하게 작성하십시오.
                 - **[형식 준수]**: 각 문제마다 아래 포맷을 따르시오. (해설이 누락되면 안됨)
@@ -464,7 +479,13 @@ def non_fiction_app():
                 </div>
                 """
                 
-                response = model.generate_content(prompt)
+                # [수정] 해설 짤림 방지를 위한 토큰 설정 강화
+                generation_config = GenerationConfig(
+                    max_output_tokens=8192,  # 최대 토큰 수 설정
+                    temperature=0.7,
+                )
+                
+                response = model.generate_content(prompt, generation_config=generation_config)
                 clean_content = response.text.replace("```html", "").replace("```", "").strip()
                 
                 # HTML 조립
@@ -476,7 +497,7 @@ def non_fiction_app():
                 if current_d_mode == '직접 입력':
                     def add_summary_box(text):
                         if not use_summary: return f"<p>{text}</p>"
-                        return f"<p>{text}</p><div class='summary-blank'>📝 문단 요약 연습: </div>"
+                        return f"<p>{text}</p><div class='summary-blank'>📝 문단 요약 연습: (이곳에 핵심 내용을 요약해보세요)</div>"
 
                     if current_mode == '단일 지문':
                         paragraphs = [p.strip() for p in current_manual_passage.split('\n\n') if p.strip()]
@@ -573,10 +594,17 @@ def fiction_app():
                 **[지시 3] 정답 및 해설**
                 - 문서 끝에 `<div class="answer-sheet">`를 만들고, 모든 문제에 대해 **정답**, **해설(근거)**, **오답 분석**을 상세히 작성하시오.
                 - **[주의] 절대 중간에 끊지 말고, 위에서 출제한 모든 문제에 대한 정답과 해설을 끝까지 작성하시오.**
+                - 해설이 짤리면 안 됩니다. 마지막 문제까지 완벽하게 작성하십시오.
                 - 형식: `<div class="ans-item"><span class="ans-num">[번호] 정답</span><br><span class="ans-exp">해설...</span></div>`
                 """
                 
-                response = model.generate_content(prompt)
+                # [수정] 해설 짤림 방지를 위한 토큰 설정 강화 (문학도 동일 적용)
+                generation_config = GenerationConfig(
+                    max_output_tokens=8192, 
+                    temperature=0.7,
+                )
+                
+                response = model.generate_content(prompt, generation_config=generation_config)
                 clean_content = response.text.replace("```html", "").replace("```", "").strip()
                 
                 full_html = HTML_HEAD
