@@ -60,14 +60,12 @@ HTML_HEAD = """
             font-weight: bold; background-color: #fdfdfd; font-size: 0.9em;
         }
 
-        /* 지문 스타일 */
+        /* 지문 스타일 (1단 변경) */
         .passage { 
             font-size: 10pt; border: 1px solid #000; padding: 25px; 
             margin-bottom: 30px; background-color: #fff; 
             line-height: 1.8; text-align: justify;
-            column-count: 2; /* 수능처럼 2단 편집 느낌 */
-            column-gap: 30px;
-            column-rule: 1px solid #eee;
+            /* 2단 편집 제거됨 */
         }
         .passage p { text-indent: 0.5em; margin-bottom: 10px; }
         
@@ -129,7 +127,7 @@ HTML_HEAD = """
         .ans-exp { display: block; margin-top: 5px; color: #333; line-height: 1.6; }
         .ans-wrong { display: block; margin-top: 5px; color: #666; font-size: 0.9em; background: #eee; padding: 5px; border-radius: 4px; }
         
-        @media print { body { padding: 0; } .passage { column-count: 2; } }
+        @media print { body { padding: 0; } }
     </style>
 </head>
 <body>
@@ -455,6 +453,8 @@ def non_fiction_app():
 
                 **[Step 3] 정답 및 해설 (매우 중요)**
                 - 문서 맨 마지막에 반드시 `<div class="answer-sheet">`를 생성하시오.
+                - **[주의] 절대 중간에 끊지 말고, 위에서 출제한 모든 문제(서술형, O/X, 객관식 포함)에 대한 정답과 상세 해설을 끝까지 작성하시오.**
+                - 해설이 짤리면 안 됩니다. 마지막 문제까지 완벽하게 작성하십시오.
                 - **[형식 준수]**: 각 문제마다 아래 포맷을 따르시오. (해설이 누락되면 안됨)
                 
                 <div class="ans-item">
@@ -462,8 +462,6 @@ def non_fiction_app():
                     <span class="ans-exp"><b>[정답 해설]</b>: 지문의 3문단에서 "~"라고 언급했으므로, 보기의 상황에 적용하면 ...가 된다. 따라서 적절하다.</span>
                     <span class="ans-wrong"><b>[오답 분석]</b>: ①번은 1문단의 내용과 배치되므로 틀렸다. ②번은 인과관계가 잘못되었다.</span>
                 </div>
-                
-                - 모든 문제(O/X 포함)에 대해 상세한 해설을 작성하시오.
                 """
                 
                 response = model.generate_content(prompt)
@@ -574,6 +572,7 @@ def fiction_app():
                 
                 **[지시 3] 정답 및 해설**
                 - 문서 끝에 `<div class="answer-sheet">`를 만들고, 모든 문제에 대해 **정답**, **해설(근거)**, **오답 분석**을 상세히 작성하시오.
+                - **[주의] 절대 중간에 끊지 말고, 위에서 출제한 모든 문제에 대한 정답과 해설을 끝까지 작성하시오.**
                 - 형식: `<div class="ans-item"><span class="ans-num">[번호] 정답</span><br><span class="ans-exp">해설...</span></div>`
                 """
                 
