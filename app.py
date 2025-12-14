@@ -61,6 +61,14 @@ HTML_HEAD = """
             font-weight: bold; background-color: #fdfdfd; font-size: 0.9em;
         }
 
+        .time-blank {
+            display: inline-block;
+            width: 80px;
+            border-bottom: 1px solid #000;
+            margin-left: 5px;
+            vertical-align: bottom;
+        }
+
         /* 지문 스타일 (1단 변경) */
         .passage { 
             font-size: 10pt; border: 1px solid #000; padding: 25px; 
@@ -500,8 +508,7 @@ def non_fiction_app():
                 - 절대 중간에 끊지 말고, 위에서 출제한 모든 문제(서술형, O/X, 객관식 포함)에 대한 정답과 상세 해설을 끝까지 작성하시오.
                 - 해설이 짤리면 안 됩니다. 마지막 문제까지 완벽하게 작성하십시오.
                 - **[형식 준수]**: 각 문제마다 아래 포맷을 따르시오.
-                - **[상세 해설 요청]**: 해설은 정답의 근거가 되는 지문의 문장이나 논리를 구체적으로 인용하여 아주 자세하게 작성하시오. 그리고 각 문제가 어떤 유형인지도 표기하시오.
-                - **[오답 분석 필수]**: 오답 분석은 뭉뚱그려 설명하지 말고, **반드시 각 오답 선지 번호별로(예: ①, ②...) 나누어** 왜 답이 아닌지 지문의 내용에 근거하여 구체적으로 서술하시오.
+                - **[상세 해설 요청]**: 해설은 정답의 근거가 되는 지문의 문장이나 논리를 구체적으로 인용하여 아주 자세하게 작성하시오. 오답 분석도 각 선지별로 왜 틀렸는지 명확하게 설명하시오. 그리고 각 문제가 어떤 유형인지도 표기하시오.
                 
                 <div class="ans-item">
                     <span class="ans-num">[문제 번호] <span class="ans-type">[문제유형]</span> 정답: ⑤</span>
@@ -518,7 +525,8 @@ def non_fiction_app():
                 # HTML 조립
                 full_html = HTML_HEAD
                 full_html += f"<h1>사계국어 AI 모의고사</h1><h2>[{current_domain}] {current_topic}</h2>"
-                full_html += "<div class='time-box'>⏱️ 소요 시간:    </div>"
+                # [수정] 목표 시간 -> 소요 시간, 12분 -> 빈칸 밑줄
+                full_html += "<div class='time-box'>⏱️ 소요 시간: <span class='time-blank'></span></div>"
                 
                 # 직접 입력 모드일 경우 지문을 Python에서 삽입
                 if current_d_mode == '직접 입력':
@@ -651,15 +659,7 @@ def fiction_app():
                 - **[주의] 해설 작성 시 토큰 낭비를 막기 위해 문제의 발문이나 보기를 절대 다시 적지 마시오. 문제 번호, 정답, 해설만 작성하시오.**
                 - 절대 중간에 끊지 말고, 위에서 출제한 모든 문제에 대한 정답과 해설을 끝까지 작성하시오.
                 - 해설이 짤리면 안 됩니다. 마지막 문제까지 완벽하게 작성하십시오.
-                - **[형식 준수]**: 각 문제마다 아래 포맷을 따르시오.
-                - **[상세 해설 요청]**: 해설은 정답의 근거가 되는 지문의 문장이나 논리를 구체적으로 인용하여 아주 자세하게 작성하시오. 그리고 각 문제가 어떤 유형인지도 표기하시오.
-                - **[오답 분석 필수]**: 오답 분석은 뭉뚱그려 설명하지 말고, **반드시 각 오답 선지 번호별로(예: ①, ②...) 나누어** 왜 답이 아닌지 지문의 내용에 근거하여 구체적으로 서술하시오.
-                
-                <div class="ans-item">
-                    <span class="ans-num">[번호] <span class="ans-type">[문제유형]</span> 정답: ④</span>
-                    <span class="ans-exp"><b>[정답 상세 해설]</b>: <br>이 문제는 [문제유형]입니다. ...</span>
-                    <span class="ans-wrong"><b>[오답 상세 분석]</b>: <br>① (X): ...<br>② (X): ...</span>
-                </div>
+                - 형식: `<div class="ans-item"><span class="ans-num">[번호] <span class="ans-type">[문제유형]</span> 정답</span><br><span class="ans-exp">해설...</span></div>`
                 """
                 
                 generation_config_ans = GenerationConfig(max_output_tokens=8192, temperature=0.3)
