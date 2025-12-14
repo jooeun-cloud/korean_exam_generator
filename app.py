@@ -419,17 +419,12 @@ def non_fiction_app():
                 
                 reqs_content = "\n".join(reqs)
                 
-                # 요약 지시 및 해설용 요약 지시 설정
+                # 요약 지시 설정
                 summary_inst_passage = ""
-                summary_inst_answer = ""
-                
                 if use_summary:
                     summary_inst_passage = """
                     - 문단이 끝날 때마다 `<div class='summary-blank'>📝 [문단 요약 연습]: (이곳에 핵심 내용을 요약해보세요)</div>`를 삽입하시오.
                     - **중요**: 이 부분은 학생이 직접 푸는 공간이므로 내용은 비워두시오.
-                    """
-                    summary_inst_answer = """
-                    - **[필수 추가]**: 정답 및 해설 섹션의 맨 앞부분에 `<div class="summary-ans-box">` 태그를 사용하여 **[문단별 요약 예시 답안]**을 먼저 작성하시오. 각 문단의 핵심 내용을 1줄씩 요약하여 제시하시오.
                     """
 
                 # 지문 처리 지시
@@ -451,26 +446,52 @@ def non_fiction_app():
                     [지문 끝]
                     """
 
-                # 통합 프롬프트
-                prompt = f"""
+                # ----------------------------------------------------------------
+                # [1단계] 지문 및 문제 생성 (해설 제외)
+                # ----------------------------------------------------------------
+                prompt_problems = f"""
                 당신은 대한민국 수능 국어 출제 위원장입니다. 
                 아래 지시사항에 맞춰 완벽한 HTML 포맷의 모의고사 문제지를 생성하시오.
 
                 **[전체 출력 형식]**
                 - `<html>`, `<head>` 등은 생략하고 `<body>` 태그 내부의 내용만 출력하시오.
+                - **중요**: 정답 및 해설은 아직 작성하지 마시오. 문제까지만 출력하시오.
 
                 {passage_inst}
 
                 **[Step 2] 문제 출제**
                 다음 유형에 맞춰 문제를 순서대로 출제하시오. 문항 번호를 매기시오.
                 {reqs_content}
+                """
+                
+                generation_config = GenerationConfig(max_output_tokens=8192, temperature=0.7)
+                response_problems = model.generate_content(prompt_problems, generation_config=generation_config)
+                html_problems = response_problems.text.replace("```html", "").replace("```", "").strip()
 
-                **[Step 3] 정답 및 해설 (매우 중요)**
+                # ----------------------------------------------------------------
+                # [2단계] 정답 및 해설 생성 (분리 호출)
+                # ----------------------------------------------------------------
+                summary_inst_answer = ""
+                if use_summary:
+                    summary_inst_answer = """
+                    - **[필수 추가]**: 정답 및 해설 섹션의 맨 앞부분에 `<div class="summary-ans-box">` 태그를 사용하여 **[문단별 요약 예시 답안]**을 먼저 작성하시오. 각 문단의 핵심 내용을 1줄씩 요약하여 제시하시오.
+                    """
+
+                prompt_answers = f"""
+                당신은 대한민국 수능 국어 출제 위원장입니다.
+                
+                아래는 방금 출제된 지문과 문제들입니다. 
+                이 내용을 바탕으로 **정답 및 해설 섹션**(`<div class="answer-sheet">`...)만 완벽하게 작성하시오.
+
+                **[입력된 지문 및 문제]**
+                {html_problems}
+
+                **[지시사항]**
                 - 문서 맨 마지막에 반드시 `<div class="answer-sheet">`를 생성하시오.
                 {summary_inst_answer}
                 - **[주의] 절대 중간에 끊지 말고, 위에서 출제한 모든 문제(서술형, O/X, 객관식 포함)에 대한 정답과 상세 해설을 끝까지 작성하시오.**
                 - 해설이 짤리면 안 됩니다. 마지막 문제까지 완벽하게 작성하십시오.
-                - **[형식 준수]**: 각 문제마다 아래 포맷을 따르시오. (해설이 누락되면 안됨)
+                - **[형식 준수]**: 각 문제마다 아래 포맷을 따르시오.
                 
                 <div class="ans-item">
                     <span class="ans-num">[문제 번호] 정답: ⑤</span>
@@ -478,20 +499,14 @@ def non_fiction_app():
                     <span class="ans-wrong"><b>[오답 분석]</b>: ①번은 1문단의 내용과 배치되므로 틀렸다. ②번은 인과관계가 잘못되었다.</span>
                 </div>
                 """
-                
-                # [수정] 해설 짤림 방지를 위한 토큰 설정 강화
-                generation_config = GenerationConfig(
-                    max_output_tokens=8192,  # 최대 토큰 수 설정
-                    temperature=0.7,
-                )
-                
-                response = model.generate_content(prompt, generation_config=generation_config)
-                clean_content = response.text.replace("```html", "").replace("```", "").strip()
+
+                response_answers = model.generate_content(prompt_answers, generation_config=generation_config)
+                html_answers = response_answers.text.replace("```html", "").replace("```", "").strip()
                 
                 # HTML 조립
                 full_html = HTML_HEAD
                 full_html += f"<h1>사계국어 AI 모의고사</h1><h2>[{current_domain}] {current_topic}</h2>"
-                full_html += "<div class='time-box'>⏱️ 소요 시간:  </div>"
+                full_html += "<div class='time-box'>⏱️ 목표 시간: 12분</div>"
                 
                 # 직접 입력 모드일 경우 지문을 Python에서 삽입
                 if current_d_mode == '직접 입력':
@@ -512,12 +527,14 @@ def non_fiction_app():
                     
                     full_html += formatted_p
                 
-                full_html += clean_content
+                # 문제와 해설 결합
+                full_html += html_problems
+                full_html += html_answers
                 full_html += HTML_TAIL
                 
                 st.session_state.generated_result = {
                     "full_html": full_html,
-                    "clean_content": clean_content,
+                    "clean_content": html_problems + html_answers, # 참고용
                     "domain": current_domain,
                     "topic": current_topic
                 }
@@ -575,7 +592,10 @@ def fiction_app():
 
                 reqs_str = "\n".join(reqs)
                 
-                prompt = f"""
+                # ----------------------------------------------------------------
+                # [1단계] 문학 문제 생성
+                # ----------------------------------------------------------------
+                prompt_problems = f"""
                 당신은 수능 문학 출제위원입니다.
                 작품: {work_name} ({author_name})
                 
@@ -591,31 +611,46 @@ def fiction_app():
                 - 보기 박스는 `<div class="example-box">` 사용.
                 - 선지는 `<div class="choices">` 사용.
                 
-                **[지시 3] 정답 및 해설**
+                **[중요] 정답 및 해설은 아직 작성하지 마시오. 문제까지만 출력하시오.**
+                """
+                
+                generation_config = GenerationConfig(max_output_tokens=8192, temperature=0.7)
+                response_problems = model.generate_content(prompt_problems, generation_config=generation_config)
+                html_problems = response_problems.text.replace("```html", "").replace("```", "").strip()
+
+                # ----------------------------------------------------------------
+                # [2단계] 문학 정답 및 해설 생성
+                # ----------------------------------------------------------------
+                prompt_answers = f"""
+                당신은 수능 문학 출제위원입니다.
+                
+                아래는 방금 출제된 문학 작품의 문제들입니다.
+                이 내용을 바탕으로 **정답 및 해설 섹션**(`<div class="answer-sheet">`...)만 완벽하게 작성하시오.
+
+                **[입력된 문제]**
+                {html_problems}
+
+                **[지시사항]**
                 - 문서 끝에 `<div class="answer-sheet">`를 만들고, 모든 문제에 대해 **정답**, **해설(근거)**, **오답 분석**을 상세히 작성하시오.
                 - **[주의] 절대 중간에 끊지 말고, 위에서 출제한 모든 문제에 대한 정답과 해설을 끝까지 작성하시오.**
                 - 해설이 짤리면 안 됩니다. 마지막 문제까지 완벽하게 작성하십시오.
                 - 형식: `<div class="ans-item"><span class="ans-num">[번호] 정답</span><br><span class="ans-exp">해설...</span></div>`
                 """
-                
-                # [수정] 해설 짤림 방지를 위한 토큰 설정 강화 (문학도 동일 적용)
-                generation_config = GenerationConfig(
-                    max_output_tokens=8192, 
-                    temperature=0.7,
-                )
-                
-                response = model.generate_content(prompt, generation_config=generation_config)
-                clean_content = response.text.replace("```html", "").replace("```", "").strip()
-                
+
+                response_answers = model.generate_content(prompt_answers, generation_config=generation_config)
+                html_answers = response_answers.text.replace("```html", "").replace("```", "").strip()
+
+                # HTML 조립
                 full_html = HTML_HEAD
                 full_html += f"<h1>{work_name} 실전 문제</h1><h2>{author_name}</h2>"
                 full_html += f'<div class="passage">{current_novel_text.replace(chr(10), "<br>")}</div>'
-                full_html += clean_content
+                full_html += html_problems
+                full_html += html_answers
                 full_html += HTML_TAIL
                 
                 st.session_state.generated_result = {
                     "full_html": full_html,
-                    "clean_content": clean_content,
+                    "clean_content": html_problems + html_answers,
                     "domain": work_name,
                     "topic": author_name
                 }
