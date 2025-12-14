@@ -115,9 +115,10 @@ HTML_HEAD = """
             line-height: 30px; 
         }
 
-        /* 문단 요약 빈칸 스타일 */
+        /* 문단 요약 빈칸 스타일 (높이 확장) */
         .summary-blank {
-            border: 1px dashed #999; padding: 10px; margin: 10px 0;
+            border: 1px dashed #999; padding: 25px 15px; margin: 15px 0; /* 패딩을 늘려 높이 확보 */
+            min-height: 60px; /* 최소 높이 지정 */
             color: #555; font-size: 0.9em; background-color: #fafafa;
             font-weight: bold;
         }
@@ -133,10 +134,11 @@ HTML_HEAD = """
             page-break-before: always; 
         }
         .ans-header { font-size: 1.2em; font-weight: bold; margin-bottom: 15px; color: #333; border-bottom: 2px solid #ddd; padding-bottom: 5px; }
-        .ans-item { margin-bottom: 20px; border-bottom: 1px solid #ddd; padding-bottom: 10px; }
-        .ans-num { font-weight: bold; color: #d63384; font-size: 1.1em; }
-        .ans-exp { display: block; margin-top: 5px; color: #333; line-height: 1.6; }
-        .ans-wrong { display: block; margin-top: 5px; color: #666; font-size: 0.9em; background: #eee; padding: 5px; border-radius: 4px; }
+        .ans-item { margin-bottom: 25px; border-bottom: 1px solid #ddd; padding-bottom: 15px; }
+        .ans-num { font-weight: bold; color: #d63384; font-size: 1.15em; display: block; margin-bottom: 5px; }
+        .ans-type { font-size: 0.9em; color: #555; background: #e9ecef; padding: 2px 6px; border-radius: 4px; margin-left: 10px; font-weight: normal; }
+        .ans-exp { display: block; margin-top: 8px; color: #333; line-height: 1.6; }
+        .ans-wrong { display: block; margin-top: 8px; color: #666; font-size: 0.95em; background: #fff; padding: 10px; border: 1px solid #eee; border-radius: 4px; }
         .summary-ans-box { background-color: #e8f4fd; padding: 15px; margin-bottom: 30px; border-radius: 5px; border: 1px solid #b6d4fe; }
         
         @media print { body { padding: 0; } }
@@ -498,11 +500,12 @@ def non_fiction_app():
                 - 절대 중간에 끊지 말고, 위에서 출제한 모든 문제(서술형, O/X, 객관식 포함)에 대한 정답과 상세 해설을 끝까지 작성하시오.
                 - 해설이 짤리면 안 됩니다. 마지막 문제까지 완벽하게 작성하십시오.
                 - **[형식 준수]**: 각 문제마다 아래 포맷을 따르시오.
+                - **[상세 해설 요청]**: 해설은 정답의 근거가 되는 지문의 문장이나 논리를 구체적으로 인용하여 아주 자세하게 작성하시오. 오답 분석도 각 선지별로 왜 틀렸는지 명확하게 설명하시오. 그리고 각 문제가 어떤 유형인지도 표기하시오.
                 
                 <div class="ans-item">
-                    <span class="ans-num">[문제 번호] 정답: ⑤</span>
-                    <span class="ans-exp"><b>[정답 해설]</b>: 지문의 3문단 내용을 근거로 할 때...</span>
-                    <span class="ans-wrong"><b>[오답 분석]</b>: ①번은 틀렸다. 왜냐하면...</span>
+                    <span class="ans-num">[문제 번호] <span class="ans-type">[문제유형]</span> 정답: ⑤</span>
+                    <span class="ans-exp"><b>[정답 상세 해설]</b>: <br>이 문제는 [문제유형]입니다. 지문의 3문단에서 "~"라고 언급했으므로, 보기의 상황에 적용하면 ...가 된다. 따라서 적절하다.</span>
+                    <span class="ans-wrong"><b>[오답 상세 분석]</b>: <br>① (X): 1문단의 내용과 배치되므로 틀렸다.<br>② (X): 인과관계가 잘못되었다.</span>
                 </div>
                 """
                 
@@ -514,13 +517,13 @@ def non_fiction_app():
                 # HTML 조립
                 full_html = HTML_HEAD
                 full_html += f"<h1>사계국어 AI 모의고사</h1><h2>[{current_domain}] {current_topic}</h2>"
-                full_html += "<div class='time-box'>⏱️ 소요 시간:    </div>"
+                full_html += "<div class='time-box'>⏱️ 소요 시간:   </div>"
                 
                 # 직접 입력 모드일 경우 지문을 Python에서 삽입
                 if current_d_mode == '직접 입력':
                     def add_summary_box(text):
                         if not use_summary: return f"<p>{text}</p>"
-                        return f"<p>{text}</p><div class='summary-blank'>📝 문단 요약 연습: (이곳에 핵심 내용을 요약해보세요</div>"
+                        return f"<p>{text}</p><div class='summary-blank'>📝 문단 요약 연습: (이곳에 핵심 내용을 요약해보세요)</div>"
 
                     if current_mode == '단일 지문':
                         paragraphs = [p.strip() for p in current_manual_passage.split('\n\n') if p.strip()]
@@ -647,7 +650,14 @@ def fiction_app():
                 - **[주의] 해설 작성 시 토큰 낭비를 막기 위해 문제의 발문이나 보기를 절대 다시 적지 마시오. 문제 번호, 정답, 해설만 작성하시오.**
                 - 절대 중간에 끊지 말고, 위에서 출제한 모든 문제에 대한 정답과 해설을 끝까지 작성하시오.
                 - 해설이 짤리면 안 됩니다. 마지막 문제까지 완벽하게 작성하십시오.
-                - 형식: `<div class="ans-item"><span class="ans-num">[번호] 정답</span><br><span class="ans-exp">해설...</span></div>`
+                - **[형식 준수]**: 각 문제마다 아래 포맷을 따르시오.
+                - **[상세 해설 요청]**: 해설은 정답의 근거가 되는 지문의 문장이나 논리를 구체적으로 인용하여 아주 자세하게 작성하시오. 오답 분석도 각 선지별로 왜 틀렸는지 명확하게 설명하시오. 그리고 각 문제가 어떤 유형인지도 표기하시오.
+                
+                <div class="ans-item">
+                    <span class="ans-num">[번호] <span class="ans-type">[문제유형]</span> 정답: ④</span>
+                    <span class="ans-exp"><b>[정답 상세 해설]</b>: <br>이 문제는 [문제유형]입니다. ...</span>
+                    <span class="ans-wrong"><b>[오답 상세 분석]</b>: <br>① (X): ...<br>② (X): ...</span>
+                </div>
                 """
                 
                 generation_config_ans = GenerationConfig(max_output_tokens=8192, temperature=0.3)
