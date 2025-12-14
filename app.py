@@ -468,6 +468,10 @@ def non_fiction_app():
                 response_problems = model.generate_content(prompt_problems, generation_config=generation_config)
                 html_problems = response_problems.text.replace("```html", "").replace("```", "").strip()
 
+                # [중복 방지] 직접 입력 모드인데 AI가 지문을 또 생성한 경우 제거
+                if current_d_mode == '직접 입력':
+                     html_problems = re.sub(r'<div class="passage">.*?</div>', '', html_problems, flags=re.DOTALL).strip()
+
                 # ----------------------------------------------------------------
                 # [2단계] 정답 및 해설 생성 (분리 호출)
                 # ----------------------------------------------------------------
@@ -489,6 +493,7 @@ def non_fiction_app():
                 **[지시사항]**
                 - 문서 맨 마지막에 반드시 `<div class="answer-sheet">`를 생성하시오.
                 {summary_inst_answer}
+                - **[매우 중요 - 중복 방지]**: 위에서 입력받은 **지문과 문제(발문, 보기, 선지 등)를 결과에 절대 다시 적지 마시오.** 오직 정답과 해설 내용만 작성하시오.
                 - **[주의] 해설 작성 시 토큰 낭비를 막기 위해 문제의 발문이나 보기를 절대 다시 적지 마시오. 문제 번호, 정답, 해설만 작성하시오.**
                 - 절대 중간에 끊지 말고, 위에서 출제한 모든 문제(서술형, O/X, 객관식 포함)에 대한 정답과 상세 해설을 끝까지 작성하시오.
                 - 해설이 짤리면 안 됩니다. 마지막 문제까지 완벽하게 작성하십시오.
@@ -509,7 +514,7 @@ def non_fiction_app():
                 # HTML 조립
                 full_html = HTML_HEAD
                 full_html += f"<h1>사계국어 AI 모의고사</h1><h2>[{current_domain}] {current_topic}</h2>"
-                full_html += "<div class='time-box'>⏱️ 소요 시간:  </div>"
+                full_html += "<div class='time-box'>⏱️ 목표 시간: 12분</div>"
                 
                 # 직접 입력 모드일 경우 지문을 Python에서 삽입
                 if current_d_mode == '직접 입력':
@@ -621,6 +626,9 @@ def fiction_app():
                 response_problems = model.generate_content(prompt_problems, generation_config=generation_config)
                 html_problems = response_problems.text.replace("```html", "").replace("```", "").strip()
 
+                # [중복 방지] 문학도 지문 중복 생성 가능성 차단
+                html_problems = re.sub(r'<div class="passage">.*?</div>', '', html_problems, flags=re.DOTALL).strip()
+
                 # ----------------------------------------------------------------
                 # [2단계] 문학 정답 및 해설 생성
                 # ----------------------------------------------------------------
@@ -635,6 +643,7 @@ def fiction_app():
 
                 **[지시사항]**
                 - 문서 끝에 `<div class="answer-sheet">`를 만들고, 모든 문제에 대해 **정답**, **해설(근거)**, **오답 분석**을 상세히 작성하시오.
+                - **[매우 중요 - 중복 방지]**: 위에서 입력받은 **지문과 문제(발문, 보기, 선지 등)를 결과에 절대 다시 적지 마시오.** 오직 정답과 해설 내용만 작성하시오.
                 - **[주의] 해설 작성 시 토큰 낭비를 막기 위해 문제의 발문이나 보기를 절대 다시 적지 마시오. 문제 번호, 정답, 해설만 작성하시오.**
                 - 절대 중간에 끊지 말고, 위에서 출제한 모든 문제에 대한 정답과 해설을 끝까지 작성하시오.
                 - 해설이 짤리면 안 됩니다. 마지막 문제까지 완벽하게 작성하십시오.
