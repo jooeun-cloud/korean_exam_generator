@@ -141,12 +141,56 @@ HTML_HEAD = """
             border-top: 2px solid #333; 
             page-break-before: always; 
         }
-        .ans-header { font-size: 1.2em; font-weight: bold; margin-bottom: 15px; color: #333; border-bottom: 2px solid #ddd; padding-bottom: 5px; }
-        .ans-item { margin-bottom: 25px; border-bottom: 1px solid #ddd; padding-bottom: 15px; }
-        .ans-num { font-weight: bold; color: #d63384; font-size: 1.15em; display: block; margin-bottom: 5px; }
-        .ans-type { font-size: 0.9em; color: #555; background: #e9ecef; padding: 2px 6px; border-radius: 4px; margin-left: 10px; font-weight: normal; }
-        .ans-exp { display: block; margin-top: 8px; color: #333; line-height: 1.6; }
-        .ans-wrong { display: block; margin-top: 8px; color: #666; font-size: 0.95em; background: #fff; padding: 10px; border: 1px solid #eee; border-radius: 4px; }
+        .ans-item { 
+            margin-bottom: 40px; 
+            border-bottom: 1px dashed #ccc; 
+            padding-bottom: 20px; 
+        }
+        
+        /* 문제 유형 배지 스타일 */
+        .ans-type-badge { 
+            display: inline-block; 
+            background-color: #495057; 
+            color: #fff; 
+            padding: 5px 15px; 
+            border-radius: 20px; 
+            font-size: 0.95em; 
+            font-weight: bold; 
+            margin-bottom: 10px; 
+        }
+        
+        .ans-num { 
+            font-weight: bold; 
+            color: #d63384; 
+            font-size: 1.2em; 
+            display: block; 
+            margin-bottom: 10px; 
+        }
+        
+        .ans-content-title {
+            font-weight: bold;
+            color: #212529;
+            margin-top: 15px;
+            margin-bottom: 5px;
+            font-size: 1.05em;
+            display: block;
+        }
+        
+        .ans-text { 
+            display: block; 
+            margin-left: 5px; 
+            color: #444; 
+            line-height: 1.7; 
+        }
+        
+        .ans-wrong-box {
+            background-color: #fff;
+            border: 1px solid #eee;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 5px;
+        }
+
         .summary-ans-box { background-color: #e8f4fd; padding: 15px; margin-bottom: 30px; border-radius: 5px; border: 1px solid #b6d4fe; }
         
         @media print { body { padding: 0; } }
@@ -511,16 +555,24 @@ def non_fiction_app():
                 
                 - **[해설 작성 규칙 (유형별 - 매우 중요)]**:
                   1. **객관식 문제**:
+                     - 반드시 `[객관식 3점 보기적용]`과 같이 문제 유형을 크게 명시하시오.
                      - 정답 해설: 정답인 이유를 지문의 근거를 들어 설명하시오.
                      - **오답 상세 분석 (필수)**: 각 오답 선지 번호(①, ②, ...)별로 왜 틀렸는지 지문 근거를 들어 **반드시** 줄바꿈(`<br>`)하여 상세히 작성하시오. (예: ① 3문단에서 ...하므로 틀림)
                   2. **O/X 및 빈칸 채우기 문제**:
-                     - **[오답 상세 분석] 항목을 아예 작성하지 마시오.** 오직 **[정답 해설]**만 작성하시오.
+                     - 유형을 명시하고, **[오답 상세 분석] 항목을 아예 작성하지 마시오.** 오직 **[정답 상세 해설]**만 작성하시오.
                 
                 <div class="ans-item">
-                    <span class="ans-num">[문제 번호] <span class="ans-type">[문제유형]</span> 정답: ⑤</span>
-                    <span class="ans-exp"><b>[정답 상세 해설]</b>: <br>이 문제는 [문제유형]입니다. 지문의 3문단에서 "~"라고 언급했으므로...</span>
+                    <div class="ans-type-badge">[문제유형 예: 객관식 추론]</div>
+                    <span class="ans-num">[문제 번호] 정답: ⑤</span>
+                    <span class="ans-content-title">1. 정답 상세 해설</span>
+                    <span class="ans-text">지문의 3문단에서 "~"라고 언급했으므로, 보기의 상황에 적용하면 ...가 된다. 따라서 적절하다.</span>
                     <!-- 객관식일 경우에만 아래 오답 상세 분석 작성 -->
-                    <span class="ans-wrong"><b>[오답 상세 분석]</b>: <br>① (X): 1문단에서 ...라고 했으므로 틀린 진술이다.<br>② (X): 인과관계가 반대로 서술되었다.<br>③ (X): 지문에 언급되지 않은 내용이다.</span>
+                    <span class="ans-content-title">2. 오답 상세 분석</span>
+                    <div class="ans-wrong-box">
+                        <span class="ans-text">① (X): 1문단에서 ...라고 했으므로 틀린 진술이다.<br>
+                        ② (X): 인과관계가 반대로 서술되었다.<br>
+                        ③ (X): 지문에 언급되지 않은 내용이다.</span>
+                    </div>
                 </div>
                 """
                 
@@ -665,19 +717,25 @@ def fiction_app():
                 - **[주의] 해설 작성 시 토큰 낭비를 막기 위해 문제의 발문이나 보기를 절대 다시 적지 마시오. 문제 번호, 정답, 해설만 작성하시오.**
                 - 절대 중간에 끊지 말고, 위에서 출제한 모든 문제에 대한 정답과 해설을 끝까지 작성하시오.
                 - 해설이 짤리면 안 됩니다. 마지막 문제까지 완벽하게 작성하십시오.
-                - 형식: `<div class="ans-item"><span class="ans-num">[번호] <span class="ans-type">[문제유형]</span> 정답</span><br><span class="ans-exp">해설...</span></div>`
+                - **[형식 준수]**: 각 문제마다 아래 포맷을 따르시오.
                 - **[해설 작성 규칙]**:
                   1. **객관식 문제**:
+                     - 반드시 `[객관식 내용 일치]`와 같이 문제 유형을 크게 명시하시오.
                      - 정답 해설과 함께 **오답 상세 분석**을 필수 작성하시오.
                      - 각 오답 선지(①, ②, ...)별로 왜 답이 아닌지 줄바꿈하여 구체적으로 설명하시오.
                   2. **서술형 문제**:
                      - 예시 답안과 채점 기준을 제시하시오.
                 
                 <div class="ans-item">
-                    <span class="ans-num">[문제 번호] <span class="ans-type">[문제유형]</span> 정답: ④</span>
-                    <span class="ans-exp"><b>[정답 상세 해설]</b>: <br>...</span>
+                    <div class="ans-type-badge">[문제유형 예: 객관식 감상]</div>
+                    <span class="ans-num">[번호] 정답: ④</span>
+                    <span class="ans-content-title">1. 정답 상세 해설</span>
+                    <span class="ans-text">...</span>
                     <!-- 객관식일 경우 -->
-                    <span class="ans-wrong"><b>[오답 상세 분석]</b>: <br>① (X): ...<br>② (X): ...</span>
+                    <span class="ans-content-title">2. 오답 상세 분석</span>
+                    <div class="ans-wrong-box">
+                        <span class="ans-text">① (X): ...<br>② (X): ...</span>
+                    </div>
                 </div>
                 """
                 
