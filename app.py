@@ -265,17 +265,17 @@ def non_fiction_app():
         
         select_t1 = st.checkbox("1. 핵심 내용 요약 (서술형)", value=True)
         select_t2 = st.checkbox("2. 내용 일치 (O/X)", key="select_t2")
-        count_t2 = st.number_input(" - 문항 수", 1, 5, 2, key="t2") if select_t2 else 0
+        count_t2 = st.number_input(" - 문항 수", 1, 10, 2, key="t2") if select_t2 else 0
         
         select_t5 = st.checkbox("3. 객관식 (세부 내용 파악)", value=True, key="select_t5")
-        count_t5 = st.number_input(" - 문항 수", 1, 5, 2, key="t5") if select_t5 else 0
+        count_t5 = st.number_input(" - 문항 수", 1, 10, 2, key="t5") if select_t5 else 0
         
         select_t6 = st.checkbox("4. 객관식 (추론)", value=True, key="select_t6")
-        count_t6 = st.number_input(" - 문항 수", 1, 5, 1, key="t6") if select_t6 else 0
+        count_t6 = st.number_input(" - 문항 수", 1, 10, 1, key="t6") if select_t6 else 0
         
         st.markdown("##### 🌟 고난도 유형")
         select_t7 = st.checkbox("5. 객관식 (보기 적용 3점)", value=True, key="select_t7")
-        count_t7 = st.number_input(" - 문항 수", 1, 3, 1, key="t7") if select_t7 else 0
+        count_t7 = st.number_input(" - 문항 수", 1, 10, 1, key="t7") if select_t7 else 0
         
         use_summary = st.checkbox("📌 문단별 요약 훈련 칸 생성", value=False)
 
