@@ -514,13 +514,13 @@ def non_fiction_app():
                 # HTML 조립
                 full_html = HTML_HEAD
                 full_html += f"<h1>사계국어 AI 모의고사</h1><h2>[{current_domain}] {current_topic}</h2>"
-                full_html += "<div class='time-box'>⏱️ 목표 시간: 12분</div>"
+                full_html += "<div class='time-box'>⏱️ 소요 시간:    </div>"
                 
                 # 직접 입력 모드일 경우 지문을 Python에서 삽입
                 if current_d_mode == '직접 입력':
                     def add_summary_box(text):
                         if not use_summary: return f"<p>{text}</p>"
-                        return f"<p>{text}</p><div class='summary-blank'>📝 문단 요약 연습: (이곳에 핵심 내용을 요약해보세요)</div>"
+                        return f"<p>{text}</p><div class='summary-blank'>📝 문단 요약 연습: (이곳에 핵심 내용을 요약해보세요</div>"
 
                     if current_mode == '단일 지문':
                         paragraphs = [p.strip() for p in current_manual_passage.split('\n\n') if p.strip()]
