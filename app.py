@@ -136,11 +136,11 @@ HTML_HEAD = """
             font-weight: bold; display: flex; align-items: flex-start;
         }
 
-        /* 빈칸 채우기 스타일 (가시성 확보) */
+        /* 빈칸 채우기 스타일 */
         .blank {
             display: inline-block;
             min-width: 80px; 
-            border-bottom: 1.5px solid #000; /* 밑줄 두께 강화 */
+            border-bottom: 1.5px solid #000;
             margin: 0 5px;
             height: 1.2em;
             vertical-align: middle;
@@ -150,7 +150,7 @@ HTML_HEAD = """
         .answer-sheet { 
             background: #f8f9fa; padding: 40px; margin-top: 60px; 
             border-top: 4px double #333; 
-            page-break-before: always; /* 인쇄 시 새 페이지로 넘김 */
+            page-break-before: always; 
         }
         .ans-main-title {
             font-size: 1.6em; font-weight: bold; text-align: center; 
@@ -392,7 +392,7 @@ def non_fiction_app():
                     <div class="type-box">
                         <h3>빈칸 채우기 ({count_t3}문항)</h3>
                         - 위 지문의 핵심 어휘나 구절을 빈칸으로 만든 문제를 {count_t3}개 출제하시오.
-                        - **[중요]**: 빈칸에는 정답을 절대 넣지 마시오. `<span class='blank'></span>` 태그를 사용하여 **반드시 공백 밑줄**로 표시하시오. 학생이 풀어야 합니다.
+                        - **[중요]**: 빈칸에는 정답을 절대 넣지 마시오. `<span class='blank'>&nbsp;&nbsp;&nbsp;&nbsp;</span>` 태그를 사용하여 **반드시 공백 밑줄**로 표시하시오. 학생이 풀어야 합니다.
                     </div>""")
 
                 # 4. 변형 문장 정오판단
@@ -558,6 +558,7 @@ def non_fiction_app():
                 - 절대 중간에 끊지 말고, 위에서 출제한 모든 문제(서술형, O/X, 객관식 포함)에 대한 정답과 상세 해설을 끝까지 작성하시오.
                 - 해설이 짤리면 안 됩니다. 마지막 문제까지 완벽하게 작성하십시오.
                 - **[형식 준수]**: 각 문제마다 아래 포맷을 따르시오.
+                - **[시작 태그 필수]**: 답변은 반드시 `<div class="answer-sheet">` 태그로 시작해야 합니다. 다른 서론이나 텍스트를 붙이지 마시오.
                 
                 - **[해설 작성 규칙 (유형별 - 매우 중요)]**:
                   1. **객관식 문제 (추론, 비판, 보기 적용, 일치 등 5지선다형 전체)**:
@@ -590,11 +591,12 @@ def non_fiction_app():
                 response_answers = model.generate_content(prompt_answers, generation_config=generation_config_ans)
                 html_answers = response_answers.text.replace("```html", "").replace("```", "").strip()
                 
-                # [중복 방지 2차 - 강력 삭제] 정답 섹션에 지문이나 문제가 포함되면 제거
-                # 문제 박스, 지문 박스, 유형 박스 모두 제거
-                html_answers = re.sub(r'<div class="passage">.*?</div>', '', html_answers, flags=re.DOTALL).strip()
-                html_answers = re.sub(r'<div class="question-box">.*?</div>', '', html_answers, flags=re.DOTALL).strip()
-                html_answers = re.sub(r'<div class="type-box">.*?</div>', '', html_answers, flags=re.DOTALL).strip()
+                # [중복 방지 2차 - 강력 삭제] 정답 섹션 시작 전의 모든 내용 삭제
+                if '<div class="answer-sheet">' in html_answers:
+                    html_answers = html_answers[html_answers.find('<div class="answer-sheet">'):]
+                else:
+                    # 태그가 없으면 강제로 래핑 (비상시)
+                    html_answers = '<div class="answer-sheet">' + html_answers + '</div>'
 
                 # HTML 조립
                 full_html = HTML_HEAD
@@ -696,7 +698,10 @@ def fiction_app():
             html_a = res_2.text.replace("```html","").replace("```","").strip()
             
             # 문학도 중복 방지 처리
-            html_a = re.sub(r'<div class="question-box">.*?</div>', '', html_a, flags=re.DOTALL).strip()
+            if '<div class="answer-sheet">' in html_a:
+                html_a = html_a[html_a.find('<div class="answer-sheet">'):]
+            else:
+                html_a = '<div class="answer-sheet">' + html_a + '</div>'
             
             full_html = HTML_HEAD
             full_html += f"<h1>{work_name}</h1><h2>{author_name}</h2>"
