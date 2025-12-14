@@ -20,6 +20,18 @@ except (KeyError, AttributeError):
 st.set_page_config(page_title="사계국어 AI 모의고사 제작 시스템", page_icon="📚", layout="wide")
 
 # ==========================================
+# [초기화] Session State 설정 (AttributeError 방지)
+# ==========================================
+if 'generation_requested' not in st.session_state:
+    st.session_state.generation_requested = False
+
+if 'generated_result' not in st.session_state:
+    st.session_state.generated_result = None
+
+if 'app_mode' not in st.session_state:
+    st.session_state.app_mode = "⚡ 비문학 문제 제작"
+
+# ==========================================
 # [공통 HTML/CSS 정의]
 # ==========================================
 
@@ -576,7 +588,7 @@ def display_results():
             
         st.components.v1.html(res["full_html"], height=800, scrolling=True)
 
-# 앱 시작
+# 앱 시작 (초기화 코드)
 if 'app_mode' not in st.session_state: st.session_state.app_mode = "⚡ 비문학 문제 제작"
 
 st.title("📚 사계국어 AI 모의고사 제작 시스템")
