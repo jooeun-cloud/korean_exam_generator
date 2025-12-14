@@ -11,7 +11,7 @@ import time
 # ==========================================
 # [설정] 페이지 기본 설정 (반드시 가장 먼저 실행)
 # ==========================================
-st.set_page_config(page_title="사계국어 모의고사 시스템", page_icon="📚", layout="wide")
+st.set_page_config(page_title="사계국어 AI 모의고사 시스템", page_icon="📚", layout="wide")
 
 # ==========================================
 # [설정] API 키 연동
@@ -139,7 +139,7 @@ HTML_HEAD = """
         /* 빈칸 채우기 스타일 */
         .blank {
             display: inline-block;
-            min-width: 60px; /* 최소 너비 확보 */
+            min-width: 80px; /* 최소 너비 확보 */
             border-bottom: 1px solid #000; /* 밑줄 */
             margin: 0 5px;
             height: 1.2em;
@@ -250,7 +250,7 @@ def create_docx(html_content, file_name, current_topic):
     clean_text = re.sub(r'<[^>]+>', '\n', html_content)
     clean_text = re.sub(r'\n+', '\n', clean_text).strip()
     
-    document.add_heading("사계국어 모의고사", 0)
+    document.add_heading("사계국어 AI 모의고사", 0)
     document.add_heading(current_topic, 1)
     document.add_paragraph(clean_text)
 
@@ -308,7 +308,6 @@ def non_fiction_app():
         st.markdown("---")
         st.header("2️⃣ 문제 유형 및 개수 선택")
         
-        # [수정] label_type1 변수 정의를 명확하게 하여 NameError 방지
         if current_mode.startswith("단일"):
             label_type1 = "1. 핵심 주장 요약 (서술형)"
         else:
@@ -393,7 +392,7 @@ def non_fiction_app():
                     <div class="type-box">
                         <h3>빈칸 채우기 ({count_t3}문항)</h3>
                         - 위 지문의 핵심 어휘나 구절을 빈칸으로 만든 문제를 {count_t3}개 출제하시오.
-                        - **[중요]**: 빈칸에는 정답을 절대 넣지 마시오. `<span class='blank'>&nbsp;&nbsp;&nbsp;&nbsp;</span>` 태그를 사용하여 밑줄이 보이도록 하시오.
+                        - **[절대 규칙]**: 빈칸 부분에 정답 단어를 쓰지 말고, `<span class='blank'>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>` 태그를 사용하여 **반드시 공백 밑줄**로 표시하시오. 학생이 풀어야 합니다.
                     </div>""")
 
                 # 4. 변형 문장 정오판단
@@ -445,7 +444,7 @@ def non_fiction_app():
                         - **[절대 금지]**: "다음 그림은...", "그래프는..." 등 시각 자료를 언급하거나 암시하지 마시오. AI는 이미지를 생성할 수 없습니다.
                         - **[필수]**: `<div class="example-box">` 태그 안에 **[보 기]**를 작성하시오.
                         - [보 기] 내용은 반드시 **구체적 사례(Case Study), 실험 과정의 줄글 묘사, 관련 신문 기사, 다른 학자의 견해(텍스트)** 등 텍스트로 된 자료여야 합니다.
-                        - 위 지문의 원리를 이 [보기]の 텍스트 상황에 적용하는 3점짜리 고난도 문제를 {count_t7}개 작성하시오.
+                        - 위 지문의 원리를 이 [보기]의 텍스트 상황에 적용하는 3점짜리 고난도 문제를 {count_t7}개 작성하시오.
                         - [형식]
                         <div class="question-box">
                              <span class="question-text">[문제번호] 윗글을 바탕으로 [보기]를 이해한 내용으로 적절하지 않은 것은? [3점]</span>
@@ -592,12 +591,14 @@ def non_fiction_app():
                 html_answers = response_answers.text.replace("```html", "").replace("```", "").strip()
                 
                 # [중복 방지 2차 - 강력 삭제] 정답 섹션에 지문이나 문제가 포함되면 제거
+                # 문제 박스, 지문 박스, 유형 박스 모두 제거
                 html_answers = re.sub(r'<div class="passage">.*?</div>', '', html_answers, flags=re.DOTALL).strip()
                 html_answers = re.sub(r'<div class="question-box">.*?</div>', '', html_answers, flags=re.DOTALL).strip()
+                html_answers = re.sub(r'<div class="type-box">.*?</div>', '', html_answers, flags=re.DOTALL).strip()
 
                 # HTML 조립
                 full_html = HTML_HEAD
-                full_html += f"<h1>사계국어 모의고사</h1><h2>[{current_domain}] {current_topic}</h2>"
+                full_html += f"<h1>사계국어 AI 모의고사</h1><h2>[{current_domain}] {current_topic}</h2>"
                 full_html += "<div class='time-box'>⏱️ 소요 시간: <span class='time-blank'></span></div>"
                 
                 # 직접 입력 모드일 경우 지문을 Python에서 삽입
@@ -608,7 +609,7 @@ def non_fiction_app():
                             box += "<div class='summary-blank'>📝 문단 요약 연습: </div>"
                         return box
 
-                    # 문단 나누기 (엔터 두번 기준)
+                    # 문단 나누기 (엔터 두번 기준 - 정규식 강화)
                     raw_paras = [p.strip() for p in re.split(r'\n\s*\n', current_manual_passage.strip()) if p.strip()]
                     formatted_paras = "".join([make_p_with_summary(p) for p in raw_paras])
                     
@@ -694,6 +695,9 @@ def fiction_app():
             res_2 = model.generate_content(prompt_2)
             html_a = res_2.text.replace("```html","").replace("```","").strip()
             
+            # 문학도 중복 방지 처리
+            html_a = re.sub(r'<div class="question-box">.*?</div>', '', html_a, flags=re.DOTALL).strip()
+            
             full_html = HTML_HEAD
             full_html += f"<h1>{work_name}</h1><h2>{author_name}</h2>"
             full_html += f'<div class="passage">{text_input.replace(chr(10), "<br>")}</div>'
@@ -729,7 +733,7 @@ def display_results():
         st.components.v1.html(res["full_html"], height=800, scrolling=True)
 
 # 앱 레이아웃
-st.title("📚 사계국어 모의고사 제작 시스템")
+st.title("📚 사계국어 AI 모의고사 제작 시스템")
 st.markdown("---")
 
 col_L, col_R = st.columns([1.5, 3])
