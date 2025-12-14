@@ -141,9 +141,12 @@ HTML_TAIL = """
 """
 
 def get_best_model():
-    """Gemma-3를 최우선으로 하되, 복잡한 추론을 위해 2.0 Flash도 고려"""
-    # 사용자가 Gemma를 원했으므로 Gemma 우선 시도
-    return 'models/gemini-2.0-flash' # 복잡한 지시(보기 적용, 해설 등) 이행에는 Flash가 더 안정적일 수 있음. 필요시 변경 가능.
+    """사용자가 요청한 Gemma-3 27B IT 모델을 최우선으로 사용"""
+    # 사용자가 지정한 우선순위:
+    # 1. models/gemma-3-27b-it (최우선)
+    # 2. models/gemma-3-12b-it
+    # 3. models/gemini-2.0-flash
+    return 'models/gemma-3-27b-it'
 
 # ==========================================
 # [DOCX 생성 함수]
@@ -313,7 +316,7 @@ def non_fiction_app():
             st.session_state.generation_requested = False
         else:
             status = st.empty()
-            status.info(f"⚡ [{current_domain}] 출제 중입니다... (AI 모델 구동 중)")
+            status.info(f"⚡ [{current_domain}] 출제 중입니다... (Gemma-3 모델 구동 중)")
             
             try:
                 model_name = get_best_model()
