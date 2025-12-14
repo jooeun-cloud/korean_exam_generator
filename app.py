@@ -391,44 +391,47 @@ def non_fiction_app():
                 if select_t3: reqs.append(f"""<div class="type-box"><h3>빈칸 채우기 ({count_t3}문항)</h3>- 문장에 <span class='blank'></span> 태그 사용.</div>""")
                 if select_t4: reqs.append(f"""<div class="type-box"><h3>변형 문장 정오판단 ({count_t4}문항)</h3></div>""")
                 
-                # [수정] 객관식 5지 선다 및 줄바꿈 지시 강화
+                # [수정] 객관식 5지 선다 및 줄바꿈 지시 강화, 개수만큼 생성 지시 강화
                 if select_t5: 
                     reqs.append(f"""
                     <div class="type-box">
                         <h3>객관식 일치/불일치 ({count_t5}문항)</h3>
-                        - <b>반드시 5개의 선지(①~⑤)</b>를 생성하시오.
-                        - 선지는 `<div class='choices'>` 안에 각 선지마다 `<div>① ...</div>` 태그로 감싸서 <b>줄바꿈</b>되도록 하시오.
+                        - **[지시]**: 지문 내용을 바탕으로 일치/불일치 여부를 묻는 객관식 문제 **{count_t5}문항**을 출제하시오.
+                        - **[형식]**: 각 문항은 독립적인 `<div class="question-box">`로 감싸고, 발문, 그리고 **반드시 5개의 선지(①~⑤)**를 `<div class='choices'>` 안에 각 선지마다 `<div>① ...</div>` 태그로 감싸서 <b>줄바꿈</b>되도록 작성하시오.
                     </div>""")
                 if select_t6: 
                     reqs.append(f"""
                     <div class="type-box">
                         <h3>객관식 추론 ({count_t6}문항)</h3>
-                        - <b>반드시 5개의 선지(①~⑤)</b>를 생성하시오.
-                        - 선지는 `<div class='choices'>` 안에 각 선지마다 `<div>① ...</div>` 태그로 감싸서 <b>줄바꿈</b>되도록 하시오.
+                        - **[지시]**: 지문 내용을 바탕으로 추론하는 객관식 문제 **{count_t6}문항**을 출제하시오.
+                        - **[형식]**: 각 문항은 독립적인 `<div class="question-box">`로 감싸고, 발문, 그리고 **반드시 5개의 선지(①~⑤)**를 `<div class='choices'>` 안에 각 선지마다 `<div>① ...</div>` 태그로 감싸서 <b>줄바꿈</b>되도록 작성하시오.
                     </div>""")
                 if select_t7: 
                     reqs.append(f"""
                     <div class="type-box">
                         <h3>객관식 보기 적용 ({count_t7}문항)</h3>
-                        - `<div class="example-box">` 태그를 사용하여 보기를 작성하시오.
-                        - <b>반드시 5개의 선지(①~⑤)</b>를 생성하시오.
-                        - 선지는 `<div class='choices'>` 안에 각 선지마다 `<div>① ...</div>` 태그로 감싸서 <b>줄바꿈</b>되도록 하시오.
+                        - **[지시]**: `<div class="example-box">` 태그를 사용하여 보기를 작성하고, 이를 적용하여 푸는 객관식 문제 **{count_t7}문항**을 출제하시오.
+                        - **[형식]**: 각 문항은 독립적인 `<div class="question-box">`로 감싸고, 발문, 그리고 **반드시 5개의 선지(①~⑤)**를 `<div class='choices'>` 안에 각 선지마다 `<div>① ...</div>` 태그로 감싸서 <b>줄바꿈</b>되도록 작성하시오.
                     </div>""")
                 if use_recommendation: 
                     reqs.append(f"""
                     <div class="type-box">
                         <h3>🌟 영역 맞춤 추천 문제</h3>
-                        - 5지 선다 객관식 1문항.
-                        - 선지는 `<div class='choices'>` 안에 각 선지마다 `<div>① ...</div>` 태그로 감싸서 <b>줄바꿈</b>되도록 하시오.
+                        - **[지시]**: 5지 선다 객관식 1문항을 출제하시오.
+                        - **[형식]**: `<div class="question-box">`로 감싸고, 선지는 `<div class='choices'>` 안에 각 선지마다 `<div>① ...</div>` 태그로 감싸서 <b>줄바꿈</b>되도록 작성하시오.
                     </div>""")
                 
                 reqs_content = "\n".join(reqs)
                 
-                # [수정] 지문 요약 및 출력 지시 강화
-                summary_inst = ""
+                # [수정] 지문 요약 및 출력 지시 강화 (빈칸으로 두고 정답지에 표시)
+                summary_inst_passage = ""
+                summary_inst_answer = ""
                 if use_summary:
-                    summary_inst = """
-                    - **[필수]** 지문 작성 시, 각 문단(`<p>...</p>`)이 끝날 때마다 **반드시** `<div class='summary-blank'>📝 문단 요약 : </div>` 태그를 바로 뒤에 삽입하여 출력하시오.
+                    summary_inst_passage = """
+                    - **[필수]** 지문 작성 시, 각 문단(`<p>...</p>`)이 끝날 때마다 **반드시** `<div class='summary-blank'>📝 문단 요약 : (빈칸)</div>` 태그를 바로 뒤에 삽입하여 출력하시오. **절대 여기에 요약 내용을 미리 적지 마시오.**
+                    """
+                    summary_inst_answer = """
+                    - 정답지 맨 앞부분에 **<I. 문단별 핵심 요약 정답>** 섹션을 만들고, 각 문단의 핵심 요약 내용을 순서대로 작성하시오.
                     """
 
                 # 지문 처리 지시 (AI 모드 vs 직접 입력 모드)
@@ -439,7 +442,7 @@ def non_fiction_app():
                     - 난이도: {current_difficulty}
                     - **반드시** 수능형 지문을 작성하고 `<div class="passage">` 태그로 감싸서 출력하시오.
                     - 문단 구분은 `<p>` 태그를 사용하시오.
-                    {summary_inst}
+                    {summary_inst_passage}
                     """
                 else:
                     passage_inst = f"""
@@ -463,6 +466,7 @@ def non_fiction_app():
                 
                 **[지시 3] 정답 및 해설 (필수)**
                 - 문서 맨 마지막에 `<div class="answer-sheet">`를 열고 정답을 작성하시오.
+                {summary_inst_answer}
                 - **반드시** 위에서 출제한 문제 순서대로 번호를 매겨 해설하시오.
                 - 형식: **[문제번호] 정답** / **해설** / **오답분석**
                 """
@@ -473,11 +477,11 @@ def non_fiction_app():
                 # HTML 조립
                 full_html = HTML_HEAD
                 full_html += f"<h1>사계국어 비문학 모의고사</h1><h2>[{current_domain}] {current_topic}</h2>"
-                full_html += "<div class='time-box'>⏱️ 소요 시간:  </div>"
+                full_html += "<div class='time-box'>⏱️ 목표 시간: 10분</div>"
                 
                 # 직접 입력 모드일 경우 지문을 Python에서 삽입
                 if current_d_mode == '직접 입력':
-                    # [수정] 직접 입력 모드에서도 요약 칸 기능 적용
+                    # [수정] 직접 입력 모드에서도 요약 칸 기능 적용 (빈칸 유지)
                     def add_summary_box(text):
                         if not use_summary: return f"<p>{text}</p>"
                         return f"<p>{text}</p><div class='summary-blank'>📝 문단 요약 : </div>"
