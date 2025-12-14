@@ -11,7 +11,7 @@ import time
 # ==========================================
 # [설정] 페이지 기본 설정 (반드시 가장 먼저 실행)
 # ==========================================
-st.set_page_config(page_title="사계국어 AI 모의고사 시스템", page_icon="📚", layout="wide")
+st.set_page_config(page_title="사계국어 모의고사 시스템", page_icon="📚", layout="wide")
 
 # ==========================================
 # [설정] API 키 연동
@@ -131,16 +131,16 @@ HTML_HEAD = """
         /* 문단 요약 빈칸 스타일 (높이 확장) */
         .summary-blank {
             border: 1px dashed #aaa; padding: 15px; margin: 15px 0 25px 0;
-            min-height: 100px; /* 높이 확보 */
+            min-height: 100px;
             color: #666; font-size: 0.9em; background-color: #fcfcfc;
             font-weight: bold; display: flex; align-items: flex-start;
         }
 
-        /* 빈칸 채우기 스타일 */
+        /* 빈칸 채우기 스타일 (가시성 확보) */
         .blank {
             display: inline-block;
-            min-width: 80px; /* 최소 너비 확보 */
-            border-bottom: 1px solid #000; /* 밑줄 */
+            min-width: 80px; 
+            border-bottom: 1.5px solid #000; /* 밑줄 두께 강화 */
             margin: 0 5px;
             height: 1.2em;
             vertical-align: middle;
@@ -149,8 +149,8 @@ HTML_HEAD = """
         /* 정답 및 해설 */
         .answer-sheet { 
             background: #f8f9fa; padding: 40px; margin-top: 60px; 
-            border-top: 2px solid #333; 
-            page-break-before: always; 
+            border-top: 4px double #333; 
+            page-break-before: always; /* 인쇄 시 새 페이지로 넘김 */
         }
         .ans-main-title {
             font-size: 1.6em; font-weight: bold; text-align: center; 
@@ -250,7 +250,7 @@ def create_docx(html_content, file_name, current_topic):
     clean_text = re.sub(r'<[^>]+>', '\n', html_content)
     clean_text = re.sub(r'\n+', '\n', clean_text).strip()
     
-    document.add_heading("사계국어 AI 모의고사", 0)
+    document.add_heading("사계국어 모의고사", 0)
     document.add_heading(current_topic, 1)
     document.add_paragraph(clean_text)
 
@@ -392,7 +392,7 @@ def non_fiction_app():
                     <div class="type-box">
                         <h3>빈칸 채우기 ({count_t3}문항)</h3>
                         - 위 지문의 핵심 어휘나 구절을 빈칸으로 만든 문제를 {count_t3}개 출제하시오.
-                        - **[절대 규칙]**: 빈칸 부분에 정답 단어를 쓰지 말고, `<span class='blank'>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>` 태그를 사용하여 **반드시 공백 밑줄**로 표시하시오. 학생이 풀어야 합니다.
+                        - **[중요]**: 빈칸에는 정답을 절대 넣지 마시오. `<span class='blank'></span>` 태그를 사용하여 **반드시 공백 밑줄**로 표시하시오. 학생이 풀어야 합니다.
                     </div>""")
 
                 # 4. 변형 문장 정오판단
@@ -598,7 +598,7 @@ def non_fiction_app():
 
                 # HTML 조립
                 full_html = HTML_HEAD
-                full_html += f"<h1>사계국어 AI 모의고사</h1><h2>[{current_domain}] {current_topic}</h2>"
+                full_html += f"<h1>사계국어 모의고사</h1><h2>[{current_domain}] {current_topic}</h2>"
                 full_html += "<div class='time-box'>⏱️ 소요 시간: <span class='time-blank'></span></div>"
                 
                 # 직접 입력 모드일 경우 지문을 Python에서 삽입
@@ -733,7 +733,7 @@ def display_results():
         st.components.v1.html(res["full_html"], height=800, scrolling=True)
 
 # 앱 레이아웃
-st.title("📚 사계국어 AI 모의고사 제작 시스템")
+st.title("📚 사계국어 모의고사 제작 시스템")
 st.markdown("---")
 
 col_L, col_R = st.columns([1.5, 3])
