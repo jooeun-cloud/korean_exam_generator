@@ -18,7 +18,7 @@ except (KeyError, AttributeError):
     # 로컬 환경 변수 등 Fallback
     GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "") 
 
-st.set_page_config(page_title="사계국어 AI 모의고사 시스템", page_icon="📚", layout="wide")
+st.set_page_config(page_title="사계국어 모의고사 시스템", page_icon="📚", layout="wide")
 
 # ==========================================
 # [초기화] Session State 설정
@@ -584,7 +584,7 @@ def non_fiction_app():
                 
                 # HTML 조립
                 full_html = HTML_HEAD
-                full_html += f"<h1>사계국어 AI 모의고사</h1><h2>[{current_domain}] {current_topic}</h2>"
+                full_html += f"<h1>사계국어 모의고사</h1><h2>[{current_domain}] {current_topic}</h2>"
                 full_html += "<div class='time-box'>⏱️ 소요 시간: <span class='time-blank'></span></div>"
                 
                 # 직접 입력 모드일 경우 지문을 Python에서 삽입
@@ -790,7 +790,7 @@ def display_results():
         st.components.v1.html(res["full_html"], height=800, scrolling=True)
 
 # 앱 시작
-st.title("📚 사계국어 AI 모의고사 제작 시스템")
+st.title("📚 사계국어 모의고사 제작 시스템")
 st.markdown("---")
 
 col_L, col_R = st.columns([1.5, 3])
