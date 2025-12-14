@@ -489,18 +489,21 @@ def non_fiction_app():
                 **[지시사항]**
                 - 문서 맨 마지막에 반드시 `<div class="answer-sheet">`를 생성하시오.
                 {summary_inst_answer}
-                - **[주의] 절대 중간에 끊지 말고, 위에서 출제한 모든 문제(서술형, O/X, 객관식 포함)에 대한 정답과 상세 해설을 끝까지 작성하시오.**
+                - **[주의] 해설 작성 시 토큰 낭비를 막기 위해 문제의 발문이나 보기를 절대 다시 적지 마시오. 문제 번호, 정답, 해설만 작성하시오.**
+                - 절대 중간에 끊지 말고, 위에서 출제한 모든 문제(서술형, O/X, 객관식 포함)에 대한 정답과 상세 해설을 끝까지 작성하시오.
                 - 해설이 짤리면 안 됩니다. 마지막 문제까지 완벽하게 작성하십시오.
                 - **[형식 준수]**: 각 문제마다 아래 포맷을 따르시오.
                 
                 <div class="ans-item">
                     <span class="ans-num">[문제 번호] 정답: ⑤</span>
-                    <span class="ans-exp"><b>[정답 해설]</b>: 지문의 3문단에서 "~"라고 언급했으므로, 보기의 상황에 적용하면 ...가 된다. 따라서 적절하다.</span>
-                    <span class="ans-wrong"><b>[오답 분석]</b>: ①번은 1문단의 내용과 배치되므로 틀렸다. ②번은 인과관계가 잘못되었다.</span>
+                    <span class="ans-exp"><b>[정답 해설]</b>: 지문의 3문단 내용을 근거로 할 때...</span>
+                    <span class="ans-wrong"><b>[오답 분석]</b>: ①번은 틀렸다. 왜냐하면...</span>
                 </div>
                 """
-
-                response_answers = model.generate_content(prompt_answers, generation_config=generation_config)
+                
+                # 해설 생성 시 temperature 낮춤 (간결하고 정확하게)
+                generation_config_ans = GenerationConfig(max_output_tokens=8192, temperature=0.3)
+                response_answers = model.generate_content(prompt_answers, generation_config=generation_config_ans)
                 html_answers = response_answers.text.replace("```html", "").replace("```", "").strip()
                 
                 # HTML 조립
@@ -632,12 +635,14 @@ def fiction_app():
 
                 **[지시사항]**
                 - 문서 끝에 `<div class="answer-sheet">`를 만들고, 모든 문제에 대해 **정답**, **해설(근거)**, **오답 분석**을 상세히 작성하시오.
-                - **[주의] 절대 중간에 끊지 말고, 위에서 출제한 모든 문제에 대한 정답과 해설을 끝까지 작성하시오.**
+                - **[주의] 해설 작성 시 토큰 낭비를 막기 위해 문제의 발문이나 보기를 절대 다시 적지 마시오. 문제 번호, 정답, 해설만 작성하시오.**
+                - 절대 중간에 끊지 말고, 위에서 출제한 모든 문제에 대한 정답과 해설을 끝까지 작성하시오.
                 - 해설이 짤리면 안 됩니다. 마지막 문제까지 완벽하게 작성하십시오.
                 - 형식: `<div class="ans-item"><span class="ans-num">[번호] 정답</span><br><span class="ans-exp">해설...</span></div>`
                 """
-
-                response_answers = model.generate_content(prompt_answers, generation_config=generation_config)
+                
+                generation_config_ans = GenerationConfig(max_output_tokens=8192, temperature=0.3)
+                response_answers = model.generate_content(prompt_answers, generation_config=generation_config_ans)
                 html_answers = response_answers.text.replace("```html", "").replace("```", "").strip()
 
                 # HTML 조립
