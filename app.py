@@ -506,7 +506,7 @@ def non_fiction_app():
                 # HTML 조립
                 full_html = HTML_HEAD
                 full_html += f"<h1>사계국어 AI 모의고사</h1><h2>[{current_domain}] {current_topic}</h2>"
-                full_html += "<div class='time-box'>⏱️ 목표 시간: 12분</div>"
+                full_html += "<div class='time-box'>⏱️ 소요 시간:  </div>"
                 
                 # 직접 입력 모드일 경우 지문을 Python에서 삽입
                 if current_d_mode == '직접 입력':
