@@ -24,6 +24,16 @@ except (KeyError, AttributeError):
     GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "") 
 
 # ==========================================
+# [설정] 모델 우선순위 정의
+# ==========================================
+# 사용자가 요청한 순서대로 모델을 배열합니다.
+MODEL_PRIORITY = [
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+    "models/gemma-3-27b-it"
+]
+
+# ==========================================
 # [초기화] Session State 설정
 # ==========================================
 if 'generation_requested' not in st.session_state:
@@ -233,9 +243,40 @@ HTML_TAIL = """
 </html>
 """
 
-def get_best_model():
-    """사용자가 요청한 Gemma-3 27B IT 모델을 최우선으로 사용"""
-    return 'models/gemma-3-27b-it'
+# ==========================================
+# [모델 생성 로직] Fallback 시스템
+# ==========================================
+def generate_content_with_fallback(prompt, generation_config=None, status_placeholder=None):
+    """
+    정의된 MODEL_PRIORITY 순서대로 모델 생성을 시도합니다.
+    앞선 모델이 실패(에러, 할당량 초과 등)하면 다음 모델로 자동으로 넘어갑니다.
+    """
+    last_exception = None
+    
+    for model_name in MODEL_PRIORITY:
+        try:
+            # 상태 메시지 업데이트 (UI)
+            if status_placeholder:
+                status_placeholder.info(f"⚡ 생성 중... (사용 모델: {model_name})")
+            
+            # 모델 설정 및 생성 시도
+            model = genai.GenerativeModel(model_name)
+            response = model.generate_content(prompt, generation_config=generation_config)
+            
+            # 성공적으로 응답을 받으면 반환
+            return response
+            
+        except Exception as e:
+            last_exception = e
+            # 실패 시 로그를 남기거나 대기할 수 있음
+            # print(f"Model {model_name} failed: {e}")
+            continue # 다음 우선순위 모델 시도
+
+    # 모든 모델이 실패했을 경우 마지막 에러 발생
+    if last_exception:
+        raise last_exception
+    else:
+        raise Exception("모든 AI 모델이 응답하지 않습니다.")
 
 # ==========================================
 # [DOCX 생성 함수]
@@ -356,12 +397,10 @@ def non_fiction_app():
             st.session_state.generation_requested = False
         else:
             status = st.empty()
-            status.info(f"⚡ [{current_domain}] 출제 중입니다... (Gemma-3 모델 구동 중)")
+            status.info(f"⚡ [{current_domain}] 출제 준비 중...")
             
             try:
-                model_name = get_best_model()
                 genai.configure(api_key=GOOGLE_API_KEY)
-                model = genai.GenerativeModel(model_name)
                 
                 # --- 프롬프트 구성 ---
                 reqs = []
@@ -510,7 +549,9 @@ def non_fiction_app():
                 """
                 
                 generation_config = GenerationConfig(max_output_tokens=8192, temperature=0.7)
-                response_problems = model.generate_content(prompt_p1, generation_config=generation_config)
+                
+                # [수정] Fallback 로직 사용하여 문제 생성
+                response_problems = generate_content_with_fallback(prompt_p1, generation_config=generation_config, status_placeholder=status)
                 html_problems = response_problems.text.replace("```html", "").replace("```", "").strip()
 
                 # [중복 방지 1차] 직접 입력 모드인데 AI가 지문을 또 생성한 경우 제거
@@ -562,14 +603,14 @@ def non_fiction_app():
                 
                 - **[해설 작성 규칙 (유형별 - 매우 중요)]**:
                   1. **객관식 문제 (추론, 비판, 보기 적용, 일치 등 5지선다형 전체)**:
-                     - 반드시 `[객관식 추론]`, `[객관식 보기적용]` 등과 같이 문제 유형을 배지 형태로 명시하시오.
-                     - **[중요] 보기 적용 문제도 반드시 오답 분석을 작성해야 합니다.**
-                     - **1. 정답 상세 해설**: 정답인 이유를 지문의 근거를 들어 설명하시오.
-                     - **2. 오답 상세 분석 (필수 - 생략 금지)**:
-                       - "보기에 명시되어 있다", "지문과 일치한다"와 같은 단순한 서술은 **절대 금지**합니다.
-                       - 각 오답 선지(①~⑤)별로 왜 답이 될 수 없는지 **"지문의 [몇 문단]에서 [어떤 내용]을 다루고 있으므로..."**와 같이 구체적인 근거를 들어 줄바꿈(`<br>`)하여 상세히 작성하시오.
+                      - 반드시 `[객관식 추론]`, `[객관식 보기적용]` 등과 같이 문제 유형을 배지 형태로 명시하시오.
+                      - **[중요] 보기 적용 문제도 반드시 오답 분석을 작성해야 합니다.**
+                      - **1. 정답 상세 해설**: 정답인 이유를 지문의 근거를 들어 설명하시오.
+                      - **2. 오답 상세 분석 (필수 - 생략 금지)**:
+                        - "보기에 명시되어 있다", "지문과 일치한다"와 같은 단순한 서술은 **절대 금지**합니다.
+                        - 각 오답 선지(①~⑤)별로 왜 답이 될 수 없는지 **"지문의 [몇 문단]에서 [어떤 내용]을 다루고 있으므로..."**와 같이 구체적인 근거를 들어 줄바꿈(`<br>`)하여 상세히 작성하시오.
                   2. **O/X 및 빈칸 채우기 문제**:
-                     - 유형을 명시하고, **[오답 상세 분석] 항목을 아예 작성하지 마시오.** 오직 **[정답 상세 해설]**만 작성하시오.
+                      - 유형을 명시하고, **[오답 상세 분석] 항목을 아예 작성하지 마시오.** 오직 **[정답 상세 해설]**만 작성하시오.
                 
                 <div class="ans-item">
                     <div class="ans-type-badge">[문제유형 예: 객관식 보기적용]</div>
@@ -588,7 +629,9 @@ def non_fiction_app():
                 
                 # 해설 생성 시 temperature 낮춤 (간결하고 정확하게)
                 generation_config_ans = GenerationConfig(max_output_tokens=8192, temperature=0.3)
-                response_answers = model.generate_content(prompt_answers, generation_config=generation_config_ans)
+                
+                # [수정] Fallback 로직 사용하여 해설 생성
+                response_answers = generate_content_with_fallback(prompt_answers, generation_config=generation_config_ans, status_placeholder=status)
                 html_answers = response_answers.text.replace("```html", "").replace("```", "").strip()
                 
                 # [중복 방지 2차 - 강력 삭제] 정답 섹션 시작 전의 모든 내용 삭제
@@ -662,7 +705,7 @@ def fiction_app():
         status.info("⚡ 문학 문제 생성 중...")
         
         try:
-            model = genai.GenerativeModel(get_best_model())
+            genai.configure(api_key=GOOGLE_API_KEY)
             
             # 문제 생성 (문학)
             prompt_1 = f"""
@@ -678,7 +721,9 @@ def fiction_app():
             **[중요]**: 문제에 정답을 표시하지 마시오. 학생용 문제지입니다.
             형식: `<div class="question-box">...</div>`
             """
-            res_1 = model.generate_content(prompt_1)
+            
+            # [수정] Fallback 로직 사용하여 문제 생성
+            res_1 = generate_content_with_fallback(prompt_1, status_placeholder=status)
             html_q = res_1.text.replace("```html","").replace("```","").strip()
             
             # 해설 생성 (문학)
@@ -694,7 +739,9 @@ def fiction_app():
                - [오답 상세 분석]: 각 선지별로 왜 답이 아닌지 구체적 근거를 들어 줄바꿈하여 작성. "보기에 있다" 식의 단순 서술 금지.
             3. 서술형은 예시 답안 제시.
             """
-            res_2 = model.generate_content(prompt_2)
+            
+            # [수정] Fallback 로직 사용하여 해설 생성
+            res_2 = generate_content_with_fallback(prompt_2, status_placeholder=status)
             html_a = res_2.text.replace("```html","").replace("```","").strip()
             
             # 문학도 중복 방지 처리
