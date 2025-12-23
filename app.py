@@ -1,6 +1,7 @@
 import streamlit as st
 import google.generativeai as genai
 from google.generativeai.types import GenerationConfig
+import openai
 import re 
 import os
 from docx import Document
@@ -14,24 +15,39 @@ import time
 st.set_page_config(page_title="사계국어 모의고사 시스템", page_icon="📚", layout="wide")
 
 # ==========================================
-# [설정] API 키 연동
-# ==========================================
-try:
-    # 스트림릿 클라우드 배포 시 secrets 사용
-    GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"] 
-except (KeyError, AttributeError):
-    # 로컬 환경 변수 등 Fallback
-    GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "") 
-
-# ==========================================
 # [설정] 모델 우선순위 정의
 # ==========================================
 # 사용자가 요청한 순서대로 모델을 배열합니다.
 MODEL_PRIORITY = [
+    "gpt-5.2",
     "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
     "models/gemma-3-27b-it"
 ]
+
+# ==========================================
+# [설정] API 클라이언트 초기화 (Google + OpenAI 통합)
+# ==========================================
+# 1. Google Gemini 설정
+try:
+    GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
+    genai.configure(api_key=GOOGLE_API_KEY)
+except (KeyError, AttributeError):
+    # 로컬 환경 변수 등 Fallback
+    GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
+    if GOOGLE_API_KEY:
+        genai.configure(api_key=GOOGLE_API_KEY)
+
+# 2. OpenAI (GPT) 설정
+openai_client = None
+try:
+    if "OPENAI_API_KEY" in st.secrets:
+        # st.secrets에서 가져오기
+        from openai import OpenAI
+        openai_client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+except Exception as e:
+    # 키가 없거나 설정 실패 시 로그만 남기고 넘어감 (Gemini만 작동)
+    print(f"OpenAI 설정 실패(건너뜀): {e}")
 
 # ==========================================
 # [초기화] Session State 설정
@@ -244,12 +260,12 @@ HTML_TAIL = """
 """
 
 # ==========================================
-# [모델 생성 로직] Fallback 시스템
+# [모델 생성 로직] OpenAI(GPT) + Google(Gemini) 통합 Fallback
 # ==========================================
 def generate_content_with_fallback(prompt, generation_config=None, status_placeholder=None):
     """
-    정의된 MODEL_PRIORITY 순서대로 모델 생성을 시도합니다.
-    앞선 모델이 실패(에러, 할당량 초과 등)하면 다음 모델로 자동으로 넘어갑니다.
+    MODEL_PRIORITY에 정의된 순서대로 모델 생성을 시도합니다.
+    OpenAI 모델(gpt-*, o1-*)과 Google 모델(gemini-*)을 자동으로 구분하여 호출합니다.
     """
     last_exception = None
     
@@ -259,25 +275,50 @@ def generate_content_with_fallback(prompt, generation_config=None, status_placeh
             if status_placeholder:
                 status_placeholder.info(f"⚡ 생성 중... (사용 모델: {model_name})")
             
-            # 모델 설정 및 생성 시도
-            model = genai.GenerativeModel(model_name)
-            response = model.generate_content(prompt, generation_config=generation_config)
-            
-            # 성공적으로 응답을 받으면 반환
-            return response
+            # [CASE 1] OpenAI 모델인지 확인 (gpt-5.2, gpt-4o, o1 등)
+            if model_name.startswith("gpt") or model_name.startswith("o1"):
+                if not openai_client:
+                    # API 키가 없으면 다음 모델(Gemini)로 패스
+                    # print("OpenAI Client가 설정되지 않았습니다.") 
+                    continue
+                
+                # OpenAI API 호출
+                response = openai_client.chat.completions.create(
+                    model=model_name, 
+                    messages=[
+                        {"role": "system", "content": "당신은 대한민국 수능 국어 출제 위원장입니다."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    # 토큰 설정 (Gemini 설정값을 가져와서 OpenAI 파라미터로 변환)
+                    max_completion_tokens=8192 if not generation_config else generation_config.max_output_tokens,
+                    temperature=0.7 if not generation_config else generation_config.temperature
+                )
+                
+                # Gemini와 코드 호환성을 위해 껍데기(Wrapper) 클래스 생성
+                # (기존 코드가 response.text를 사용하므로 맞춰줌)
+                class OpenAIResponseWrapper:
+                    def __init__(self, text_content):
+                        self.text = text_content
+                
+                # 결과 반환
+                return OpenAIResponseWrapper(response.choices[0].message.content)
+
+            # [CASE 2] Google Gemini 모델인 경우
+            else:
+                model = genai.GenerativeModel(model_name)
+                response = model.generate_content(prompt, generation_config=generation_config)
+                return response
             
         except Exception as e:
             last_exception = e
-            # 실패 시 로그를 남기거나 대기할 수 있음
-            # print(f"Model {model_name} failed: {e}")
-            continue # 다음 우선순위 모델 시도
+            # 실패 시 로그를 남기거나 다음 모델로 넘어감
+            continue 
 
-    # 모든 모델이 실패했을 경우 마지막 에러 발생
+    # 모든 모델이 실패했을 경우
     if last_exception:
         raise last_exception
     else:
-        raise Exception("모든 AI 모델이 응답하지 않습니다.")
-
+        raise Exception("설정된 모든 AI 모델(OpenAI/Google)이 응답하지 않습니다.")
 # ==========================================
 # [DOCX 생성 함수]
 # ==========================================
