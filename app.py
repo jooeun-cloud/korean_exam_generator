@@ -557,90 +557,129 @@ def non_fiction_app():
                 # [중복 방지 1차] 직접 입력 모드인데 AI가 지문을 또 생성한 경우 제거
                 if current_d_mode == '직접 입력':
                      html_problems = re.sub(r'<div class="passage">.*?</div>', '', html_problems, flags=re.DOTALL).strip()
+                
+                # ----------------------------------------------------------------
+                # [2단계] 정답 및 해설 생성 (Chunking - 분할 생성 적용)
+                # ----------------------------------------------------------------
+                
+                # 1. 전체 문제 개수 계산 (사용자 입력 값 합산)
+                total_q_cnt = 0
+                if select_t1: total_q_cnt += 1          # 핵심 주장 요약
+                if select_t2: total_q_cnt += count_t2   # O/X
+                if select_t3: total_q_cnt += count_t3   # 빈칸
+                if select_t4: total_q_cnt += count_t4   # 문장 정오
+                if select_t5: total_q_cnt += count_t5   # 객관식 일치
+                if select_t6: total_q_cnt += count_t6   # 객관식 추론
+                if select_t7: total_q_cnt += count_t7   # 객관식 보기
 
-                # ----------------------------------------------------------------
-                # [2단계] 정답 및 해설 생성 (분리 호출)
-                # ----------------------------------------------------------------
-                summary_inst_answer = ""
+                # 안전장치: HTML 태그로 실제 생성된 문제 수 파악
+                problem_matches = re.findall(r'문제\s*\d+', html_problems)
+                if problem_matches:
+                    parsed_cnt = len(problem_matches)
+                    if parsed_cnt > total_q_cnt:
+                        total_q_cnt = parsed_cnt
+                
+                if total_q_cnt == 0: total_q_cnt = 18 # 기본값
+
+                # 2. 분할 설정 (해설 상세 규칙이 들어가므로 6문제씩 끊는 것이 안전)
+                BATCH_SIZE = 6
+                final_answer_html_parts = []
+                summary_done = False 
+                
                 extra_passage_context = ""
-                
-                if use_summary:
-                    if current_d_mode == '직접 입력':
-                        # 문단 수 계산 (사용자 입력과 일치시키기 위함)
-                        user_paras = [p for p in re.split(r'\n\s*\n', current_manual_passage.strip()) if p.strip()]
-                        para_count = len(user_paras)
-                        summary_prompt_add = f"""
-                        - **[필수 - 최우선 작성]**: 정답표 맨 위에 `<div class="summary-ans-box">`를 만들고, **[문단별 요약 예시 답안]**을 작성하시오.
-                        - **[매우 중요]**: 사용자가 입력한 지문은 정확히 **{para_count}개의 문단**으로 나누어져 있습니다. AI 마음대로 문단을 합치거나 나누지 말고, 입력된 {para_count}개 덩어리에 대해 각각 하나씩, 총 {para_count}개의 요약문을 작성하시오.
-                        """
-                        extra_passage_context = f"\n**[참고: 사용자 입력 지문 원문(문단 구분 중요)]**\n{current_manual_passage}\n"
-                    else:
-                        summary_prompt_add = """
-                        - **[필수 - 최우선 작성]**: 정답표 맨 위에 `<div class="summary-ans-box">`를 만들고, **[문단별 요약 예시 답안]**을 작성하시오. 지문의 각 문단별 핵심 내용을 요약하여 리스트로 제시하시오.
-                        """
+                if current_d_mode == '직접 입력':
+                     extra_passage_context = f"\n**[참고: 사용자 입력 지문 원문]**\n{current_manual_passage}\n"
 
-                prompt_answers = f"""
-                당신은 대한민국 수능 국어 출제 위원장입니다.
-                
-                아래는 방금 출제된 지문과 문제들입니다. 
-                이 내용을 바탕으로 **정답 및 해설 섹션**(`<div class="answer-sheet">`...)만 완벽하게 작성하시오.
+                # 3. 분할 생성 루프 시작
+                for i in range(0, total_q_cnt, BATCH_SIZE):
+                    start_num = i + 1
+                    end_num = min(i + BATCH_SIZE, total_q_cnt)
+                    
+                    status.info(f"📝 정답 및 해설 생성 중... ({start_num}~{end_num}번 / 총 {total_q_cnt}문항)")
+                    
+                    # [요약 프롬프트] 첫 번째 배차에만 포함
+                    current_summary_prompt = ""
+                    if use_summary and not summary_done:
+                        if current_d_mode == '직접 입력':
+                             user_paras = [p for p in re.split(r'\n\s*\n', current_manual_passage.strip()) if p.strip()]
+                             para_count = len(user_paras)
+                             current_summary_prompt = f"""
+                             - **[필수 - 최우선 작성]**: 정답표 맨 위에 `<div class="summary-ans-box">`를 만들고, **[문단별 요약 예시 답안]**을 작성하시오.
+                             - **[중요]**: 입력된 지문은 총 **{para_count}개의 문단**입니다. 반드시 {para_count}개의 요약문을 작성하시오.
+                             """
+                        else:
+                             current_summary_prompt = """
+                             - **[필수 - 최우선 작성]**: 정답표 맨 위에 `<div class="summary-ans-box">`를 만들고, **[문단별 요약 예시 답안]**을 작성하시오.
+                             """
+                        summary_done = True 
 
-                {extra_passage_context}
+                    # [분할 프롬프트 작성] - 지적해주신 상세 규칙 포함
+                    prompt_chunk = f"""
+                    당신은 대한민국 수능 국어 출제 위원장입니다.
+                    
+                    전체 {total_q_cnt}문제 중, 이번에는 **{start_num}번부터 {end_num}번까지의 문제**에 대해서만 정답 및 해설을 작성하시오.
+                    
+                    {extra_passage_context}
 
-                **[입력된 지문 및 문제]**
-                {html_problems}
+                    **[입력된 전체 문제]**
+                    {html_problems}
 
-                **[지시사항]**
-                - 문서 맨 마지막에 반드시 `<div class="answer-sheet">`를 생성하시오.
-                - `<div class="answer-sheet">` 태그 바로 직후에 `<h2 class='ans-main-title'>정답 및 해설</h2>`를 출력하시오.
-                {summary_prompt_add}
-                - **[매우 중요 - 중복 방지]**: 위에서 입력받은 **지문과 문제(발문, 보기, 선지 등)를 결과에 절대 다시 적지 마시오.** 오직 정답과 해설 내용만 작성하시오.
-                - **[주의] 해설 작성 시 토큰 낭비를 막기 위해 문제의 발문이나 보기를 절대 다시 적지 마시오. 문제 번호, 정답, 해설만 작성하시오.**
-                - 절대 중간에 끊지 말고, 위에서 출제한 모든 문제(서술형, O/X, 객관식 포함)에 대한 정답과 상세 해설을 끝까지 작성하시오.
-                - 해설이 짤리면 안 됩니다. 마지막 문제까지 완벽하게 작성하십시오.
-                - **[형식 준수]**: 각 문제마다 아래 포맷을 따르시오.
-                - **[시작 태그 필수]**: 답변은 반드시 `<div class="answer-sheet">` 태그로 시작해야 합니다. 다른 서론이나 텍스트를 붙이지 마시오.
-                
-                - **[해설 작성 규칙 (유형별 - 매우 중요)]**:
-                  1. **객관식 문제 (추론, 비판, 보기 적용, 일치 등 5지선다형 전체)**:
-                      - 반드시 `[객관식 추론]`, `[객관식 보기적용]` 등과 같이 문제 유형을 배지 형태로 명시하시오.
-                      - **[중요] 보기 적용 문제도 반드시 오답 분석을 작성해야 합니다.**
-                      - **1. 정답 상세 해설**: 정답인 이유를 지문의 근거를 들어 설명하시오.
-                      - **2. 오답 상세 분석 (필수 - 생략 금지)**:
-                        - "보기에 명시되어 있다", "지문과 일치한다"와 같은 단순한 서술은 **절대 금지**합니다.
-                        - 각 오답 선지(①~⑤)별로 왜 답이 될 수 없는지 **"지문의 [몇 문단]에서 [어떤 내용]을 다루고 있으므로..."**와 같이 구체적인 근거를 들어 줄바꿈(`<br>`)하여 상세히 작성하시오.
-                  2. **O/X 및 빈칸 채우기 문제**:
-                      - 유형을 명시하고, **[오답 상세 분석] 항목을 아예 작성하지 마시오.** 오직 **[정답 상세 해설]**만 작성하시오.
-                
-                <div class="ans-item">
-                    <div class="ans-type-badge">[문제유형 예: 객관식 보기적용]</div>
-                    <span class="ans-num">[번호] 정답: ④</span>
-                    <span class="ans-content-title">1. 정답 상세 해설</span>
-                    <span class="ans-text">지문의 3문단에서 "~"라고 언급했으므로, 보기의 상황에 적용하면 ...가 된다. 따라서 적절하다.</span>
-                    <!-- 객관식일 경우에만 아래 오답 상세 분석 작성 -->
-                    <span class="ans-content-title">2. 오답 상세 분석</span>
-                    <div class="ans-wrong-box">
-                        <span class="ans-text">① (X): 1문단에서 ...라고 했으므로 틀린 진술이다.<br>
-                        ② (X): 인과관계가 반대로 서술되었다.<br>
-                        ③ (X): 지문에 언급되지 않은 내용이다.</span>
+                    **[지시사항]**
+                    1. 서론, 인사말 등 불필요한 텍스트는 절대 쓰지 말고, 오직 HTML 코드만 출력하시오.
+                    2. **문제 {start_num}번부터 {end_num}번까지** 순서대로 빠짐없이 작성하시오.
+                    3. **[토큰 절약]**: 문제의 발문, 보기, 선지 내용은 절대 다시 적지 마시오. 바로 해설로 들어가시오.
+                    {current_summary_prompt}
+                    
+                    **[해설 작성 규칙 (유형별 - 매우 중요)]**:
+                    1. **객관식 문제 (추론, 비판, 보기 적용, 일치 등 5지선다형 전체)**:
+                       - 반드시 `[객관식 추론]`, `[객관식 보기적용]` 등과 같이 문제 유형을 배지 형태로 명시하시오.
+                       - **[중요] 보기 적용 문제도 반드시 오답 분석을 작성해야 합니다.**
+                       - **1. 정답 상세 해설**: 정답인 이유를 지문의 근거를 들어 설명하시오.
+                       - **2. 오답 상세 분석 (필수 - 생략 금지)**:
+                         - "보기에 명시되어 있다", "지문과 일치한다"와 같은 단순한 서술은 **절대 금지**합니다.
+                         - 각 오답 선지(①~⑤)별로 왜 답이 될 수 없는지 **"지문의 [몇 문단]에서 [어떤 내용]을 다루고 있으므로..."**와 같이 구체적인 근거를 들어 줄바꿈(`<br>`)하여 상세히 작성하시오.
+                    2. **O/X 및 빈칸 채우기 문제**:
+                       - 유형을 명시하고, **[오답 상세 분석] 항목을 아예 작성하지 마시오.** 오직 **[정답 상세 해설]**만 작성하시오.
+
+                    **[작성 포맷 HTML]**
+                    <div class="ans-item">
+                        <div class="ans-type-badge">[유형]</div>
+                        <span class="ans-num">[문제번호] 정답: (정답표기)</span>
+                        <span class="ans-content-title">1. 정답 상세 해설</span>
+                        <span class="ans-text">...</span>
+                        
+                        <!-- 객관식일 경우에만 아래 오답 분석 작성 -->
+                        <span class="ans-content-title">2. 오답 상세 분석</span>
+                        <div class="ans-wrong-box">
+                             <span class="ans-text">① (X): ... <br>② (X): ...</span>
+                        </div>
                     </div>
-                </div>
-                """
-                
-                # 해설 생성 시 temperature 낮춤 (간결하고 정확하게)
-                generation_config_ans = GenerationConfig(max_output_tokens=8192, temperature=0.3)
-                
-                # [수정] Fallback 로직 사용하여 해설 생성
-                response_answers = generate_content_with_fallback(prompt_answers, generation_config=generation_config_ans, status_placeholder=status)
-                html_answers = response_answers.text.replace("```html", "").replace("```", "").strip()
-                
-                # [중복 방지 2차 - 강력 삭제] 정답 섹션 시작 전의 모든 내용 삭제
-                if '<div class="answer-sheet">' in html_answers:
-                    html_answers = html_answers[html_answers.find('<div class="answer-sheet">'):]
-                else:
-                    # 태그가 없으면 강제로 래핑 (비상시)
-                    html_answers = '<div class="answer-sheet">' + html_answers + '</div>'
+                    """
+                    
+                    # API 호출
+                    generation_config_ans = GenerationConfig(max_output_tokens=8192, temperature=0.3)
+                    response_chunk = generate_content_with_fallback(prompt_chunk, generation_config=generation_config_ans)
+                    
+                    # 결과 정제
+                    chunk_text = response_chunk.text.replace("```html", "").replace("```", "").strip()
+                    
+                    # [HTML 태그 이어 붙이기 로직]
+                    if i == 0:
+                        if '<div class="answer-sheet">' not in chunk_text:
+                             chunk_text = '<div class="answer-sheet"><h2 class="ans-main-title">정답 및 해설</h2>' + chunk_text
+                        if chunk_text.endswith("</div>"):
+                            chunk_text = chunk_text[:-6]
+                    else:
+                        chunk_text = chunk_text.replace('<div class="answer-sheet">', '').replace('<h2 class="ans-main-title">정답 및 해설</h2>', '')
+                        chunk_text = chunk_text.replace('</div>', '')
+                    
+                    final_answer_html_parts.append(chunk_text)
 
+                # 4. 최종 결과 합치기
+                html_answers = "".join(final_answer_html_parts)
+                if not html_answers.strip().endswith("</div>"):
+                    html_answers += "</div>"
+                    
                 # HTML 조립
                 full_html = HTML_HEAD
                 full_html += f"<h1>사계국어 모의고사</h1><h2>[{current_domain}] {current_topic}</h2>"
