@@ -557,21 +557,21 @@ def non_fiction_app():
                 # [중복 방지 1차] 직접 입력 모드인데 AI가 지문을 또 생성한 경우 제거
                 if current_d_mode == '직접 입력':
                      html_problems = re.sub(r'<div class="passage">.*?</div>', '', html_problems, flags=re.DOTALL).strip()
-                
+                 
                 # ----------------------------------------------------------------
-                # [2단계] 정답 및 해설 생성 (Chunking - 분할 생성 적용)
+                # [2단계] 정답 및 해설 생성 (Chunking - 강력한 HTML 구조 정제 적용)
                 # ----------------------------------------------------------------
                 
                 # 1. 전체 문제 개수 계산 (사용자 입력 값 합산)
                 total_q_cnt = 0
-                if select_t1: total_q_cnt += 1          # 핵심 주장 요약
-                if select_t2: total_q_cnt += count_t2   # O/X
-                if select_t3: total_q_cnt += count_t3   # 빈칸
-                if select_t4: total_q_cnt += count_t4   # 문장 정오
-                if select_t5: total_q_cnt += count_t5   # 객관식 일치
-                if select_t6: total_q_cnt += count_t6   # 객관식 추론
-                if select_t7: total_q_cnt += count_t7   # 객관식 보기
-
+                if 'select_t1' in locals() and select_t1: total_q_cnt += 1
+                if 'select_t2' in locals() and select_t2: total_q_cnt += count_t2
+                if 'select_t3' in locals() and select_t3: total_q_cnt += count_t3
+                if 'select_t4' in locals() and select_t4: total_q_cnt += count_t4
+                if 'select_t5' in locals() and select_t5: total_q_cnt += count_t5
+                if 'select_t6' in locals() and select_t6: total_q_cnt += count_t6
+                if 'select_t7' in locals() and select_t7: total_q_cnt += count_t7
+                
                 # 안전장치: HTML 태그로 실제 생성된 문제 수 파악
                 problem_matches = re.findall(r'문제\s*\d+', html_problems)
                 if problem_matches:
@@ -580,16 +580,16 @@ def non_fiction_app():
                         total_q_cnt = parsed_cnt
                 
                 if total_q_cnt == 0: total_q_cnt = 18 # 기본값
-
-                # 2. 분할 설정 (해설 상세 규칙이 들어가므로 6문제씩 끊는 것이 안전)
+                
+                # 2. 분할 설정 (오답 분석 상세 규칙 포함으로 6문제씩 끊는 것 권장)
                 BATCH_SIZE = 6
                 final_answer_html_parts = []
                 summary_done = False 
                 
                 extra_passage_context = ""
                 if current_d_mode == '직접 입력':
-                     extra_passage_context = f"\n**[참고: 사용자 입력 지문 원문]**\n{current_manual_passage}\n"
-
+                        extra_passage_context = f"\n**[참고: 사용자 입력 지문 원문]**\n{current_manual_passage}\n"
+                
                 # 3. 분할 생성 루프 시작
                 for i in range(0, total_q_cnt, BATCH_SIZE):
                     start_num = i + 1
@@ -601,46 +601,46 @@ def non_fiction_app():
                     current_summary_prompt = ""
                     if use_summary and not summary_done:
                         if current_d_mode == '직접 입력':
-                             user_paras = [p for p in re.split(r'\n\s*\n', current_manual_passage.strip()) if p.strip()]
-                             para_count = len(user_paras)
-                             current_summary_prompt = f"""
-                             - **[필수 - 최우선 작성]**: 정답표 맨 위에 `<div class="summary-ans-box">`를 만들고, **[문단별 요약 예시 답안]**을 작성하시오.
-                             - **[중요]**: 입력된 지문은 총 **{para_count}개의 문단**입니다. 반드시 {para_count}개의 요약문을 작성하시오.
-                             """
+                                user_paras = [p for p in re.split(r'\n\s*\n', current_manual_passage.strip()) if p.strip()]
+                                para_count = len(user_paras)
+                                current_summary_prompt = f"""
+                                - **[필수 - 최우선 작성]**: 답변 맨 위에 `<div class="summary-ans-box">`를 열고 **[문단별 요약]**을 작성하시오.
+                                - **[중요]**: 입력된 지문은 총 **{para_count}개의 문단**입니다. 반드시 {para_count}개의 요약문을 작성하시오.
+                                """
                         else:
-                             current_summary_prompt = """
-                             - **[필수 - 최우선 작성]**: 정답표 맨 위에 `<div class="summary-ans-box">`를 만들고, **[문단별 요약 예시 답안]**을 작성하시오.
-                             """
+                                current_summary_prompt = """
+                                - **[필수 - 최우선 작성]**: 답변 맨 위에 `<div class="summary-ans-box">`를 열고 **[문단별 요약]**을 작성하시오.
+                                """
                         summary_done = True 
-
-                    # [분할 프롬프트 작성] - 지적해주신 상세 규칙 포함
+                
+                    # [분할 프롬프트 작성] - 상세 규칙 포함
                     prompt_chunk = f"""
                     당신은 대한민국 수능 국어 출제 위원장입니다.
                     
                     전체 {total_q_cnt}문제 중, 이번에는 **{start_num}번부터 {end_num}번까지의 문제**에 대해서만 정답 및 해설을 작성하시오.
                     
                     {extra_passage_context}
-
+                
                     **[입력된 전체 문제]**
                     {html_problems}
-
+                
                     **[지시사항]**
-                    1. 서론, 인사말 등 불필요한 텍스트는 절대 쓰지 말고, 오직 HTML 코드만 출력하시오.
+                    1. 서론, 인사말, 불필요한 설명은 절대 쓰지 말고, 오직 HTML 코드만 출력하시오.
                     2. **문제 {start_num}번부터 {end_num}번까지** 순서대로 빠짐없이 작성하시오.
                     3. **[토큰 절약]**: 문제의 발문, 보기, 선지 내용은 절대 다시 적지 마시오. 바로 해설로 들어가시오.
                     {current_summary_prompt}
                     
                     **[해설 작성 규칙 (유형별 - 매우 중요)]**:
                     1. **객관식 문제 (추론, 비판, 보기 적용, 일치 등 5지선다형 전체)**:
-                       - 반드시 `[객관식 추론]`, `[객관식 보기적용]` 등과 같이 문제 유형을 배지 형태로 명시하시오.
-                       - **[중요] 보기 적용 문제도 반드시 오답 분석을 작성해야 합니다.**
-                       - **1. 정답 상세 해설**: 정답인 이유를 지문의 근거를 들어 설명하시오.
-                       - **2. 오답 상세 분석 (필수 - 생략 금지)**:
-                         - "보기에 명시되어 있다", "지문과 일치한다"와 같은 단순한 서술은 **절대 금지**합니다.
-                         - 각 오답 선지(①~⑤)별로 왜 답이 될 수 없는지 **"지문의 [몇 문단]에서 [어떤 내용]을 다루고 있으므로..."**와 같이 구체적인 근거를 들어 줄바꿈(`<br>`)하여 상세히 작성하시오.
+                        - 반드시 `[객관식 추론]`, `[객관식 보기적용]` 등과 같이 문제 유형을 배지 형태로 명시하시오.
+                        - **[중요] 보기 적용 문제도 반드시 오답 분석을 작성해야 합니다.**
+                        - **1. 정답 상세 해설**: 정답인 이유를 지문의 근거를 들어 설명하시오.
+                        - **2. 오답 상세 분석 (필수 - 생략 금지)**:
+                            - "보기에 명시되어 있다", "지문과 일치한다"와 같은 단순한 서술은 **절대 금지**합니다.
+                            - 각 오답 선지(①~⑤)별로 왜 답이 될 수 없는지 **"지문의 [몇 문단]에서 [어떤 내용]을 다루고 있으므로..."**와 같이 구체적인 근거를 들어 줄바꿈(`<br>`)하여 상세히 작성하시오.
                     2. **O/X 및 빈칸 채우기 문제**:
-                       - 유형을 명시하고, **[오답 상세 분석] 항목을 아예 작성하지 마시오.** 오직 **[정답 상세 해설]**만 작성하시오.
-
+                        - 유형을 명시하고, **[오답 상세 분석] 항목을 아예 작성하지 마시오.** 오직 **[정답 상세 해설]**만 작성하시오.
+                
                     **[작성 포맷 HTML]**
                     <div class="ans-item">
                         <div class="ans-type-badge">[유형]</div>
@@ -651,7 +651,7 @@ def non_fiction_app():
                         <!-- 객관식일 경우에만 아래 오답 분석 작성 -->
                         <span class="ans-content-title">2. 오답 상세 분석</span>
                         <div class="ans-wrong-box">
-                             <span class="ans-text">① (X): ... <br>② (X): ...</span>
+                                <span class="ans-text">① (X): ... <br>② (X): ...</span>
                         </div>
                     </div>
                     """
@@ -663,20 +663,43 @@ def non_fiction_app():
                     # 결과 정제
                     chunk_text = response_chunk.text.replace("```html", "").replace("```", "").strip()
                     
-                    # [HTML 태그 이어 붙이기 로직]
+                    # ----------------------------------------------------------------
+                    # [핵심 수정] 정규표현식(regex)을 사용한 강력한 태그 정리
+                    # ----------------------------------------------------------------
+                    # 목표: 
+                    # 1. 첫 번째 덩어리는 맨 앞에 <div class="answer-sheet">를 붙인다.
+                    # 2. 두 번째 이후 덩어리는 맨 앞에 있는 <div class="answer-sheet">와 <h2> 제목을 제거한다.
+                    # 3. 모든 덩어리의 맨 뒤에 있는 </div> 태그를 제거한다. (나중에 한 번에 닫기 위함)
+                
                     if i == 0:
+                        # 첫 번째 덩어리: 시작 태그 보장
                         if '<div class="answer-sheet">' not in chunk_text:
-                             chunk_text = '<div class="answer-sheet"><h2 class="ans-main-title">정답 및 해설</h2>' + chunk_text
-                        if chunk_text.endswith("</div>"):
-                            chunk_text = chunk_text[:-6]
+                                chunk_text = '<div class="answer-sheet"><h2 class="ans-main-title">정답 및 해설</h2>' + chunk_text
+                        
+                        # [강력한 수정] 끝부분의 </div> 태그를 공백(줄바꿈 포함)과 함께 찾아 제거
+                        # re.DOTALL을 쓰지 않아도 맨 끝을 찾는 $는 줄바꿈 직전까지 매칭됨.
+                        # 안전하게 공백을 포함한 </div>를 찾아서 제거함.
+                        chunk_text = re.sub(r'</div>\s*$', '', chunk_text)
                     else:
-                        chunk_text = chunk_text.replace('<div class="answer-sheet">', '').replace('<h2 class="ans-main-title">정답 및 해설</h2>', '')
-                        chunk_text = chunk_text.replace('</div>', '')
+                        # 두 번째 이후 덩어리:
+                        # 1. <div class="answer-sheet"> 시작 태그 제거 (AI가 임의로 추가한 경우 대비)
+                        #    - 속성이 조금 다르더라도 class="answer-sheet"가 포함된 div 태그를 찾아 제거
+                        chunk_text = re.sub(r'<div[^>]*class=["\']answer-sheet["\'][^>]*>', '', chunk_text, flags=re.IGNORECASE)
+                        
+                        # 2. <h2...>정답 및 해설</h2> 제목 제거 (AI가 임의로 추가한 경우 대비)
+                        #    - h2 태그 안에 '정답'이라는 글자가 포함된 태그 전체를 제거
+                        chunk_text = re.sub(r'<h2[^>]*>.*?정답.*?</h2>', '', chunk_text, flags=re.DOTALL | re.IGNORECASE)
+                        
+                        # 3. 끝부분의 </div> 태그 제거
+                        chunk_text = re.sub(r'</div>\s*$', '', chunk_text)
                     
                     final_answer_html_parts.append(chunk_text)
-
+                
                 # 4. 최종 결과 합치기
                 html_answers = "".join(final_answer_html_parts)
+                
+                # [중요] 마지막에 닫는 태그 </div>가 없으면 강제로 추가
+                # 공백을 제거한 후 검사하여 확실하게 닫히도록 함.
                 if not html_answers.strip().endswith("</div>"):
                     html_answers += "</div>"
                     
