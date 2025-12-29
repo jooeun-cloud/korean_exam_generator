@@ -793,7 +793,7 @@ def fiction_app():
     with st.sidebar:
         # [신규] 문서 타이틀 설정 (문학 모드에도 추가)
         st.header("🏫 문서 타이틀 설정")
-        custom_main_title = st.text_input("메인 타이틀 (학원명)", value="사계국어 모의고사", key="fic_custom_main_title")
+        custom_main_title = st.text_input("메인 타이틀", value="사계국어 모의고사", key="fic_custom_main_title")
         st.markdown("---")
 
         st.header("1️⃣ 작품 정보")
