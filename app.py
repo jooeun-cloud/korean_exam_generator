@@ -345,7 +345,7 @@ def non_fiction_app():
     with st.sidebar:
         # [신규] 문서 제목 설정 섹션
         st.header("🏫 문서 타이틀 설정")
-        custom_main_title = st.text_input("메인 타이틀 (학원명)", value="사계국어 모의고사", key="custom_main_title")
+        custom_main_title = st.text_input("메인 타이틀", value="사계국어 모의고사", key="custom_main_title")
         st.markdown("---")
 
         st.header("🛠️ 지문 입력 방식")
