@@ -345,7 +345,7 @@ def non_fiction_app():
     with st.sidebar:
         # [신규] 문서 제목 설정 섹션
         st.header("🏫 문서 타이틀 설정")
-        custom_main_title = st.text_input("메인 타이틀", value="사계국어 모의고사", key="custom_main_title")
+        custom_main_title = st.text_input("메인 타이틀 (학원명)", value="사계국어 모의고사", key="custom_main_title")
         st.markdown("---")
 
         st.header("🛠️ 지문 입력 방식")
@@ -613,7 +613,7 @@ def non_fiction_app():
                 
                 generation_config = GenerationConfig(max_output_tokens=8192, temperature=0.7)
                 
-                # Fallback 로직 사용하여 문제 생성
+                # [수정] Fallback 로직 사용하여 문제 생성
                 response_problems = generate_content_with_fallback(prompt_p1, generation_config=generation_config, status_placeholder=status)
                 html_problems = response_problems.text.replace("```html", "").replace("```", "").strip()
 
@@ -746,7 +746,7 @@ def non_fiction_app():
 
                 # [수정] HTML 조립 시 사용자 입력 타이틀 반영
                 full_html = HTML_HEAD
-                # [수정] 메인 타이틀만 표시
+                # [수정] 메인 타이틀만 표시하고 보조 타이틀 제거
                 full_html += f"<h1>{custom_main_title}</h1>"
                 full_html += "<div class='time-box'>⏱️ 소요 시간: <span class='time-blank'></span></div>"
                 
@@ -794,7 +794,7 @@ def fiction_app():
     with st.sidebar:
         # [신규] 문서 타이틀 설정
         st.header("🏫 문서 타이틀 설정")
-        custom_main_title = st.text_input("메인 타이틀", value="사계국어 모의고사", key="fic_custom_main_title")
+        custom_main_title = st.text_input("메인 타이틀 (학원명)", value="사계국어 모의고사", key="fic_custom_main_title")
         st.markdown("---")
 
         st.header("1️⃣ 작품 정보")
@@ -812,19 +812,22 @@ def fiction_app():
         use_essay = st.checkbox("2. 서술형 심화 (감상/의도)", value=True, key="fic_t2")
         cnt_essay = st.number_input(" - 문항 수", 1, 10, 3, key="fic_cnt_2") if use_essay else 0
         
-        # [Type 3] 객관식
-        use_mcq = st.checkbox("3. 객관식 (5지선다)", value=True, key="fic_t3")
-        cnt_mcq = st.number_input(" - 문항 수", 1, 10, 3, key="fic_cnt_3") if use_mcq else 0
-        use_bogey = st.checkbox("   └ 보기(외적 준거) 포함", value=True, key="fic_bogey") if use_mcq else False
+        # [Type 3] 객관식 (일반)
+        use_mcq_gen = st.checkbox("3. 객관식 (일반)", value=True, key="fic_t3_gen")
+        cnt_mcq_gen = st.number_input(" - 문항 수", 1, 10, 3, key="fic_cnt_3_gen") if use_mcq_gen else 0
+
+        # [Type 4] 객관식 (보기 적용)
+        use_mcq_bogey = st.checkbox("4. 객관식 (보기 적용 심화)", value=True, key="fic_t4_bogey")
+        cnt_mcq_bogey = st.number_input(" - 문항 수", 1, 10, 2, key="fic_cnt_4_bogey") if use_mcq_bogey else 0
         
         st.markdown("---")
         st.caption("3️⃣ 분석 및 정리 활동 (서술형/표)")
         
-        # [Type 4~7] 분석 활동
-        use_char = st.checkbox("4. 주요 등장인물 정리 (표)", key="fic_t4")
-        use_summ = st.checkbox("5. 소설 속 상황 요약", key="fic_t5")
-        use_rel = st.checkbox("6. 인물 관계도 및 갈등", key="fic_t6")
-        use_conf = st.checkbox("7. 갈등 구조 및 심리 정리", key="fic_t7")
+        # [Type 5~8] 분석 활동
+        use_char = st.checkbox("5. 주요 등장인물 정리 (표)", key="fic_t5_char")
+        use_summ = st.checkbox("6. 소설 속 상황 요약", key="fic_t6_summ")
+        use_rel = st.checkbox("7. 인물 관계도 및 갈등", key="fic_t7_rel")
+        use_conf = st.checkbox("8. 갈등 구조 및 심리 정리", key="fic_t8_conf")
 
     if st.session_state.generation_requested:
         text_input = st.session_state.fiction_novel_text_input_area
@@ -871,18 +874,40 @@ def fiction_app():
                 </div>
                 """)
             
-            # 3. 객관식
-            if use_mcq:
-                bogey_inst = "반드시 1문제 이상 **<보기>** 박스를 포함하여 외적 준거를 통한 감상 문제를 내시오." if use_bogey else ""
+            # 3. 객관식 (일반)
+            if use_mcq_gen:
                 req_q_list.append(f"""
                 <div class="type-box">
-                    <h3>유형 3. 객관식 문제 ({cnt_mcq}문항)</h3>
-                    - 수능형 5지 선다 문제를 {cnt_mcq}개 출제하시오.
-                    - {bogey_inst}
+                    <h3>유형 3. 객관식 문제 (일반) ({cnt_mcq_gen}문항)</h3>
+                    - 수능형 5지 선다 문제를 {cnt_mcq_gen}개 출제하시오.
+                    - **[난이도]**: 수능 최고난도 수준 (킬러 문항급). 단순 내용 일치가 아닌 추론과 비판적 사고를 요하는 문제.
                     - [형식]
                     <div class="question-box">
                         <span class="question-text">[번호] (발문)</span>
-                        <!-- 보기 박스가 필요하면 <div class="example-box">...</div> 사용 -->
+                        <div class="choices">
+                            <div>① ...</div>
+                            <div>② ...</div>
+                            <div>③ ...</div>
+                            <div>④ ...</div>
+                            <div>⑤ ...</div>
+                        </div>
+                    </div>
+                </div>
+                """)
+
+            # 4. 객관식 (보기 적용)
+            if use_mcq_bogey:
+                req_q_list.append(f"""
+                <div class="type-box">
+                    <h3>유형 4. 객관식 문제 (보기 적용) ({cnt_mcq_bogey}문항)</h3>
+                    - **[필수]**: 반드시 **<보기>** 박스를 포함하여 외적 준거(비평, 시대상, 작가론 등)를 참고한 감상 문제를 출제하시오.
+                    - **[난이도]**: 수능 3점짜리 최고난도 문제. <보기>와 작품을 정밀하게 대조하고 분석해야 풀 수 있는 문제.
+                    - [형식]
+                    <div class="question-box">
+                        <span class="question-text">[번호] <보기>를 참고하여 윗글을 감상한 내용으로 적절하지 않은 것은? [3점]</span>
+                        <div class="example-box">
+                            (여기에 작품 해석의 기준이 되는 비평문이나 시대적 배경을 서술)
+                        </div>
                         <div class="choices">
                             <div>① ...</div>
                             <div>② ...</div>
@@ -894,11 +919,11 @@ def fiction_app():
                 </div>
                 """)
                 
-            # 4. 인물 정리
+            # 5. 인물 정리
             if use_char:
                 req_q_list.append(f"""
                 <div class="type-box">
-                    <h3>유형 4. 주요 등장인물 정리</h3>
+                    <h3>유형 5. 주요 등장인물 정리</h3>
                     - 주요 인물들의 이름, 지문 내 호칭, 역할, 심리를 정리하는 **빈 표**를 만드시오.
                     - 학생이 직접 채워 넣을 수 있도록 내용은 비워두시오.
                     - [형식]
@@ -916,31 +941,31 @@ def fiction_app():
                 </div>
                 """)
                 
-            # 5. 상황 요약
+            # 6. 상황 요약
             if use_summ:
                 req_q_list.append(f"""
                 <div class="type-box">
-                    <h3>유형 5. 소설 속 상황 요약</h3>
+                    <h3>유형 6. 소설 속 상황 요약</h3>
                     - 현재 지문의 배경과 인물들이 처한 핵심 갈등 상황을 요약해보시오.
                     <div class="write-box"></div>
                 </div>
                 """)
                 
-            # 6. 인물 관계도
+            # 7. 인물 관계도
             if use_rel:
                 req_q_list.append(f"""
                 <div class="type-box">
-                    <h3>유형 6. 인물 관계도 및 갈등</h3>
+                    <h3>유형 7. 인물 관계도 및 갈등</h3>
                     - 주요 인물들 간의 관계(우호, 대립, 조력 등)를 화살표와 키워드로 구조화하여 그려보시오.
                     <div class="write-box" style="height:200px;">(이곳에 인물 관계도를 직접 그려보세요)</div>
                 </div>
                 """)
                 
-            # 7. 갈등 구조
+            # 8. 갈등 구조
             if use_conf:
                 req_q_list.append(f"""
                 <div class="type-box">
-                    <h3>유형 7. 갈등 구조 및 심리 정리</h3>
+                    <h3>유형 8. 갈등 구조 및 심리 정리</h3>
                     - 1. 갈등 양상 (누구 vs 누구, 어떤 가치의 대립인가?)
                     <div class="write-box" style="height:50px;"></div>
                     - 2. 작가의 비판 의도 및 주제 의식
@@ -960,6 +985,26 @@ def fiction_app():
             1. '정답'이나 '해설'은 절대 포함하지 마시오. 학생이 푸는 문제지입니다.
             2. 문제 유형별로 `<h3>` 태그를 사용하여 구획을 나누시오.
             
+            # ----------------------------------------------------------------
+            # 🚨 [수능 최고난도(킬러 문항) 출제 지침]
+            # ----------------------------------------------------------------
+            단순한 내용 일치나 줄거리 확인 수준의 문제는 **절대 금지**합니다.
+            변별력을 위해 다음 원칙을 반드시 준수하여 고난도 문제를 출제하시오.
+
+            1. **[복합적 사고 요구]**: 
+               - 정답을 찾기 위해 **작품의 전체 맥락, 함축적 의미, <보기>의 관점**을 종합적으로 사고해야만 답을 찾을 수 있게 하시오.
+               - 선지는 2개 이상의 정보를 복합적으로 구성하여(A이고 B이다), 판단의 깊이를 더하시오.
+
+            2. **[매력적인 오답(함정) 설계]**:
+               - 오답 선지(Distractors)를 너무 뻔하게 만들지 마시오.
+               - **'부분적 진실'**: 앞부분은 맞지만 뒷부분의 해석이 틀린 선지.
+               - **'주객 전도'**: 주체와 객체를 뒤바꾸거나 인과관계를 왜곡한 선지.
+               - **'과잉 해석'**: 작품의 맥락을 벗어나 너무 확대 해석한 선지를 포함하여 실수를 유도하시오.
+
+            3. **[보기 적용 문제의 심화]**:
+               - <보기> 문제는 단순 비교가 아니라, <보기>의 비평적 관점을 작품에 적용하여 **새롭게 해석**하는 능력을 묻는 3점짜리 킬러 문항으로 만드시오.
+            # ----------------------------------------------------------------
+
             [출제 요청 목록]
             {reqs_str}
             """
