@@ -342,7 +342,7 @@ def create_docx(html_content, file_name, current_topic):
     return file_stream
 
 # ==========================================
-# 🧩 비문학 문제 제작 함수
+# 🧩 비문학 문제 제작 함수 (제목 커스텀 추가)
 # ==========================================
 
 def non_fiction_app():
@@ -351,6 +351,12 @@ def non_fiction_app():
     current_d_mode = st.session_state.get('domain_mode_select', 'AI 생성')
     
     with st.sidebar:
+        # [신규] 문서 제목 설정 섹션
+        st.header("🏫 문서 타이틀 설정")
+        custom_main_title = st.text_input("메인 타이틀 (학원명)", value="사계국어 모의고사", key="custom_main_title")
+        # 보조 타이틀 입력 제거됨
+        st.markdown("---")
+
         st.header("🛠️ 지문 입력 방식")
         st.selectbox("방식 선택", ["AI 생성", "직접 입력"], key="domain_mode_select")
         st.markdown("---")
@@ -441,6 +447,7 @@ def non_fiction_app():
             status.info(f"⚡ [{current_domain}] 출제 준비 중...")
             
             try:
+                # API 설정 (Google)
                 genai.configure(api_key=GOOGLE_API_KEY)
                 
                 # --- 프롬프트 구성 ---
@@ -471,9 +478,10 @@ def non_fiction_app():
                     reqs.append(f"""
                     <div class="type-box">
                         <h3>빈칸 채우기 ({count_t3}문항)</h3>
-                        - 위 지문의 핵심 어휘나 구절을 빈칸으로 만든 문제를 {count_t3}개 출제하시오.
-                        - **[절대 금지]**: 정답을 괄호 `( )` 안에 힌트로 적지 마시오. 학생이 맞춰야 합니다.
-                        - **[중요]**: 빈칸에는 정답을 절대 넣지 마시오. `<span class='blank'>&nbsp;&nbsp;&nbsp;&nbsp;</span>` 태그를 사용하여 **반드시 공백 밑줄**로 표시하시오. 학생이 풀어야 합니다.
+                        - 위 지문에 등장하는 **핵심 한국어 어휘(명사, 개념어)**를 빈칸으로 만든 문제를 {count_t3}개 출제하시오.
+                        - **[절대 금지 1]**: 빈칸에 들어갈 정답이나 힌트를 **영어(English)**로 적지 마시오. 오직 한국어 문맥으로만 출제하시오.
+                        - **[절대 금지 2]**: 정답을 괄호 `( )` 안에 힌트로 적지 마시오. 학생이 맞춰야 합니다.
+                        - **[형식]**: 정답이 위치할 자리에는 오직 `<span class='blank'>&nbsp;&nbsp;&nbsp;&nbsp;</span>` 태그만 있어야 합니다. 태그 내부나 주변에 텍스트를 절대 넣지 마시오.
                     </div>""")
 
                 # 4. 변형 문장 정오판단
@@ -495,7 +503,7 @@ def non_fiction_app():
                         <div>③ [선지]</div>
                         <div>④ [선지]</div>
                         <div>⑤ [선지]</div>
-                     </div>
+                      </div>
                 </div>
                 """
 
@@ -573,7 +581,7 @@ def non_fiction_app():
                     """
                     user_passage_block = f"\n[사용자 입력 지문 시작]\n{current_manual_passage}\n[사용자 입력 지문 끝]\n"
 
-# 1단계: 문제 생성 프롬프트 (난이도 강화 버전)
+                # 1단계: 문제 생성 프롬프트 (난이도 강화 버전)
                 prompt_p1 = f"""
                 당신은 대한민국 수능 국어 출제 위원장입니다. 
                 아래 지시사항에 맞춰 완벽한 HTML 포맷의 모의고사 문제지를 생성하시오.
@@ -610,7 +618,6 @@ def non_fiction_app():
                    - <보기> 문제는 단순 비교가 아니라, 지문의 '핵심 원리'를 <보기>의 '새로운 구체적 사례'에 적용했을 때의 결과를 묻는 3점짜리 킬러 문항으로 만드시오.
                 # ----------------------------------------------------------------
 
-                
                 **[Step 2] 문제 출제**
                 다음 유형에 맞춰 문제를 순서대로 출제하시오. 문항 번호를 매기시오.
                 {reqs_content}
@@ -625,21 +632,21 @@ def non_fiction_app():
                 # [중복 방지 1차] 직접 입력 모드인데 AI가 지문을 또 생성한 경우 제거
                 if current_d_mode == '직접 입력':
                      html_problems = re.sub(r'<div class="passage">.*?</div>', '', html_problems, flags=re.DOTALL).strip()
-                 
+
                 # ----------------------------------------------------------------
-                # [2단계] 정답 및 해설 생성 (Chunking - 강력한 HTML 구조 정제 적용)
+                # [2단계] 정답 및 해설 생성 (Chunking - 분할 생성 적용)
                 # ----------------------------------------------------------------
                 
                 # 1. 전체 문제 개수 계산 (사용자 입력 값 합산)
                 total_q_cnt = 0
-                if 'select_t1' in locals() and select_t1: total_q_cnt += 1
-                if 'select_t2' in locals() and select_t2: total_q_cnt += count_t2
-                if 'select_t3' in locals() and select_t3: total_q_cnt += count_t3
-                if 'select_t4' in locals() and select_t4: total_q_cnt += count_t4
-                if 'select_t5' in locals() and select_t5: total_q_cnt += count_t5
-                if 'select_t6' in locals() and select_t6: total_q_cnt += count_t6
-                if 'select_t7' in locals() and select_t7: total_q_cnt += count_t7
-                
+                if select_t1: total_q_cnt += 1          # 핵심 주장 요약
+                if select_t2: total_q_cnt += count_t2   # O/X
+                if select_t3: total_q_cnt += count_t3   # 빈칸
+                if select_t4: total_q_cnt += count_t4   # 문장 정오
+                if select_t5: total_q_cnt += count_t5   # 객관식 일치
+                if select_t6: total_q_cnt += count_t6   # 객관식 추론
+                if select_t7: total_q_cnt += count_t7   # 객관식 보기
+
                 # 안전장치: HTML 태그로 실제 생성된 문제 수 파악
                 problem_matches = re.findall(r'문제\s*\d+', html_problems)
                 if problem_matches:
@@ -648,16 +655,16 @@ def non_fiction_app():
                         total_q_cnt = parsed_cnt
                 
                 if total_q_cnt == 0: total_q_cnt = 18 # 기본값
-                
-                # 2. 분할 설정 (오답 분석 상세 규칙 포함으로 6문제씩 끊는 것 권장)
+
+                # 2. 분할 설정
                 BATCH_SIZE = 6
                 final_answer_html_parts = []
                 summary_done = False 
                 
                 extra_passage_context = ""
                 if current_d_mode == '직접 입력':
-                        extra_passage_context = f"\n**[참고: 사용자 입력 지문 원문]**\n{current_manual_passage}\n"
-                
+                     extra_passage_context = f"\n**[참고: 사용자 입력 지문 원문]**\n{current_manual_passage}\n"
+
                 # 3. 분할 생성 루프 시작
                 for i in range(0, total_q_cnt, BATCH_SIZE):
                     start_num = i + 1
@@ -669,29 +676,29 @@ def non_fiction_app():
                     current_summary_prompt = ""
                     if use_summary and not summary_done:
                         if current_d_mode == '직접 입력':
-                                user_paras = [p for p in re.split(r'\n\s*\n', current_manual_passage.strip()) if p.strip()]
-                                para_count = len(user_paras)
-                                current_summary_prompt = f"""
-                                - **[필수 - 최우선 작성]**: 답변 맨 위에 `<div class="summary-ans-box">`를 열고 **[문단별 요약]**을 작성하시오.
-                                - **[중요]**: 입력된 지문은 총 **{para_count}개의 문단**입니다. 반드시 {para_count}개의 요약문을 작성하시오.
-                                """
+                             user_paras = [p for p in re.split(r'\n\s*\n', current_manual_passage.strip()) if p.strip()]
+                             para_count = len(user_paras)
+                             current_summary_prompt = f"""
+                             - **[필수 - 최우선 작성]**: 답변 맨 위에 `<div class="summary-ans-box">`를 열고 **[문단별 요약]**을 작성하시오.
+                             - **[중요]**: 입력된 지문은 총 **{para_count}개의 문단**입니다. 반드시 {para_count}개의 요약문을 작성하시오.
+                             """
                         else:
-                                current_summary_prompt = """
-                                - **[필수 - 최우선 작성]**: 답변 맨 위에 `<div class="summary-ans-box">`를 열고 **[문단별 요약]**을 작성하시오.
-                                """
+                             current_summary_prompt = """
+                             - **[필수 - 최우선 작성]**: 답변 맨 위에 `<div class="summary-ans-box">`를 열고 **[문단별 요약]**을 작성하시오.
+                             """
                         summary_done = True 
-                
-                    # [분할 프롬프트 작성] - 상세 규칙 포함
+
+                    # [분할 프롬프트 작성]
                     prompt_chunk = f"""
                     당신은 대한민국 수능 국어 출제 위원장입니다.
                     
                     전체 {total_q_cnt}문제 중, 이번에는 **{start_num}번부터 {end_num}번까지의 문제**에 대해서만 정답 및 해설을 작성하시오.
                     
                     {extra_passage_context}
-                
+
                     **[입력된 전체 문제]**
                     {html_problems}
-                
+
                     **[지시사항]**
                     1. 서론, 인사말, 불필요한 설명은 절대 쓰지 말고, 오직 HTML 코드만 출력하시오.
                     2. **문제 {start_num}번부터 {end_num}번까지** 순서대로 빠짐없이 작성하시오.
@@ -708,7 +715,7 @@ def non_fiction_app():
                             - 각 오답 선지(①~⑤)별로 왜 답이 될 수 없는지 **"지문의 [몇 문단]에서 [어떤 내용]을 다루고 있으므로..."**와 같이 구체적인 근거를 들어 줄바꿈(`<br>`)하여 상세히 작성하시오.
                     2. **O/X 및 빈칸 채우기 문제**:
                         - 유형을 명시하고, **[오답 상세 분석] 항목을 아예 작성하지 마시오.** 오직 **[정답 상세 해설]**만 작성하시오.
-                
+
                     **[작성 포맷 HTML]**
                     <div class="ans-item">
                         <div class="ans-type-badge">[유형]</div>
@@ -731,49 +738,28 @@ def non_fiction_app():
                     # 결과 정제
                     chunk_text = response_chunk.text.replace("```html", "").replace("```", "").strip()
                     
-                    # ----------------------------------------------------------------
-                    # [핵심 수정] 정규표현식(regex)을 사용한 강력한 태그 정리
-                    # ----------------------------------------------------------------
-                    # 목표: 
-                    # 1. 첫 번째 덩어리는 맨 앞에 <div class="answer-sheet">를 붙인다.
-                    # 2. 두 번째 이후 덩어리는 맨 앞에 있는 <div class="answer-sheet">와 <h2> 제목을 제거한다.
-                    # 3. 모든 덩어리의 맨 뒤에 있는 </div> 태그를 제거한다. (나중에 한 번에 닫기 위함)
-                
+                    # [HTML 태그 이어 붙이기 로직]
                     if i == 0:
-                        # 첫 번째 덩어리: 시작 태그 보장
                         if '<div class="answer-sheet">' not in chunk_text:
                                 chunk_text = '<div class="answer-sheet"><h2 class="ans-main-title">정답 및 해설</h2>' + chunk_text
                         
-                        # [강력한 수정] 끝부분의 </div> 태그를 공백(줄바꿈 포함)과 함께 찾아 제거
-                        # re.DOTALL을 쓰지 않아도 맨 끝을 찾는 $는 줄바꿈 직전까지 매칭됨.
-                        # 안전하게 공백을 포함한 </div>를 찾아서 제거함.
                         chunk_text = re.sub(r'</div>\s*$', '', chunk_text)
                     else:
-                        # 두 번째 이후 덩어리:
-                        # 1. <div class="answer-sheet"> 시작 태그 제거 (AI가 임의로 추가한 경우 대비)
-                        #    - 속성이 조금 다르더라도 class="answer-sheet"가 포함된 div 태그를 찾아 제거
                         chunk_text = re.sub(r'<div[^>]*class=["\']answer-sheet["\'][^>]*>', '', chunk_text, flags=re.IGNORECASE)
-                        
-                        # 2. <h2...>정답 및 해설</h2> 제목 제거 (AI가 임의로 추가한 경우 대비)
-                        #    - h2 태그 안에 '정답'이라는 글자가 포함된 태그 전체를 제거
                         chunk_text = re.sub(r'<h2[^>]*>.*?정답.*?</h2>', '', chunk_text, flags=re.DOTALL | re.IGNORECASE)
-                        
-                        # 3. 끝부분의 </div> 태그 제거
                         chunk_text = re.sub(r'</div>\s*$', '', chunk_text)
                     
                     final_answer_html_parts.append(chunk_text)
-                
+
                 # 4. 최종 결과 합치기
                 html_answers = "".join(final_answer_html_parts)
-                
-                # [중요] 마지막에 닫는 태그 </div>가 없으면 강제로 추가
-                # 공백을 제거한 후 검사하여 확실하게 닫히도록 함.
                 if not html_answers.strip().endswith("</div>"):
                     html_answers += "</div>"
-                    
-                # HTML 조립
+
+                # [수정] HTML 조립 시 사용자 입력 타이틀 반영
                 full_html = HTML_HEAD
-                full_html += f"<h1>사계국어 모의고사</h1><h2>[{current_domain}] {current_topic}</h2>"
+                # [수정] 메인 타이틀만 표시하고 보조 타이틀 제거
+                full_html += f"<h1>{custom_main_title}</h1>"
                 full_html += "<div class='time-box'>⏱️ 소요 시간: <span class='time-blank'></span></div>"
                 
                 # 직접 입력 모드일 경우 지문을 Python에서 삽입
@@ -784,7 +770,7 @@ def non_fiction_app():
                             box += "<div class='summary-blank'>📝 문단 요약 연습: </div>"
                         return box
 
-                    # 문단 나누기 (엔터 두번 기준 - 정규식 강화)
+                    # 문단 나누기
                     raw_paras = [p.strip() for p in re.split(r'\n\s*\n', current_manual_passage.strip()) if p.strip()]
                     formatted_paras = "".join([make_p_with_summary(p) for p in raw_paras])
                     
@@ -800,7 +786,9 @@ def non_fiction_app():
                 st.session_state.generated_result = {
                     "full_html": full_html,
                     "domain": current_domain,
-                    "topic": current_topic
+                    "topic": current_topic,
+                    "main_title": custom_main_title, # 저장
+                    "sub_title": ""                  # 저장 (보조 타이틀 없음)
                 }
                 status.success("✅ 생성 완료!")
                 st.session_state.generation_requested = False
@@ -809,6 +797,30 @@ def non_fiction_app():
                 status.error(f"오류 발생: {e}")
                 st.session_state.generation_requested = False
 
+# ==========================================
+# 🚀 메인 실행 로직 (결과 표시 부분 수정)
+# ==========================================
+def display_results():
+    if st.session_state.generated_result:
+        res = st.session_state.generated_result
+        st.markdown("---")
+        c1, c2, c3 = st.columns([1, 1, 1])
+        with c1:
+            if st.button("🔄 다시 생성"):
+                st.session_state.generated_result = None
+                st.session_state.generation_requested = True
+                st.rerun()
+        with c2:
+            st.download_button("📥 HTML 저장", res["full_html"], "exam.html", "text/html")
+        with c3:
+            # [수정] create_docx에 커스텀 타이틀 전달 (보조 타이틀은 빈 문자열)
+            main_t = res.get("main_title", "사계국어 모의고사")
+            sub_t = res.get("sub_title", "")
+            docx = create_docx(res["full_html"], "exam.docx", main_t, sub_t)
+            st.download_button("📄 Word 저장", docx, "exam.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+            
+        st.components.v1.html(res["full_html"], height=800, scrolling=True)
+        
 # ==========================================
 # 📖 문학 문제 제작 함수 (업데이트)
 # ==========================================
