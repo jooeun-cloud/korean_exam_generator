@@ -2,28 +2,17 @@ import streamlit as st
 import google.generativeai as genai
 from google.generativeai.types import GenerationConfig
 import openai
-import re 
+import re
 import os
 from docx import Document
 from io import BytesIO
-from docx.shared import Inches, Pt
+from docx.shared import Pt
 import time
 
 # ==========================================
 # [설정] 페이지 기본 설정 (반드시 가장 먼저 실행)
 # ==========================================
 st.set_page_config(page_title="사계국어 모의고사 시스템", page_icon="📚", layout="wide")
-
-# ==========================================
-# [설정] 모델 우선순위 정의
-# ==========================================
-# 사용자가 요청한 순서대로 모델을 배열합니다.
-MODEL_PRIORITY = [
-    "gpt-5.2",
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
-    "models/gemma-3-27b-it"
-]
 
 # ==========================================
 # [설정] API 클라이언트 초기화 (Google + OpenAI 통합)
@@ -42,12 +31,20 @@ except (KeyError, AttributeError):
 openai_client = None
 try:
     if "OPENAI_API_KEY" in st.secrets:
-        # st.secrets에서 가져오기
         from openai import OpenAI
         openai_client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 except Exception as e:
-    # 키가 없거나 설정 실패 시 로그만 남기고 넘어감 (Gemini만 작동)
     print(f"OpenAI 설정 실패(건너뜀): {e}")
+
+# ==========================================
+# [설정] 모델 우선순위 정의
+# ==========================================
+MODEL_PRIORITY = [
+    "gpt-5.2",              # 1순위 (OpenAI - 최신)
+    "gpt-4o",               # 2순위
+    "gemini-1.5-pro",       # 3순위 (Google)
+    "gemini-1.5-flash"      # 4순위
+]
 
 # ==========================================
 # [초기화] Session State 설정
@@ -64,7 +61,6 @@ if 'app_mode' not in st.session_state:
 # ==========================================
 # [공통 HTML/CSS 정의]
 # ==========================================
-
 HTML_HEAD = """
 <!DOCTYPE html>
 <html lang="ko">
@@ -271,39 +267,34 @@ def generate_content_with_fallback(prompt, generation_config=None, status_placeh
     
     for model_name in MODEL_PRIORITY:
         try:
-            # 상태 메시지 업데이트 (UI)
             if status_placeholder:
                 status_placeholder.info(f"⚡ 생성 중... (사용 모델: {model_name})")
             
-            # [CASE 1] OpenAI 모델인지 확인 (gpt-5.2, gpt-4o, o1 등)
+            # [CASE 1] OpenAI 모델 (gpt-*, o1-*)
             if model_name.startswith("gpt") or model_name.startswith("o1"):
                 if not openai_client:
-                    # API 키가 없으면 다음 모델(Gemini)로 패스
-                    # print("OpenAI Client가 설정되지 않았습니다.") 
+                    # 키가 없으면 다음 모델(Gemini)로 패스
                     continue
                 
-                # OpenAI API 호출
                 response = openai_client.chat.completions.create(
                     model=model_name, 
                     messages=[
                         {"role": "system", "content": "당신은 대한민국 수능 국어 출제 위원장입니다."},
                         {"role": "user", "content": prompt}
                     ],
-                    # 토큰 설정 (Gemini 설정값을 가져와서 OpenAI 파라미터로 변환)
+                    # 토큰 설정 (OpenAI)
                     max_completion_tokens=8192 if not generation_config else generation_config.max_output_tokens,
                     temperature=0.7 if not generation_config else generation_config.temperature
                 )
                 
                 # Gemini와 코드 호환성을 위해 껍데기(Wrapper) 클래스 생성
-                # (기존 코드가 response.text를 사용하므로 맞춰줌)
                 class OpenAIResponseWrapper:
                     def __init__(self, text_content):
                         self.text = text_content
                 
-                # 결과 반환
                 return OpenAIResponseWrapper(response.choices[0].message.content)
 
-            # [CASE 2] Google Gemini 모델인 경우
+            # [CASE 2] Google Gemini 모델
             else:
                 model = genai.GenerativeModel(model_name)
                 response = model.generate_content(prompt, generation_config=generation_config)
@@ -311,29 +302,31 @@ def generate_content_with_fallback(prompt, generation_config=None, status_placeh
             
         except Exception as e:
             last_exception = e
-            # 실패 시 로그를 남기거나 다음 모델로 넘어감
+            # status_placeholder.warning(f"⚠️ {model_name} 오류: {e}") # 디버깅용
             continue 
 
-    # 모든 모델이 실패했을 경우
     if last_exception:
         raise last_exception
     else:
         raise Exception("설정된 모든 AI 모델(OpenAI/Google)이 응답하지 않습니다.")
+
 # ==========================================
-# [DOCX 생성 함수]
+# [DOCX 생성 함수] (수정됨: 사용자 정의 제목 반영)
 # ==========================================
-def create_docx(html_content, file_name, current_topic):
+def create_docx(html_content, file_name, main_title, sub_title):
     document = Document()
     style = document.styles['Normal']
     style.font.name = 'Batang'
     style.font.size = Pt(10)
 
-    # HTML 태그 제거 및 텍스트 추출 (간소화)
+    # HTML 태그 제거 및 텍스트 추출
     clean_text = re.sub(r'<[^>]+>', '\n', html_content)
     clean_text = re.sub(r'\n+', '\n', clean_text).strip()
     
-    document.add_heading("사계국어 모의고사", 0)
-    document.add_heading(current_topic, 1)
+    # [수정] 사용자 입력 제목 반영
+    document.add_heading(main_title, 0)
+    if sub_title:
+        document.add_heading(sub_title, 1)
     document.add_paragraph(clean_text)
 
     file_stream = BytesIO()
@@ -342,9 +335,8 @@ def create_docx(html_content, file_name, current_topic):
     return file_stream
 
 # ==========================================
-# 🧩 비문학 문제 제작 함수 (제목 커스텀 추가)
+# 🧩 비문학 문제 제작 함수
 # ==========================================
-
 def non_fiction_app():
     global GOOGLE_API_KEY
     
@@ -354,7 +346,6 @@ def non_fiction_app():
         # [신규] 문서 제목 설정 섹션
         st.header("🏫 문서 타이틀 설정")
         custom_main_title = st.text_input("메인 타이틀 (학원명)", value="사계국어 모의고사", key="custom_main_title")
-        # 보조 타이틀 입력 제거됨
         st.markdown("---")
 
         st.header("🛠️ 지문 입력 방식")
@@ -366,7 +357,7 @@ def non_fiction_app():
         current_manual_passage = ""
         current_topic = ""
         current_domain = ""
-        # 기본값 초기화 (오류 방지)
+        # 기본값 초기화
         current_mode = "단일 지문"
         
         if current_d_mode == 'AI 생성':
@@ -447,9 +438,6 @@ def non_fiction_app():
             status.info(f"⚡ [{current_domain}] 출제 준비 중...")
             
             try:
-                # API 설정 (Google)
-                genai.configure(api_key=GOOGLE_API_KEY)
-                
                 # --- 프롬프트 구성 ---
                 reqs = []
                 
@@ -625,7 +613,7 @@ def non_fiction_app():
                 
                 generation_config = GenerationConfig(max_output_tokens=8192, temperature=0.7)
                 
-                # [수정] Fallback 로직 사용하여 문제 생성
+                # Fallback 로직 사용하여 문제 생성
                 response_problems = generate_content_with_fallback(prompt_p1, generation_config=generation_config, status_placeholder=status)
                 html_problems = response_problems.text.replace("```html", "").replace("```", "").strip()
 
@@ -758,7 +746,7 @@ def non_fiction_app():
 
                 # [수정] HTML 조립 시 사용자 입력 타이틀 반영
                 full_html = HTML_HEAD
-                # [수정] 메인 타이틀만 표시하고 보조 타이틀 제거
+                # [수정] 메인 타이틀만 표시
                 full_html += f"<h1>{custom_main_title}</h1>"
                 full_html += "<div class='time-box'>⏱️ 소요 시간: <span class='time-blank'></span></div>"
                 
@@ -798,6 +786,121 @@ def non_fiction_app():
                 st.session_state.generation_requested = False
 
 # ==========================================
+# 📖 문학 문제 제작 함수 (업데이트: 타이틀 설정 추가)
+# ==========================================
+def fiction_app():
+    global GOOGLE_API_KEY
+    with st.sidebar:
+        # [신규] 문서 타이틀 설정 (문학 모드에도 추가)
+        st.header("🏫 문서 타이틀 설정")
+        custom_main_title = st.text_input("메인 타이틀 (학원명)", value="사계국어 모의고사", key="fic_custom_main_title")
+        st.markdown("---")
+
+        st.header("1️⃣ 작품 정보")
+        work_name = st.text_input("작품명", key="fic_name")
+        author_name = st.text_input("작가명", key="fic_auth")
+        st.markdown("---")
+        st.header("2️⃣ 문제 유형")
+        count_q = st.number_input("객관식 문제 수", 1, 10, 3, key="fic_q_count")
+        select_bogey = st.checkbox("보기(외적 준거) 적용", value=True, key="fic_bogey")
+        select_desc = st.checkbox("서술형(감상)", key="fic_desc")
+
+    if st.session_state.generation_requested:
+        text_input = st.session_state.fiction_novel_text_input_area
+        if not text_input:
+            st.warning("작품 내용을 입력하세요.")
+            st.session_state.generation_requested = False
+            return
+
+        status = st.empty()
+        status.info("⚡ 문학 문제 생성 중...")
+        
+        try:
+            # 문제 생성 (문학)
+            prompt_1 = f"""
+            당신은 수능 문학 출제위원입니다.
+            작품: {work_name} ({author_name})
+            본문: {text_input}
+            
+            다음 조건에 맞춰 HTML 포맷으로 문제만 출제하시오 (해설 제외).
+            1. 5지 선다형 문제 {count_q}개.
+            2. { '`<div class="example-box">`를 활용한 보기 적용 3점 문제 포함. 단, **그림이나 도표 언급 금지**. 대신 **비평문, 시대적 배경, 작가의 말 등 텍스트 자료**를 보기로 제시할 것.' if select_bogey else '' }
+            3. { '서술형 감상 문제 1개 포함' if select_desc else '' }
+            
+            # ----------------------------------------------------------------
+            # 🚨 [문학 난이도 심화 및 출제 원칙 - 필독]
+            # ----------------------------------------------------------------
+            단순히 줄거리를 확인하거나 등장인물의 행동을 묻는 1차원적인 문제는 **절대 금지**합니다.
+            수능 문학의 변별력을 확보하기 위해 다음 원칙을 철저히 준수하시오.
+
+            1. **[시어/구절의 함축적 의미와 기능]**:
+               - 단순한 의미 해석이 아니라, 해당 시어나 구절이 **작품의 전체 주제, 정서, 태도 형성에 기여하는 기능적 역할**을 묻는 문제를 출제하시오.
+               - (예: "ⓐ는 화자의 정서를 심화시키는 소재이다" vs "ⓐ는 화자의 내면과 대조되는 객관적 상관물이다")
+
+            2. **[서술상 특징 및 표현법의 효과]**:
+               - 표현법 자체(직유, 은유 등)를 찾는 것은 지양하고, 그 표현법이 **어떤 미적 효과나 주제 강조를 위해 사용되었는지**를 연결하여 물으시오.
+               - (예: "시각적 이미지를 통해 생동감을 부여하고 있다" (X) -> "색채어의 대비를 통해 화자의 비극적 인식을 부각하고 있다" (O))
+
+            3. **[외적 준거(보기)를 활용한 감상 심화]**:
+               - <보기>가 있는 문제는 반드시 **작품 자체의 내용만으로는 파악하기 힘든 '시대적 배경', '작가관', '비평적 관점'**을 <보기>로 제시하고, 이를 근거로 작품을 재해석하게 하시오.
+               - 선지는 <보기>의 관점과 작품의 내용을 정교하게 논리적으로 연결해야 하며, **인과관계의 오류**나 **주체/객체의 혼동**을 유도하는 매력적인 오답을 포함하시오.
+
+            4. **[매력적인 오답 설계]**:
+               - **'과잉 해석'**: 작품의 맥락을 벗어나 너무 확대 해석한 선지.
+               - **'정서의 오류'**: 상황은 맞지만, 인물이 느끼는 정서(예: 그리움 vs 원망)를 살짝 비튼 선지.
+            # ----------------------------------------------------------------
+            
+            **[중요]**: 문제에 정답을 표시하지 마시오. 학생용 문제지입니다.
+            형식: `<div class="question-box">...</div>`
+            """
+            
+            res_1 = generate_content_with_fallback(prompt_1, status_placeholder=status)
+            html_q = res_1.text.replace("```html","").replace("```","").strip()
+            
+            # 해설 생성 (문학)
+            prompt_2 = f"""
+            위에서 출제한 문학 문제의 **정답 및 해설**을 작성하시오.
+            입력된 문제: {html_q}
+            작품 본문: {text_input}
+            
+            규칙:
+            1. `<div class="answer-sheet">` 내부에 작성.
+            2. **객관식 해설 필수**: 
+               - [정답 상세 해설]: 지문의 근거를 들어 설명.
+               - [오답 상세 분석]: 각 선지별로 왜 답이 아닌지 구체적 근거를 들어 줄바꿈하여 작성. "보기에 있다" 식의 단순 서술 금지.
+            3. 서술형은 예시 답안 제시.
+            """
+            
+            res_2 = generate_content_with_fallback(prompt_2, status_placeholder=status)
+            html_a = res_2.text.replace("```html","").replace("```","").strip()
+            
+            if '<div class="answer-sheet">' in html_a:
+                html_a = html_a[html_a.find('<div class="answer-sheet">'):]
+            else:
+                html_a = '<div class="answer-sheet">' + html_a + '</div>'
+            
+            full_html = HTML_HEAD
+            # [수정] 메인 타이틀을 맨 위에 표시
+            full_html += f"<h1>{custom_main_title}</h1>"
+            full_html += f"<h2>{work_name} ({author_name})</h2>"
+            full_html += f'<div class="passage">{text_input.replace(chr(10), "<br>")}</div>'
+            full_html += html_q + html_a + HTML_TAIL
+            
+            st.session_state.generated_result = {
+                "full_html": full_html, 
+                "domain": "문학", 
+                "topic": work_name,
+                "main_title": custom_main_title, # 저장
+                "sub_title": "" # 보조 타이틀 없음
+            }
+            status.success("완료")
+            st.session_state.generation_requested = False
+            
+        except Exception as e:
+            status.error(f"Error: {e}")
+            st.session_state.generation_requested = False
+
+# ==========================================
 # 🚀 메인 실행 로직 (결과 표시 부분 수정)
 # ==========================================
 def display_results():
@@ -820,133 +923,10 @@ def display_results():
             st.download_button("📄 Word 저장", docx, "exam.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
             
         st.components.v1.html(res["full_html"], height=800, scrolling=True)
-        
-# ==========================================
-# 📖 문학 문제 제작 함수 (업데이트)
-# ==========================================
-def fiction_app():
-    global GOOGLE_API_KEY
-    with st.sidebar:
-        st.header("1️⃣ 작품 정보")
-        work_name = st.text_input("작품명", key="fic_name")
-        author_name = st.text_input("작가명", key="fic_auth")
-        st.markdown("---")
-        st.header("2️⃣ 문제 유형")
-        count_q = st.number_input("객관식 문제 수", 1, 10, 3, key="fic_q_count")
-        select_bogey = st.checkbox("보기(외적 준거) 적용", value=True, key="fic_bogey")
-        select_desc = st.checkbox("서술형(감상)", key="fic_desc")
 
-    if st.session_state.generation_requested:
-        text_input = st.session_state.fiction_novel_text_input_area
-        if not text_input:
-            st.warning("작품 내용을 입력하세요.")
-            st.session_state.generation_requested = False
-            return
-
-        status = st.empty()
-        status.info("⚡ 문학 문제 생성 중...")
-        
-        try:
-            genai.configure(api_key=GOOGLE_API_KEY)
-            
-            # ----------------------------------------------------------------
-            # [추가] 문학 문제 생성 프롬프트 (난이도 심화)
-            # ----------------------------------------------------------------
-            prompt_1 = f"""
-            당신은 수능 문학 출제위원입니다.
-            작품: {work_name} ({author_name})
-            본문: {text_input}
-             
-            다음 조건에 맞춰 HTML 포맷으로 문제만 출제하시오 (해설 제외).
-            1. 5지 선다형 문제 {count_q}개.
-            2. { '`<div class="example-box">`를 활용한 보기 적용 3점 문제 포함. 단, **그림이나 도표 언급 금지**. 대신 **비평문, 시대적 배경, 작가의 말 등 텍스트 자료**를 보기로 제시할 것.' if select_bogey else '' }
-            3. { '서술형 감상 문제 1개 포함' if select_desc else '' }
-
-            # ----------------------------------------------------------------
-            # 🚨 [문학 난이도 심화 및 출제 원칙 - 필독]
-            # ----------------------------------------------------------------
-            단순히 줄거리를 확인하거나 등장인물의 행동을 묻는 1차원적인 문제는 **절대 금지**합니다.
-            수능 문학의 변별력을 확보하기 위해 다음 원칙을 철저히 준수하시오.
-
-            1. **[서술상 특징 및 표현법의 효과]**:
-               - 표현법 자체(직유, 은유 등)를 찾는 것은 지양하고, 그 표현법이 **어떤 미적 효과나 주제 강조를 위해 사용되었는지**를 연결하여 물으시오.
-               - (예: "시각적 이미지를 통해 생동감을 부여하고 있다" (X) -> "색채어의 대비를 통해 화자의 비극적 인식을 부각하고 있다" (O))
-
-            2. **[외적 준거(보기)를 활용한 감상 심화]**:
-               - <보기>가 있는 문제는 반드시 **작품 자체의 내용만으로는 파악하기 힘든 '시대적 배경', '작가관', '비평적 관점'**을 <보기>로 제시하고, 이를 근거로 작품을 재해석하게 하시오.
-               - 선지는 <보기>의 관점과 작품의 내용을 정교하게 논리적으로 연결해야 하며, **인과관계의 오류**나 **주체/객체의 혼동**을 유도하는 매력적인 오답을 포함하시오.
-
-            3. **[매력적인 오답 설계]**:
-               - **'과잉 해석'**: 작품의 맥락을 벗어나 너무 확대 해석한 선지.
-               - **'정서의 오류'**: 상황은 맞지만, 인물이 느끼는 정서(예: 그리움 vs 원망)를 살짝 비튼 선지.
-            # ----------------------------------------------------------------
-             
-            **[중요]**: 문제에 정답을 표시하지 마시오. 학생용 문제지입니다.
-            형식: `<div class="question-box">...</div>`
-            """            
-            # [수정] Fallback 로직 사용하여 문제 생성
-            res_1 = generate_content_with_fallback(prompt_1, status_placeholder=status)
-            html_q = res_1.text.replace("```html","").replace("```","").strip()
-            
-            # 해설 생성 (문학)
-            prompt_2 = f"""
-            위에서 출제한 문학 문제의 **정답 및 해설**을 작성하시오.
-            입력된 문제: {html_q}
-            작품 본문: {text_input}
-            
-            규칙:
-            1. `<div class="answer-sheet">` 내부에 작성.
-            2. **객관식 해설 필수**: 
-               - [정답 상세 해설]: 지문의 근거를 들어 설명.
-               - [오답 상세 분석]: 각 선지별로 왜 답이 아닌지 구체적 근거를 들어 줄바꿈하여 작성. "보기에 있다" 식의 단순 서술 금지.
-            3. 서술형은 예시 답안 제시.
-            """
-            
-            # [수정] Fallback 로직 사용하여 해설 생성
-            res_2 = generate_content_with_fallback(prompt_2, status_placeholder=status)
-            html_a = res_2.text.replace("```html","").replace("```","").strip()
-            
-            # 문학도 중복 방지 처리
-            if '<div class="answer-sheet">' in html_a:
-                html_a = html_a[html_a.find('<div class="answer-sheet">'):]
-            else:
-                html_a = '<div class="answer-sheet">' + html_a + '</div>'
-            
-            full_html = HTML_HEAD
-            full_html += f"<h1>{work_name}</h1><h2>{author_name}</h2>"
-            full_html += f'<div class="passage">{text_input.replace(chr(10), "<br>")}</div>'
-            full_html += html_q + html_a + HTML_TAIL
-            
-            st.session_state.generated_result = {"full_html": full_html, "domain": "문학", "topic": work_name}
-            status.success("완료")
-            st.session_state.generation_requested = False
-            
-        except Exception as e:
-            status.error(f"Error: {e}")
-            st.session_state.generation_requested = False
-
-# ==========================================
-# 🚀 메인 실행 로직
-# ==========================================
-def display_results():
-    if st.session_state.generated_result:
-        res = st.session_state.generated_result
-        st.markdown("---")
-        c1, c2, c3 = st.columns([1, 1, 1])
-        with c1:
-            if st.button("🔄 다시 생성"):
-                st.session_state.generated_result = None
-                st.session_state.generation_requested = True
-                st.rerun()
-        with c2:
-            st.download_button("📥 HTML 저장", res["full_html"], "exam.html", "text/html")
-        with c3:
-            docx = create_docx(res["full_html"], "exam.docx", res["topic"])
-            st.download_button("📄 Word 저장", docx, "exam.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-            
-        st.components.v1.html(res["full_html"], height=800, scrolling=True)
-
-# 앱 레이아웃
+# -----------------------------------------
+# [실행부] 앱 모드 선택 및 실행
+# -----------------------------------------
 st.title("📚 사계국어 모의고사 제작 시스템")
 st.markdown("---")
 
@@ -958,6 +938,8 @@ with col_L:
 with col_R:
     if st.session_state.app_mode == "⚡ 비문학 문제 제작":
         st.header("⚡ 비문학 모의평가")
+        
+        # 직접 입력일 경우 UI 미리 표시
         if st.session_state.get("domain_mode_select") == "직접 입력":
             current_manual_mode = st.session_state.get("manual_mode", "단일 지문")
             if current_manual_mode == "단일 지문":
@@ -970,6 +952,7 @@ with col_R:
         if st.button("🚀 모의고사 생성", key="run_non_fiction"):
             st.session_state.generation_requested = True
         
+        # 핵심: 함수 실행 (이게 있어야 사이드바가 보임)
         non_fiction_app()
 
     else:
@@ -979,4 +962,5 @@ with col_R:
             st.session_state.generation_requested = True
         fiction_app()
 
+# 결과 화면 렌더링
 display_results()
