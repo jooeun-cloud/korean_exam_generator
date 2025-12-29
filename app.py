@@ -786,12 +786,13 @@ def non_fiction_app():
                 st.session_state.generation_requested = False
 
 # ==========================================
-# 📖 문학 문제 제작 함수 (업데이트: 타이틀 설정 추가)
+# 📖 문학 문제 제작 함수 (유형 확장 및 PDF 반영)
 # ==========================================
 def fiction_app():
     global GOOGLE_API_KEY
+    
     with st.sidebar:
-        # [신규] 문서 타이틀 설정 (문학 모드에도 추가)
+        # [신규] 문서 타이틀 설정
         st.header("🏫 문서 타이틀 설정")
         custom_main_title = st.text_input("메인 타이틀", value="사계국어 모의고사", key="fic_custom_main_title")
         st.markdown("---")
@@ -799,11 +800,31 @@ def fiction_app():
         st.header("1️⃣ 작품 정보")
         work_name = st.text_input("작품명", key="fic_name")
         author_name = st.text_input("작가명", key="fic_auth")
+        
         st.markdown("---")
-        st.header("2️⃣ 문제 유형")
-        count_q = st.number_input("객관식 문제 수", 1, 10, 3, key="fic_q_count")
-        select_bogey = st.checkbox("보기(외적 준거) 적용", value=True, key="fic_bogey")
-        select_desc = st.checkbox("서술형(감상)", key="fic_desc")
+        st.header("2️⃣ 문제 유형 및 개수")
+        
+        # [Type 1] 어휘 문제
+        use_vocab = st.checkbox("1. 어휘 문제 (단답형)", value=True, key="fic_t1")
+        cnt_vocab = st.number_input(" - 문항 수", 1, 20, 5, key="fic_cnt_1") if use_vocab else 0
+        
+        # [Type 2] 서술형 심화
+        use_essay = st.checkbox("2. 서술형 심화 (감상/의도)", value=True, key="fic_t2")
+        cnt_essay = st.number_input(" - 문항 수", 1, 10, 3, key="fic_cnt_2") if use_essay else 0
+        
+        # [Type 3] 객관식
+        use_mcq = st.checkbox("3. 객관식 (5지선다)", value=True, key="fic_t3")
+        cnt_mcq = st.number_input(" - 문항 수", 1, 10, 3, key="fic_cnt_3") if use_mcq else 0
+        use_bogey = st.checkbox("   └ 보기(외적 준거) 포함", value=True, key="fic_bogey") if use_mcq else False
+        
+        st.markdown("---")
+        st.caption("3️⃣ 분석 및 정리 활동 (서술형/표)")
+        
+        # [Type 4~7] 분석 활동
+        use_char = st.checkbox("4. 주요 등장인물 정리 (표)", key="fic_t4")
+        use_summ = st.checkbox("5. 소설 속 상황 요약", key="fic_t5")
+        use_rel = st.checkbox("6. 인물 관계도 및 갈등", key="fic_t6")
+        use_conf = st.checkbox("7. 갈등 구조 및 심리 정리", key="fic_t7")
 
     if st.session_state.generation_requested:
         text_input = st.session_state.fiction_novel_text_input_area
@@ -813,76 +834,177 @@ def fiction_app():
             return
 
         status = st.empty()
-        status.info("⚡ 문학 문제 생성 중...")
+        status.info("⚡ 문학 분석 및 문제 생성 중... (내용이 많아 시간이 조금 걸릴 수 있습니다)")
         
         try:
-            # 문제 생성 (문학)
+            # -----------------------------------------------------------
+            # [1단계] 학생용 문제지 생성 프롬프트
+            # -----------------------------------------------------------
+            req_q_list = []
+            
+            # 1. 어휘
+            if use_vocab:
+                req_q_list.append(f"""
+                <div class="type-box">
+                    <h3>유형 1. 어휘 문제 ({cnt_vocab}문항)</h3>
+                    - 지문에서 문맥상 중요하거나 어려운 어휘를 {cnt_vocab}개 선정하여 그 뜻을 묻는 단답형 문제를 출제하시오.
+                    - [형식]
+                    <div class="question-box">
+                        <span class="question-text">[번호] 지문의 '____'의 문맥적 의미는 무엇인가?</span>
+                        <div class="write-box" style="height:50px;"></div>
+                    </div>
+                </div>
+                """)
+            
+            # 2. 서술형 심화
+            if use_essay:
+                req_q_list.append(f"""
+                <div class="type-box">
+                    <h3>유형 2. 서술형 심화 문제 ({cnt_essay}문항)</h3>
+                    - 작가의 의도, 서술상의 효과, 인물의 심리 변화, 소재의 상징적 의미 등을 묻는 고난도 서술형 문제를 {cnt_essay}개 출제하시오.
+                    - 단순 내용 확인이 아닌, '효과', '의도', '이유'를 서술하게 하시오.
+                    - [형식]
+                    <div class="question-box">
+                        <span class="question-text">[번호] (질문 내용)</span>
+                        <div class="write-box"></div>
+                    </div>
+                </div>
+                """)
+            
+            # 3. 객관식
+            if use_mcq:
+                bogey_inst = "반드시 1문제 이상 **<보기>** 박스를 포함하여 외적 준거를 통한 감상 문제를 내시오." if use_bogey else ""
+                req_q_list.append(f"""
+                <div class="type-box">
+                    <h3>유형 3. 객관식 문제 ({cnt_mcq}문항)</h3>
+                    - 수능형 5지 선다 문제를 {cnt_mcq}개 출제하시오.
+                    - {bogey_inst}
+                    - [형식]
+                    <div class="question-box">
+                        <span class="question-text">[번호] (발문)</span>
+                        <!-- 보기 박스가 필요하면 <div class="example-box">...</div> 사용 -->
+                        <div class="choices">
+                            <div>① ...</div>
+                            <div>② ...</div>
+                            <div>③ ...</div>
+                            <div>④ ...</div>
+                            <div>⑤ ...</div>
+                        </div>
+                    </div>
+                </div>
+                """)
+                
+            # 4. 인물 정리
+            if use_char:
+                req_q_list.append(f"""
+                <div class="type-box">
+                    <h3>유형 4. 주요 등장인물 정리</h3>
+                    - 주요 인물들의 이름, 지문 내 호칭, 역할, 심리를 정리하는 **빈 표**를 만드시오.
+                    - 학생이 직접 채워 넣을 수 있도록 내용은 비워두시오.
+                    - [형식]
+                    <table border="1" cellspacing="0" cellpadding="8" style="width:100%; border-collapse:collapse; margin-top:10px;">
+                        <tr style="background:#f0f0f0; font-weight:bold; text-align:center;">
+                            <td width="20%">인물명</td>
+                            <td width="20%">지문 내 호칭</td>
+                            <td width="30%">작중 역할</td>
+                            <td width="30%">심리/태도</td>
+                        </tr>
+                        <tr><td>(빈칸)</td><td>(빈칸)</td><td>(빈칸)</td><td>(빈칸)</td></tr>
+                        <tr><td>(빈칸)</td><td>(빈칸)</td><td>(빈칸)</td><td>(빈칸)</td></tr>
+                        <tr><td>(빈칸)</td><td>(빈칸)</td><td>(빈칸)</td><td>(빈칸)</td></tr>
+                    </table>
+                </div>
+                """)
+                
+            # 5. 상황 요약
+            if use_summ:
+                req_q_list.append(f"""
+                <div class="type-box">
+                    <h3>유형 5. 소설 속 상황 요약</h3>
+                    - 현재 지문의 배경과 인물들이 처한 핵심 갈등 상황을 요약해보시오.
+                    <div class="write-box"></div>
+                </div>
+                """)
+                
+            # 6. 인물 관계도
+            if use_rel:
+                req_q_list.append(f"""
+                <div class="type-box">
+                    <h3>유형 6. 인물 관계도 및 갈등</h3>
+                    - 주요 인물들 간의 관계(우호, 대립, 조력 등)를 화살표와 키워드로 구조화하여 그려보시오.
+                    <div class="write-box" style="height:200px;">(이곳에 인물 관계도를 직접 그려보세요)</div>
+                </div>
+                """)
+                
+            # 7. 갈등 구조
+            if use_conf:
+                req_q_list.append(f"""
+                <div class="type-box">
+                    <h3>유형 7. 갈등 구조 및 심리 정리</h3>
+                    - 1. 갈등 양상 (누구 vs 누구, 어떤 가치의 대립인가?)
+                    <div class="write-box" style="height:50px;"></div>
+                    - 2. 작가의 비판 의도 및 주제 의식
+                    <div class="write-box" style="height:50px;"></div>
+                </div>
+                """)
+
+            reqs_str = "\n".join(req_q_list)
+
             prompt_1 = f"""
             당신은 수능 문학 출제위원입니다.
             작품: {work_name} ({author_name})
             본문: {text_input}
             
-            다음 조건에 맞춰 HTML 포맷으로 문제만 출제하시오 (해설 제외).
-            1. 5지 선다형 문제 {count_q}개.
-            2. { '`<div class="example-box">`를 활용한 보기 적용 3점 문제 포함. 단, **그림이나 도표 언급 금지**. 대신 **비평문, 시대적 배경, 작가의 말 등 텍스트 자료**를 보기로 제시할 것.' if select_bogey else '' }
-            3. { '서술형 감상 문제 1개 포함' if select_desc else '' }
+            다음 요청사항에 맞춰 학생용 문제지(HTML)를 작성하시오.
+            **[중요 규칙]**: 
+            1. '정답'이나 '해설'은 절대 포함하지 마시오. 학생이 푸는 문제지입니다.
+            2. 문제 유형별로 `<h3>` 태그를 사용하여 구획을 나누시오.
             
-            # ----------------------------------------------------------------
-            # 🚨 [문학 난이도 심화 및 출제 원칙 - 필독]
-            # ----------------------------------------------------------------
-            단순히 줄거리를 확인하거나 등장인물의 행동을 묻는 1차원적인 문제는 **절대 금지**합니다.
-            수능 문학의 변별력을 확보하기 위해 다음 원칙을 철저히 준수하시오.
-
-            1. **[시어/구절의 함축적 의미와 기능]**:
-               - 단순한 의미 해석이 아니라, 해당 시어나 구절이 **작품의 전체 주제, 정서, 태도 형성에 기여하는 기능적 역할**을 묻는 문제를 출제하시오.
-               - (예: "ⓐ는 화자의 정서를 심화시키는 소재이다" vs "ⓐ는 화자의 내면과 대조되는 객관적 상관물이다")
-
-            2. **[서술상 특징 및 표현법의 효과]**:
-               - 표현법 자체(직유, 은유 등)를 찾는 것은 지양하고, 그 표현법이 **어떤 미적 효과나 주제 강조를 위해 사용되었는지**를 연결하여 물으시오.
-               - (예: "시각적 이미지를 통해 생동감을 부여하고 있다" (X) -> "색채어의 대비를 통해 화자의 비극적 인식을 부각하고 있다" (O))
-
-            3. **[외적 준거(보기)를 활용한 감상 심화]**:
-               - <보기>가 있는 문제는 반드시 **작품 자체의 내용만으로는 파악하기 힘든 '시대적 배경', '작가관', '비평적 관점'**을 <보기>로 제시하고, 이를 근거로 작품을 재해석하게 하시오.
-               - 선지는 <보기>의 관점과 작품의 내용을 정교하게 논리적으로 연결해야 하며, **인과관계의 오류**나 **주체/객체의 혼동**을 유도하는 매력적인 오답을 포함하시오.
-
-            4. **[매력적인 오답 설계]**:
-               - **'과잉 해석'**: 작품의 맥락을 벗어나 너무 확대 해석한 선지.
-               - **'정서의 오류'**: 상황은 맞지만, 인물이 느끼는 정서(예: 그리움 vs 원망)를 살짝 비튼 선지.
-            # ----------------------------------------------------------------
-            
-            **[중요]**: 문제에 정답을 표시하지 마시오. 학생용 문제지입니다.
-            형식: `<div class="question-box">...</div>`
+            [출제 요청 목록]
+            {reqs_str}
             """
             
+            # 문제 생성 호출
             res_1 = generate_content_with_fallback(prompt_1, status_placeholder=status)
             html_q = res_1.text.replace("```html","").replace("```","").strip()
             
-            # 해설 생성 (문학)
+            # -----------------------------------------------------------
+            # [2단계] 정답 및 해설 생성 프롬프트 (분리 호출)
+            # -----------------------------------------------------------
             prompt_2 = f"""
-            위에서 출제한 문학 문제의 **정답 및 해설**을 작성하시오.
-            입력된 문제: {html_q}
-            작품 본문: {text_input}
+            당신은 수능 문학 해설 위원입니다.
+            앞서 출제된 문제들에 대한 **완벽한 정답 및 해설**을 작성하시오.
             
-            규칙:
-            1. `<div class="answer-sheet">` 내부에 작성.
-            2. **객관식 해설 필수**: 
-               - [정답 상세 해설]: 지문의 근거를 들어 설명.
-               - [오답 상세 분석]: 각 선지별로 왜 답이 아닌지 구체적 근거를 들어 줄바꿈하여 작성. "보기에 있다" 식의 단순 서술 금지.
-            3. 서술형은 예시 답안 제시.
+            [입력된 문제]
+            {html_q}
+            
+            [작품 본문]
+            {text_input}
+            
+            **[작성 규칙 - 매우 중요]**
+            1. 반드시 `<div class="answer-sheet">` 태그 안에 작성하시오.
+            2. **유형별로 구분**하여 해설하시오 (예: <h3>유형 1. 어휘 문제 해설</h3>).
+            3. **객관식 문제**:
+               - [정답], [상세 해설], [오답 분석]을 포함하시오.
+            4. **서술형 및 분석 활동(인물 정리, 요약 등)**:
+               - '예시 답안' 또는 '모범 분석'을 상세하게 제시하시오.
+               - 특히 [주요 등장인물 정리]는 **표의 빈칸을 채운 완성된 형태**로 제시하시오.
+               - [인물 관계도]는 텍스트로 관계를 설명하시오 (예: A -> B (대립), C -> A (조력)).
             """
             
             res_2 = generate_content_with_fallback(prompt_2, status_placeholder=status)
             html_a = res_2.text.replace("```html","").replace("```","").strip()
             
+            # 정답지 태그 처리
             if '<div class="answer-sheet">' in html_a:
                 html_a = html_a[html_a.find('<div class="answer-sheet">'):]
             else:
                 html_a = '<div class="answer-sheet">' + html_a + '</div>'
             
+            # HTML 조립
             full_html = HTML_HEAD
-            # [수정] 메인 타이틀을 맨 위에 표시
             full_html += f"<h1>{custom_main_title}</h1>"
-            full_html += f"<h2>{work_name} ({author_name})</h2>"
+            full_html += f"<h2>{work_name} ({author_name}) - 분석 훈련</h2>"
             full_html += f'<div class="passage">{text_input.replace(chr(10), "<br>")}</div>'
             full_html += html_q + html_a + HTML_TAIL
             
@@ -890,14 +1012,14 @@ def fiction_app():
                 "full_html": full_html, 
                 "domain": "문학", 
                 "topic": work_name,
-                "main_title": custom_main_title, # 저장
-                "sub_title": "" # 보조 타이틀 없음
+                "main_title": custom_main_title,
+                "sub_title": f"{work_name} 심층 분석"
             }
-            status.success("완료")
+            status.success("✅ 문학 분석 학습지 생성 완료!")
             st.session_state.generation_requested = False
             
         except Exception as e:
-            status.error(f"Error: {e}")
+            status.error(f"오류 발생: {e}")
             st.session_state.generation_requested = False
 
 # ==========================================
