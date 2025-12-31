@@ -6,7 +6,9 @@ import re
 import os
 from docx import Document
 from io import BytesIO
-from docx.shared import Pt, WD_PARAGRAPH_ALIGNMENT
+# [수정] 올바른 import 경로: 정렬 상수는 docx.enum.text에 있음
+from docx.shared import Pt
+from docx.enum.text import WD_ALIGN_PARAGRAPH 
 import time
 
 # ==========================================
@@ -299,7 +301,7 @@ def get_custom_header_html(main_title, exam_info, topic_info):
     """
     사용자 요청 양식:
     1. 메인 타이틀 (가운데 정렬)
-    2. 소요 시간 박스 (우측 정렬)
+    2. 소요 시간 박스 (우측 정렬, 줄바꿈 후)
     3. 시험 정보 및 주제 (가운데 정렬)
     """
     return f"""
@@ -361,7 +363,7 @@ def generate_content_with_fallback(prompt, generation_config=None, status_placeh
         raise Exception("설정된 모든 AI 모델(OpenAI/Google)이 응답하지 않습니다.")
 
 # ==========================================
-# [DOCX 생성 함수] (가운데 정렬 반영)
+# [DOCX 생성 함수] (가운데 정렬 반영 - WD_ALIGN_PARAGRAPH 사용)
 # ==========================================
 def create_docx(html_content, file_name, main_title, sub_title, topic_title):
     document = Document()
@@ -375,20 +377,20 @@ def create_docx(html_content, file_name, main_title, sub_title, topic_title):
     
     # 1. 메인 타이틀 (가운데 정렬)
     h1 = document.add_heading(main_title, 0)
-    h1.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    h1.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
     # 2. 소요 시간 (우측 정렬)
     p_time = document.add_paragraph("소요 시간: ___________")
-    p_time.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
+    p_time.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     
     # 3. 보조 타이틀 (가운데 정렬)
     if sub_title:
         h2 = document.add_heading(sub_title, 1)
-        h2.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+        h2.alignment = WD_ALIGN_PARAGRAPH.CENTER
         
     # 4. 주제 (가운데 정렬)
     p_topic = document.add_paragraph(f"주제: {topic_title}")
-    p_topic.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    p_topic.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
     document.add_paragraph("-" * 50)
     document.add_paragraph(clean_text)
@@ -618,7 +620,7 @@ def non_fiction_app():
                 full_html = HTML_HEAD
                 
                 # 보조 타이틀 결정 (비문학)
-                sub_title_text = f"비문학({current_domain})" if current_d_mode == 'AI 생성' else "비문학 독해 훈련"
+                sub_title_text = f"2025학년도 수능 대비 - 비문학({current_domain})" if current_d_mode == 'AI 생성' else "비문학 독해 훈련"
                 topic_text = current_topic if current_topic else "지문 분석"
                 
                 # 고정 헤더 삽입 (가운데 정렬 + 소요시간 우측)
@@ -784,8 +786,8 @@ def fiction_app():
             full_html = HTML_HEAD
             
             # 정보 텍스트 구성
-            exam_info_text = f"문학({work_name})"
-            topic_text = f"{work_name} ({author_name})"
+            exam_info_text = f"2025학년도 수능 대비 - 문학({work_name})"
+            topic_text = f"작품: {work_name} ({author_name})"
             
             # 고정 헤더 함수 호출 (가운데 정렬 + 우측 소요시간)
             full_html += get_custom_header_html(custom_main_title, exam_info_text, topic_text)
