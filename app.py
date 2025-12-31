@@ -507,9 +507,16 @@ def non_fiction_app():
                 if select_t7: reqs.append(f"""<div class="type-box"><h3>객관식: [보기] 적용 문제 ({count_t7}문항) [3점]</h3><div class="question-box"><span class="question-text">[문제번호] 윗글을 바탕으로 [보기]를 이해한 내용으로 적절하지 않은 것은? [3점]</span><div class="example-box">(보기 내용)</div><div class="choices"><div>① ...</div><div>② ...</div><div>③ ...</div><div>④ ...</div><div>⑤ ...</div></div></div></div>""")
                 
                 reqs_content = "\n".join(reqs)
-                summary_inst_passage = """- 문단이 끝날 때마다 `<div class='summary-blank'>📝 문단 요약 연습: (이곳에 핵심 내용을 요약해보세요)</div>`를 삽입하시오.""" if use_summary else ""
+                
+                # [수정: 문단 요약 기능 활성화]
+                summary_inst_passage = ""
+                if use_summary:
+                    summary_inst_passage = """
+                    - **[필수]**: 각 문단이 끝날 때마다 반드시 `<div class='summary-blank'>📝 문단 요약 연습: (이곳에 핵심 내용을 요약해보세요)</div>` 코드를 삽입하여 사용자가 내용을 요약할 수 있는 빈칸을 만들어주시오.
+                    - 이 부분은 사용자가 글을 쓸 공간이므로 절대 내용을 채우지 마시오.
+                    """
 
-                passage_inst = f"""**[Step 1] 지문 작성** - 주제: {current_topic} ({current_domain}) - 난이도: {current_difficulty} - 길이: 1800자 내외""" if current_d_mode == 'AI 생성' else "**[Step 1] 지문 인식** - 사용자 입력 지문 기반."
+                passage_inst = f"""**[Step 1] 지문 작성** - 주제: {current_topic} ({current_domain}) - 난이도: {current_difficulty} - 길이: 1800자 내외 \n{summary_inst_passage}""" if current_d_mode == 'AI 생성' else "**[Step 1] 지문 인식** - 사용자 입력 지문 기반."
                 user_passage_block = f"\n[사용자 입력 지문 시작]\n{current_manual_passage}\n[사용자 입력 지문 끝]\n" if current_d_mode == '직접 입력' else ""
 
                 prompt_p1 = f"""
@@ -566,7 +573,18 @@ def non_fiction_app():
                     
                     current_summary_prompt = ""
                     if use_summary and not summary_done:
-                        current_summary_prompt = """- **[필수]**: 답변 맨 위에 `<div class="summary-ans-box">`를 열고 **[문단별 요약]**을 작성하시오."""
+                        # [수정: 문단 요약 해설 프롬프트]
+                        if current_d_mode == '직접 입력':
+                             user_paras = [p for p in re.split(r'\n\s*\n', current_manual_passage.strip()) if p.strip()]
+                             para_count = len(user_paras)
+                             current_summary_prompt = f"""
+                             - **[필수 - 최우선 작성]**: 답변 맨 위에 `<div class="summary-ans-box">`를 열고 **[문단별 요약 예시 답안]**을 작성하시오.
+                             - **[중요]**: 입력된 지문은 총 **{para_count}개의 문단**입니다. 각 문단의 핵심 내용을 1문장씩 요약하여 총 {para_count}개를 제시하시오.
+                             """
+                        else:
+                             current_summary_prompt = """
+                             - **[필수 - 최우선 작성]**: 답변 맨 위에 `<div class="summary-ans-box">`를 열고 **[문단별 요약 예시 답안]**을 작성하시오. 지문의 각 문단별 핵심 내용을 요약하여 제시하시오.
+                             """
                         summary_done = True 
 
                     prompt_chunk = f"""
@@ -581,9 +599,12 @@ def non_fiction_app():
                     3. 절대 제목(`<h1>`, `<h2>`)을 생성하지 마시오.
                     {current_summary_prompt}
                     
-                    **[해설 작성 규칙]**:
+                    **[해설 작성 규칙 (상세하게)]**:
                     1. **객관식**: 정답 해설 + 오답 상세 분석(①~⑤) 필수.
-                    2. **O/X, 빈칸**: 정답만 명확히.
+                    2. **O/X 및 빈칸**:
+                       - 단순히 'O', 'X' 또는 정답 단어만 적지 마십시오.
+                       - **[해설]**을 반드시 덧붙여서, 왜 그것이 정답인지 지문의 내용을 근거로 설명하시오.
+                       - 예: [문제 1] O - (해설) 지문 2문단에서 ~~라고 언급하였으므로 일치한다.
 
                     **[작성 포맷 HTML]**
                     <div class="ans-item">
@@ -591,6 +612,7 @@ def non_fiction_app():
                         <span class="ans-num">[문제번호] 정답: (정답표기)</span>
                         <span class="ans-content-title">1. 정답 상세 해설</span>
                         <span class="ans-text">...</span>
+                        <!-- 객관식일 경우에만 아래 오답 분석 작성 -->
                         <span class="ans-content-title">2. 오답 상세 분석</span>
                         <div class="ans-wrong-box"><span class="ans-text">① (X): ... <br>② (X): ...</span></div>
                     </div>
@@ -620,7 +642,7 @@ def non_fiction_app():
                 full_html = HTML_HEAD
                 
                 # 보조 타이틀 결정 (비문학)
-                sub_title_text = f"비문학({current_domain})" if current_d_mode == 'AI 생성' else "비문학 독해 훈련"
+                sub_title_text = f"2025학년도 수능 대비 - 비문학({current_domain})" if current_d_mode == 'AI 생성' else "비문학 독해 훈련"
                 topic_text = current_topic if current_topic else "지문 분석"
                 
                 # 고정 헤더 삽입 (가운데 정렬 + 소요시간 우측)
@@ -786,7 +808,7 @@ def fiction_app():
             full_html = HTML_HEAD
             
             # 정보 텍스트 구성
-            exam_info_text = f"문학({work_name})"
+            exam_info_text = f"2025학년도 수능 대비 - 문학({work_name})"
             topic_text = f"작품: {work_name} ({author_name})"
             
             # 고정 헤더 함수 호출 (가운데 정렬 + 우측 소요시간)
