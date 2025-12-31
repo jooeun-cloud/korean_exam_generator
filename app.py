@@ -6,7 +6,7 @@ import re
 import os
 from docx import Document
 from io import BytesIO
-from docx.shared import Pt
+from docx.shared import Pt, WD_PARAGRAPH_ALIGNMENT
 import time
 
 # ==========================================
@@ -39,7 +39,7 @@ except Exception as e:
 # [설정] 모델 우선순위 정의
 # ==========================================
 MODEL_PRIORITY = [
-    "gpt-5.2",              # 1순위 (OpenAI - 최신)
+    "gpt-5.2",              # 1순위 (OpenAI)
     "gpt-4o",               # 2순위
     "gemini-1.5-pro",       # 3순위 (Google)
     "gemini-1.5-flash"      # 4순위
@@ -58,7 +58,7 @@ if 'app_mode' not in st.session_state:
     st.session_state.app_mode = "⚡ 비문학 문제 제작"
 
 # ==========================================
-# [공통 HTML/CSS 정의] - 참고 파일 스타일 적용
+# [공통 HTML/CSS 정의] - 가운데 정렬 헤더 적용
 # ==========================================
 HTML_HEAD = """
 <!DOCTYPE html>
@@ -77,53 +77,56 @@ HTML_HEAD = """
         }
         
         /* ---------------------------------------------------- */
-        /* [헤더] 참고 파일 스타일 (Main Title, Time, Info, Topic) */
+        /* [헤더] 가운데 정렬 및 소요시간 배치 수정 */
         /* ---------------------------------------------------- */
         .header-container {
             margin-bottom: 30px;
             border-bottom: 2px solid #000; /* 하단 굵은 줄 */
-            padding-bottom: 10px;
-        }
-        
-        .top-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-end; /* 바닥 기준 정렬 */
-            margin-bottom: 15px;
+            padding-bottom: 20px;
+            text-align: center; /* 전체 가운데 정렬 */
         }
         
         .main-title {
-            font-size: 24px;
+            font-size: 28px;
             font-weight: 800;
-            margin: 0;
-            letter-spacing: -0.5px;
+            margin: 0 0 15px 0;
+            letter-spacing: -1px;
             color: #000;
+            line-height: 1.2;
+        }
+        
+        .time-wrapper {
+            text-align: right; /* 소요시간만 우측 정렬 */
+            margin-bottom: 15px;
+            padding-right: 10px;
         }
         
         .time-box {
             font-size: 14px;
             font-weight: bold;
             border: 1px solid #000;
-            padding: 5px 15px;
+            padding: 6px 18px;
             border-radius: 4px;
+            background-color: #fff;
             white-space: nowrap;
         }
         
         .exam-info {
-            font-size: 15px;
-            color: #444;
+            font-size: 16px;
+            color: #333;
             font-weight: bold;
-            margin-bottom: 5px;
+            margin-bottom: 8px;
         }
         
         .topic-info {
-            font-size: 16px;
-            font-weight: bold;
+            font-size: 18px;
+            font-weight: 800; /* 굵게 강조 */
             color: #000;
-            background-color: #f4f4f4; /* 회색 배경 강조 */
-            padding: 5px 10px;
+            background-color: #f4f4f4;
+            padding: 8px 20px;
             display: inline-block;
-            border-radius: 4px;
+            border-radius: 8px;
+            margin-top: 5px;
         }
 
         /* ---------------------------------------------------- */
@@ -138,7 +141,6 @@ HTML_HEAD = """
         
         .type-box { margin-bottom: 30px; page-break-inside: avoid; }
         
-        /* h3는 본문 문제 유형 구분용 */
         h3 { font-size: 1.2em; color: #000; border-bottom: 2px solid #000; padding-bottom: 5px; margin-bottom: 20px; font-weight: bold; margin-top: 40px; }
 
         /* 문제 박스 */
@@ -291,21 +293,20 @@ HTML_TAIL = """
 """
 
 # ==========================================
-# [헬퍼 함수] 맞춤형 헤더 HTML 생성기
+# [헬퍼 함수] 맞춤형 헤더 HTML 생성기 (수정됨)
 # ==========================================
 def get_custom_header_html(main_title, exam_info, topic_info):
     """
-    참고 파일(PDF) 스타일의 헤더를 생성합니다.
-    - 좌측 상단: 메인 타이틀 (사용자 입력)
-    - 우측 상단: 소요 시간 박스
-    - 중단: 시험 정보 (예: 2025학년도... 비문학(인문))
-    - 하단: 주제
+    사용자 요청 양식:
+    1. 메인 타이틀 (가운데 정렬)
+    2. 소요 시간 박스 (우측 정렬)
+    3. 시험 정보 및 주제 (가운데 정렬)
     """
     return f"""
     <div class="header-container">
-        <div class="top-row">
-            <h1 class="main-title">{main_title}</h1>
-            <div class="time-box">소요 시간: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</div>
+        <h1 class="main-title">{main_title}</h1>
+        <div class="time-wrapper">
+            <span class="time-box">소요 시간: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
         </div>
         <div class="exam-info">{exam_info}</div>
         <div class="topic-info">주제: {topic_info}</div>
@@ -360,9 +361,9 @@ def generate_content_with_fallback(prompt, generation_config=None, status_placeh
         raise Exception("설정된 모든 AI 모델(OpenAI/Google)이 응답하지 않습니다.")
 
 # ==========================================
-# [DOCX 생성 함수]
+# [DOCX 생성 함수] (가운데 정렬 반영)
 # ==========================================
-def create_docx(html_content, file_name, main_title, sub_title):
+def create_docx(html_content, file_name, main_title, sub_title, topic_title):
     document = Document()
     style = document.styles['Normal']
     style.font.name = 'Batang'
@@ -372,12 +373,23 @@ def create_docx(html_content, file_name, main_title, sub_title):
     clean_text = re.sub(r'<[^>]+>', '\n', html_content)
     clean_text = re.sub(r'\n+', '\n', clean_text).strip()
     
-    # 워드 파일 헤더
-    document.add_heading(main_title, 0)
-    if sub_title:
-        document.add_heading(sub_title, 1)
+    # 1. 메인 타이틀 (가운데 정렬)
+    h1 = document.add_heading(main_title, 0)
+    h1.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
     
-    document.add_paragraph("소요 시간: ___________")
+    # 2. 소요 시간 (우측 정렬)
+    p_time = document.add_paragraph("소요 시간: ___________")
+    p_time.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
+    
+    # 3. 보조 타이틀 (가운데 정렬)
+    if sub_title:
+        h2 = document.add_heading(sub_title, 1)
+        h2.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+        
+    # 4. 주제 (가운데 정렬)
+    p_topic = document.add_paragraph(f"주제: {topic_title}")
+    p_topic.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    
     document.add_paragraph("-" * 50)
     document.add_paragraph(clean_text)
 
@@ -475,7 +487,7 @@ def non_fiction_app():
             status.info(f"⚡ [{current_domain}] 출제 준비 중...")
             
             try:
-                # 프롬프트 구성 (7가지 유형 전체 포함)
+                # 프롬프트 구성
                 reqs = []
                 if select_t1: 
                     reqs.append(f"""<div class="question-box"><span class="question-text">1. {label_type1}</span><div class="write-box"></div></div>""")
@@ -609,7 +621,7 @@ def non_fiction_app():
                 sub_title_text = f"비문학({current_domain})" if current_d_mode == 'AI 생성' else "비문학 독해 훈련"
                 topic_text = current_topic if current_topic else "지문 분석"
                 
-                # 고정 헤더 삽입
+                # 고정 헤더 삽입 (가운데 정렬 + 소요시간 우측)
                 full_html += get_custom_header_html(custom_main_title, sub_title_text, topic_text)
                 
                 # 지문 삽입
@@ -632,7 +644,8 @@ def non_fiction_app():
                     "domain": current_domain,
                     "topic": current_topic,
                     "main_title": custom_main_title,
-                    "sub_title": sub_title_text
+                    "sub_title": sub_title_text,
+                    "topic_title": topic_text
                 }
                 status.success("✅ 생성 완료!")
                 st.session_state.generation_requested = False
@@ -772,9 +785,9 @@ def fiction_app():
             
             # 정보 텍스트 구성
             exam_info_text = f"문학({work_name})"
-            topic_text = f"작품: {work_name} ({author_name})"
+            topic_text = f"{work_name} ({author_name})"
             
-            # 고정 헤더 함수 호출
+            # 고정 헤더 함수 호출 (가운데 정렬 + 우측 소요시간)
             full_html += get_custom_header_html(custom_main_title, exam_info_text, topic_text)
             
             full_html += f'<div class="passage">{text_input.replace(chr(10), "<br>")}</div>'
@@ -785,7 +798,8 @@ def fiction_app():
                 "domain": "문학", 
                 "topic": work_name,
                 "main_title": custom_main_title,
-                "sub_title": exam_info_text
+                "sub_title": exam_info_text,
+                "topic_title": topic_text
             }
             status.success("✅ 문학 분석 학습지 생성 완료!")
             st.session_state.generation_requested = False
@@ -812,7 +826,8 @@ def display_results():
         with c3:
             main_t = res.get("main_title", "사계국어 모의고사")
             sub_t = res.get("sub_title", "")
-            docx = create_docx(res["full_html"], "exam.docx", main_t, sub_t)
+            topic_t = res.get("topic_title", "")
+            docx = create_docx(res["full_html"], "exam.docx", main_t, sub_t, topic_t)
             st.download_button("📄 Word 저장", docx, "exam.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
             
         st.components.v1.html(res["full_html"], height=800, scrolling=True)
