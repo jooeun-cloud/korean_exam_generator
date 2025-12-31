@@ -41,7 +41,7 @@ except Exception as e:
 # [설정] 모델 우선순위 정의
 # ==========================================
 MODEL_PRIORITY = [
-    "gpt-5.2",              # 1순위 (OpenAI)
+    "gpt-5.2",              # 1순위 (OpenAI - 최신)
     "gpt-4o",               # 2순위
     "gemini-1.5-pro",       # 3순위 (Google)
     "gemini-1.5-flash"      # 4순위
@@ -60,7 +60,7 @@ if 'app_mode' not in st.session_state:
     st.session_state.app_mode = "⚡ 비문학 문제 제작"
 
 # ==========================================
-# [공통 HTML/CSS 정의] - 가운데 정렬 헤더 적용
+# [공통 HTML/CSS 정의] - 참고 파일 스타일 적용 (부제목 삭제)
 # ==========================================
 HTML_HEAD = """
 <!DOCTYPE html>
@@ -79,52 +79,49 @@ HTML_HEAD = """
         }
         
         /* ---------------------------------------------------- */
-        /* [헤더] 가운데 정렬 및 소요시간 배치 수정 */
+        /* [헤더] 부제목 삭제 및 심플한 디자인 적용 */
         /* ---------------------------------------------------- */
         .header-container {
             margin-bottom: 30px;
             border-bottom: 2px solid #000; /* 하단 굵은 줄 */
-            padding-bottom: 20px;
+            padding-bottom: 15px;
             text-align: center; /* 전체 가운데 정렬 */
         }
         
-        .main-title {
-            font-size: 28px;
-            font-weight: 800;
-            margin: 0 0 15px 0;
-            letter-spacing: -1px;
-            color: #000;
-            line-height: 1.2;
+        .top-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end; /* 바닥 기준 정렬 */
+            margin-bottom: 20px;
         }
         
-        .time-wrapper {
-            text-align: right; /* 소요시간만 우측 정렬 */
-            margin-bottom: 15px;
-            padding-right: 10px;
+        .main-title {
+            font-size: 26px;
+            font-weight: 800;
+            margin: 0;
+            letter-spacing: -0.5px;
+            color: #000;
+            line-height: 1.2;
+            flex-grow: 1;
+            text-align: left; /* 제목은 왼쪽 정렬 */
         }
         
         .time-box {
             font-size: 14px;
             font-weight: bold;
             border: 1px solid #000;
-            padding: 6px 18px;
+            padding: 5px 15px;
             border-radius: 4px;
-            background-color: #fff;
             white-space: nowrap;
         }
         
-        .exam-info {
-            font-size: 16px;
-            color: #333;
-            font-weight: bold;
-            margin-bottom: 8px;
-        }
+        /* 부제목 클래스 제거됨 (.exam-info 삭제) */
         
         .topic-info {
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 800; /* 굵게 강조 */
             color: #000;
-            background-color: #f4f4f4;
+            background-color: #f4f4f4; /* 회색 배경 강조 */
             padding: 8px 20px;
             display: inline-block;
             border-radius: 8px;
@@ -143,6 +140,7 @@ HTML_HEAD = """
         
         .type-box { margin-bottom: 30px; page-break-inside: avoid; }
         
+        /* h3는 본문 문제 유형 구분용 */
         h3 { font-size: 1.2em; color: #000; border-bottom: 2px solid #000; padding-bottom: 5px; margin-bottom: 20px; font-weight: bold; margin-top: 40px; }
 
         /* 문제 박스 */
@@ -295,22 +293,21 @@ HTML_TAIL = """
 """
 
 # ==========================================
-# [헬퍼 함수] 맞춤형 헤더 HTML 생성기 (수정됨)
+# [헬퍼 함수] 맞춤형 헤더 HTML 생성기 (부제목 삭제됨)
 # ==========================================
-def get_custom_header_html(main_title, exam_info, topic_info):
+def get_custom_header_html(main_title, topic_info):
     """
     사용자 요청 양식:
-    1. 메인 타이틀 (가운데 정렬)
-    2. 소요 시간 박스 (우측 정렬, 줄바꿈 후)
-    3. 시험 정보 및 주제 (가운데 정렬)
+    1. 메인 타이틀 (좌측) + 소요 시간 (우측)을 한 줄에 배치
+    2. 주제 (가운데, 회색 박스)
+    (부제목은 삭제됨)
     """
     return f"""
     <div class="header-container">
-        <h1 class="main-title">{main_title}</h1>
-        <div class="time-wrapper">
-            <span class="time-box">소요 시간: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+        <div class="top-row">
+            <h1 class="main-title">{main_title}</h1>
+            <div class="time-box">소요 시간: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</div>
         </div>
-        <div class="exam-info">{exam_info}</div>
         <div class="topic-info">주제: {topic_info}</div>
     </div>
     """
@@ -375,16 +372,15 @@ def create_docx(html_content, file_name, main_title, topic_title):
     clean_text = re.sub(r'<[^>]+>', '\n', html_content)
     clean_text = re.sub(r'\n+', '\n', clean_text).strip()
     
-    # 1. 메인 타이틀 (가운데 정렬)
+    # 1. 메인 타이틀 (왼쪽 정렬)
     h1 = document.add_heading(main_title, 0)
-    h1.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    h1.alignment = WD_ALIGN_PARAGRAPH.LEFT
     
     # 2. 소요 시간 (우측 정렬)
     p_time = document.add_paragraph("소요 시간: ___________")
     p_time.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     
-        
-    # 4. 주제 (가운데 정렬)
+    # 3. 주제 (가운데 정렬)
     p_topic = document.add_paragraph(f"주제: {topic_title}")
     p_topic.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
@@ -504,7 +500,7 @@ def non_fiction_app():
                 
                 reqs_content = "\n".join(reqs)
                 
-                # [수정: 문단 요약 기능 활성화]
+                # [문단 요약 기능 활성화]
                 summary_inst_passage = ""
                 if use_summary:
                     summary_inst_passage = """
@@ -637,10 +633,10 @@ def non_fiction_app():
                 # -----------------------------------------------------------
                 full_html = HTML_HEAD
                 
-                # 보조 타이틀 결정 (비문학)
+                # 보조 타이틀(부제목) 삭제 -> 메인 타이틀과 소요 시간만 표시
                 topic_text = current_topic if current_topic else "지문 분석"
                 
-                # 고정 헤더 삽입 (가운데 정렬 + 소요시간 우측)
+                # 고정 헤더 함수 호출 (가운데 정렬 + 우측 소요시간 + 부제목 삭제)
                 full_html += get_custom_header_html(custom_main_title, topic_text)
                 
                 # 지문 삽입
@@ -663,6 +659,7 @@ def non_fiction_app():
                     "domain": current_domain,
                     "topic": current_topic,
                     "main_title": custom_main_title,
+                    "sub_title": "", # 부제목 없음
                     "topic_title": topic_text
                 }
                 status.success("✅ 생성 완료!")
@@ -801,12 +798,11 @@ def fiction_app():
             # -----------------------------------------------------------
             full_html = HTML_HEAD
             
-            # 정보 텍스트 구성
-            exam_info_text = f"2025학년도 수능 대비 - 문학({work_name})"
+            # 보조 타이틀: 작품명 (작가명)
             topic_text = f"작품: {work_name} ({author_name})"
             
             # 고정 헤더 함수 호출 (가운데 정렬 + 우측 소요시간)
-            full_html += get_custom_header_html(custom_main_title, exam_info_text, topic_text)
+            full_html += get_custom_header_html(custom_main_title, topic_text)
             
             full_html += f'<div class="passage">{text_input.replace(chr(10), "<br>")}</div>'
             full_html += html_q + html_a + HTML_TAIL
@@ -816,6 +812,7 @@ def fiction_app():
                 "domain": "문학", 
                 "topic": work_name,
                 "main_title": custom_main_title,
+                "sub_title": "", # 부제목 없음
                 "topic_title": topic_text
             }
             status.success("✅ 문학 분석 학습지 생성 완료!")
@@ -842,8 +839,9 @@ def display_results():
             st.download_button("📥 HTML 저장", res["full_html"], "exam.html", "text/html")
         with c3:
             main_t = res.get("main_title", "사계국어 모의고사")
+            sub_t = res.get("sub_title", "")
             topic_t = res.get("topic_title", "")
-            docx = create_docx(res["full_html"], "exam.docx", main_t, topic_t)
+            docx = create_docx(res["full_html"], "exam.docx", main_t, sub_t, topic_t)
             st.download_button("📄 Word 저장", docx, "exam.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
             
         st.components.v1.html(res["full_html"], height=800, scrolling=True)
