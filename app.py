@@ -620,7 +620,7 @@ def non_fiction_app():
                 full_html = HTML_HEAD
                 
                 # 보조 타이틀 결정 (비문학)
-                sub_title_text = f"2025학년도 수능 대비 - 비문학({current_domain})" if current_d_mode == 'AI 생성' else "비문학 독해 훈련"
+                sub_title_text = f"비문학({current_domain})" if current_d_mode == 'AI 생성' else "비문학 독해 훈련"
                 topic_text = current_topic if current_topic else "지문 분석"
                 
                 # 고정 헤더 삽입 (가운데 정렬 + 소요시간 우측)
@@ -786,7 +786,7 @@ def fiction_app():
             full_html = HTML_HEAD
             
             # 정보 텍스트 구성
-            exam_info_text = f"2025학년도 수능 대비 - 문학({work_name})"
+            exam_info_text = f"문학({work_name})"
             topic_text = f"작품: {work_name} ({author_name})"
             
             # 고정 헤더 함수 호출 (가운데 정렬 + 우측 소요시간)
