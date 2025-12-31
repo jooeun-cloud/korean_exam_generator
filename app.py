@@ -365,7 +365,7 @@ def generate_content_with_fallback(prompt, generation_config=None, status_placeh
 # ==========================================
 # [DOCX 생성 함수] (가운데 정렬 반영 - WD_ALIGN_PARAGRAPH 사용)
 # ==========================================
-def create_docx(html_content, file_name, main_title, sub_title, topic_title):
+def create_docx(html_content, file_name, main_title, topic_title):
     document = Document()
     style = document.styles['Normal']
     style.font.name = 'Batang'
@@ -383,10 +383,6 @@ def create_docx(html_content, file_name, main_title, sub_title, topic_title):
     p_time = document.add_paragraph("소요 시간: ___________")
     p_time.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     
-    # 3. 보조 타이틀 (가운데 정렬)
-    if sub_title:
-        h2 = document.add_heading(sub_title, 1)
-        h2.alignment = WD_ALIGN_PARAGRAPH.CENTER
         
     # 4. 주제 (가운데 정렬)
     p_topic = document.add_paragraph(f"주제: {topic_title}")
@@ -642,11 +638,10 @@ def non_fiction_app():
                 full_html = HTML_HEAD
                 
                 # 보조 타이틀 결정 (비문학)
-                sub_title_text = f"2025학년도 수능 대비 - 비문학({current_domain})" if current_d_mode == 'AI 생성' else "비문학 독해 훈련"
                 topic_text = current_topic if current_topic else "지문 분석"
                 
                 # 고정 헤더 삽입 (가운데 정렬 + 소요시간 우측)
-                full_html += get_custom_header_html(custom_main_title, sub_title_text, topic_text)
+                full_html += get_custom_header_html(custom_main_title, topic_text)
                 
                 # 지문 삽입
                 if current_d_mode == '직접 입력':
@@ -668,7 +663,6 @@ def non_fiction_app():
                     "domain": current_domain,
                     "topic": current_topic,
                     "main_title": custom_main_title,
-                    "sub_title": sub_title_text,
                     "topic_title": topic_text
                 }
                 status.success("✅ 생성 완료!")
@@ -822,7 +816,6 @@ def fiction_app():
                 "domain": "문학", 
                 "topic": work_name,
                 "main_title": custom_main_title,
-                "sub_title": exam_info_text,
                 "topic_title": topic_text
             }
             status.success("✅ 문학 분석 학습지 생성 완료!")
@@ -849,9 +842,8 @@ def display_results():
             st.download_button("📥 HTML 저장", res["full_html"], "exam.html", "text/html")
         with c3:
             main_t = res.get("main_title", "사계국어 모의고사")
-            sub_t = res.get("sub_title", "")
             topic_t = res.get("topic_title", "")
-            docx = create_docx(res["full_html"], "exam.docx", main_t, sub_t, topic_t)
+            docx = create_docx(res["full_html"], "exam.docx", main_t, topic_t)
             st.download_button("📄 Word 저장", docx, "exam.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
             
         st.components.v1.html(res["full_html"], height=800, scrolling=True)
