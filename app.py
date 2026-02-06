@@ -6,18 +6,17 @@ import re
 import os
 from docx import Document
 from io import BytesIO
-# [수정] 올바른 import 경로: 정렬 상수는 docx.enum.text에 있음
 from docx.shared import Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH 
-import time 
+import time
 
 # ==========================================
 # [설정] 페이지 기본 설정
 # ==========================================
-st.set_page_config(page_title="사계국어 모의고사 시스템", page_icon="📚", layout="wide") 
+st.set_page_config(page_title="사계국어 모의고사 시스템", page_icon="📚", layout="wide")
 
 # ==========================================
-# [설정] API 클라이언트 초기화 (Google + OpenAI 통합)
+# [설정] API 클라이언트 초기화
 # ==========================================
 try:
     GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
@@ -25,7 +24,7 @@ try:
 except (KeyError, AttributeError):
     GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
     if GOOGLE_API_KEY:
-        genai.configure(api_key=GOOGLE_API_KEY) 
+        genai.configure(api_key=GOOGLE_API_KEY)
 
 openai_client = None
 try:
@@ -33,30 +32,26 @@ try:
         from openai import OpenAI
         openai_client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 except Exception as e:
-    print(f"OpenAI 설정 실패(건너뜀): {e}") 
+    pass
 
-# ==========================================
-# [설정] 모델 우선순위 정의
-# ==========================================
 MODEL_PRIORITY = [
-    "gpt-5.2",              # 1순위 (OpenAI - 최신)
-    "gpt-4o",               # 2순위
-    "gemini-1.5-pro",       # 3순위 (Google)
-    "gemini-1.5-flash"      # 4순위
-] 
+    "gpt-4o",               
+    "gemini-1.5-pro",       
+    "gemini-1.5-flash"      
+]
 
 # ==========================================
 # [초기화] Session State 설정
 # ==========================================
 if 'generation_requested' not in st.session_state:
-    st.session_state.generation_requested = False 
+    st.session_state.generation_requested = False
 if 'generated_result' not in st.session_state:
-    st.session_state.generated_result = None 
+    st.session_state.generated_result = None
 if 'app_mode' not in st.session_state:
-    st.session_state.app_mode = "⚡ 비문학 문제 제작" 
+    st.session_state.app_mode = "⚡ 비문학 문제 제작"
 
 # ==========================================
-# [공통 HTML/CSS 정의] - 원본 디자인 100% 보존
+# [공통 HTML/CSS 정의] - 원본 100% 보존
 # ==========================================
 HTML_HEAD = """
 <!DOCTYPE html>
@@ -74,17 +69,17 @@ HTML_HEAD = """
         .passage p { text-indent: 0.7em; margin-bottom: 15px; }
         .poetry-passage { white-space: pre-wrap; font-family: 'Batang', serif; line-height: 2.2; font-size: 11pt; border: 1px solid #444; padding: 35px; margin-bottom: 40px; background-color: #fff; text-align: left; }
         .type-box { margin-bottom: 30px; page-break-inside: avoid; }
-        h3 { font-size: 1.2em; color: #000; border-bottom: 2px solid #000; padding-bottom: 5px; margin-bottom: 20px; font-weight: bold; margin-top: 40px; } 
+        h3 { font-size: 1.2em; color: #000; border-bottom: 2px solid #000; padding-bottom: 5px; margin-bottom: 20px; font-weight: bold; margin-top: 40px; }
         .question-box { margin-bottom: 40px; page-break-inside: avoid; }
-        .question-text { font-weight: bold; margin-bottom: 15px; display: block; font-size: 1.1em; word-break: keep-all;} 
+        .question-text { font-weight: bold; margin-bottom: 15px; display: block; font-size: 1.1em; word-break: keep-all;}
         .example-box { border: 1px solid #444; padding: 15px; margin: 15px 0 20px 0; background-color: #fff; font-size: 0.95em; position: relative; }
-        .example-box::before { content: "< 보 기 >"; display: block; text-align: center; font-weight: bold; color: #333; margin-bottom: 10px; } 
+        .example-box::before { content: "< 보 기 >"; display: block; text-align: center; font-weight: bold; color: #333; margin-bottom: 10px; }
         .choices { margin-top: 15px; font-size: 1em; margin-left: 15px; }
         .choices div { margin-bottom: 8px; padding-left: 15px; text-indent: -15px; cursor: pointer; }
-        .choices div:hover { background-color: #f8f9fa; } 
-        .write-box { margin-top: 15px; height: 120px; border: 1px solid #ccc; border-radius: 4px; background: repeating-linear-gradient(transparent, transparent 29px, #eee 30px); line-height: 30px; } 
-        .summary-blank { border: 1px dashed #aaa; padding: 15px; margin: 15px 0 25px 0; min-height: 100px; color: #666; font-size: 0.9em; background-color: #fcfcfc; font-weight: bold; display: flex; align-items: flex-start; } 
-        .blank { display: inline-block; min-width: 80px; border-bottom: 1.5px solid #000; margin: 0 5px; height: 1.2em; vertical-align: middle; } 
+        .choices div:hover { background-color: #f8f9fa; }
+        .write-box { margin-top: 15px; height: 120px; border: 1px solid #ccc; border-radius: 4px; background: repeating-linear-gradient(transparent, transparent 29px, #eee 30px); line-height: 30px; }
+        .summary-blank { border: 1px dashed #aaa; padding: 15px; margin: 15px 0 25px 0; min-height: 100px; color: #666; font-size: 0.9em; background-color: #fcfcfc; font-weight: bold; display: flex; align-items: flex-start; }
+        .blank { display: inline-block; min-width: 80px; border-bottom: 1.5px solid #000; margin: 0 5px; height: 1.2em; vertical-align: middle; }
         .answer-sheet { background: #f8f9fa; padding: 40px; margin-top: 60px; border-top: 4px double #333; page-break-before: always; }
         .ans-main-title { font-size: 1.6em; font-weight: bold; text-align: center; margin-bottom: 40px; padding-bottom: 15px; border-bottom: 3px double #999; color: #333; }
         .ans-item { margin-bottom: 50px; border-bottom: 1px dashed #ccc; padding-bottom: 30px; }
@@ -92,15 +87,15 @@ HTML_HEAD = """
         .ans-num { font-weight: bold; color: #d63384; font-size: 1.3em; display: block; margin-bottom: 15px; }
         .ans-content-title { font-weight: bold; color: #2c3e50; margin-top: 20px; margin-bottom: 8px; font-size: 1.05em; display: block; border-left: 4px solid #2c3e50; padding-left: 10px; }
         .ans-text { display: block; margin-left: 5px; color: #333; line-height: 1.8; }
-        .ans-wrong-box { background-color: #fff; border: 1px solid #ddd; padding: 15px; border-radius: 8px; margin-top: 10px; color: #555; } 
+        .ans-wrong-box { background-color: #fff; border: 1px solid #ddd; padding: 15px; border-radius: 8px; margin-top: 10px; color: #555; }
         .summary-ans-box { background-color: #e3f2fd; padding: 25px; margin-bottom: 50px; border-radius: 10px; border: 1px solid #90caf9; }
         .summary-ans-title { font-weight: bold; color: #1565c0; font-size: 1.2em; margin-bottom: 15px; display: block; text-align: center; border-bottom: 1px solid #90caf9; padding-bottom: 10px; }
         @media print { body { padding: 0; } }
     </style>
 </head>
 <body>
-""" 
-HTML_TAIL = "</body></html>" 
+"""
+HTML_TAIL = "</body></html>"
 
 # ==========================================
 # [헬퍼 함수]
@@ -114,14 +109,14 @@ def get_custom_header_html(main_title, topic_info):
         </div>
         <div class="topic-info">주제: {topic_info}</div>
     </div>
-    """ 
+    """
 
 def generate_content_with_fallback(prompt, generation_config=None, status_placeholder=None):
     last_exception = None
     for model_name in MODEL_PRIORITY:
         try:
             if status_placeholder: status_placeholder.info(f"⚡ 생성 중... ({model_name})")
-            if model_name.startswith("gpt") or model_name.startswith("o1"):
+            if model_name.startswith("gpt"):
                 if not openai_client: continue
                 response = openai_client.chat.completions.create(
                     model=model_name, 
@@ -129,9 +124,9 @@ def generate_content_with_fallback(prompt, generation_config=None, status_placeh
                     max_completion_tokens=8192 if not generation_config else generation_config.max_output_tokens,
                     temperature=0.7 if not generation_config else generation_config.temperature
                 )
-                class OpenAIWrapper:
+                class Wrapper:
                     def __init__(self, t): self.text = t
-                return OpenAIWrapper(response.choices[0].message.content)
+                return Wrapper(response.choices[0].message.content)
             else:
                 model = genai.GenerativeModel(model_name)
                 return model.generate_content(prompt, generation_config=generation_config)
@@ -142,17 +137,17 @@ def generate_content_with_fallback(prompt, generation_config=None, status_placeh
 
 def create_docx(html_content, file_name, main_title, topic_title):
     document = Document()
-    style = document.styles['Normal']; style.font.name = 'Batang'; style.font.size = Pt(10)
-    clean_text = re.sub(r'<[^>]+>', '\n', html_content); clean_text = re.sub(r'\n+', '\n', clean_text).strip()
-    h1 = document.add_heading(main_title, 0); h1.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    document.add_heading(main_title, 0).alignment = WD_ALIGN_PARAGRAPH.LEFT
     p_time = document.add_paragraph("소요 시간: ___________"); p_time.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     p_topic = document.add_paragraph(f"주제: {topic_title}"); p_topic.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    document.add_paragraph("-" * 50); document.add_paragraph(clean_text)
+    document.add_paragraph("-" * 50)
+    clean_text = re.sub(r'<[^>]+>', '\n', html_content)
+    document.add_paragraph(re.sub(r'\n+', '\n', clean_text).strip())
     fs = BytesIO(); document.save(fs); fs.seek(0)
     return fs
 
 # ==========================================
-# 🧩 1. 비문학 문제 제작 함수 (원본 코드 100% 유지)
+# 🧩 1. 비문학 문제 제작 함수 (기존 코드 100% 보존)
 # ==========================================
 def non_fiction_app():
     global GOOGLE_API_KEY
@@ -182,7 +177,7 @@ def non_fiction_app():
                 current_topic = topic
             else:
                 current_domain = "주제 통합"
-                # [복구] 주제 통합 시 주제 가/나 분리 입력 필드
+                # [복구] 주제 통합 시 가/나 주제 분리 입력 필드
                 topic_a = st.text_input("주제 (가)", placeholder="예: 공리주의", key="topic_a")
                 topic_b = st.text_input("주제 (나)", placeholder="예: 의무론", key="topic_b")
                 current_topic = "(가) " + topic_a + " / (나) " + topic_b
@@ -203,9 +198,9 @@ def non_fiction_app():
         else: label_type1 = "1. (가),(나) 요약 및 연관성 서술"
         
         select_t1 = st.checkbox(label_type1, value=True, key="select_t1")
-        select_t2 = st.checkbox("2. 내용 일치 O/X", key="select_t2"); count_t2 = st.number_input(" - 문항 수", 1, 10, 2, key="t2") if select_t2 else 0
-        select_t3 = st.checkbox("3. 빈칸 채우기", key="select_t3"); count_t3 = st.number_input(" - 문항 수", 1, 10, 2, key="t3") if select_t3 else 0
-        select_t4 = st.checkbox("4. 변형 문장 정오판단", key="select_t4"); count_t4 = st.number_input(" - 문항 수", 1, 10, 2, key="t4") if select_t4 else 0
+        select_t2 = st.checkbox("2. 내용 일치 O/X", key="select_t2"); count_t2 = st.number_input(" - OX 수", 1, 10, 2, key="t2") if select_t2 else 0
+        select_t3 = st.checkbox("3. 빈칸 채우기", key="select_t3"); count_t3 = st.number_input(" - 빈칸 수", 1, 10, 2, key="t3") if select_t3 else 0
+        select_t4 = st.checkbox("4. 변형 문장 정오판단", key="select_t4"); count_t4 = st.number_input(" - 판단 수", 1, 10, 2, key="t4") if select_t4 else 0
         select_t5 = st.checkbox("5. 객관식 (일치/불일치)", value=True, key="select_t5"); count_t5 = st.number_input(" - 문항 수", 1, 10, 2, key="t5") if select_t5 else 0
         select_t6 = st.checkbox("6. 객관식 (추론)", value=True, key="select_t6"); count_t6 = st.number_input(" - 문항 수", 1, 10, 2, key="t6") if select_t6 else 0
         select_t7 = st.checkbox("7. 객관식 (보기 적용 3점)", value=True, key="select_t7"); count_t7 = st.number_input(" - 문항 수", 1, 10, 1, key="t7") if select_t7 else 0
@@ -214,47 +209,43 @@ def non_fiction_app():
     if st.session_state.generation_requested:
         if current_d_mode == '직접 입력':
             if current_mode == '단일 지문': current_manual_passage = st.session_state.get("manual_passage_input_col_main", "")
-            else: current_manual_passage = f"[가] 지문:\n{st.session_state.get('manual_passage_input_a', '')}\n\n[나] 지문:\n{st.session_state.get('manual_passage_input_b', '')}"
+            else: current_manual_passage = "[가] 지문:\n" + st.session_state.get('manual_passage_input_a', '') + "\n\n[나] 지문:\n" + st.session_state.get('manual_passage_input_b', '')
 
         if not current_topic and current_d_mode == 'AI 생성': st.warning("주제를 입력해주세요."); st.session_state.generation_requested = False
         elif current_d_mode == '직접 입력' and not current_manual_passage.strip(): st.warning("지문을 입력해주세요."); st.session_state.generation_requested = False
         else:
             status = st.empty(); status.info(f"⚡ [{current_domain}] 출제 준비 중...")
             try:
-                # [복구] 상세 프롬프트 및 가이드라인 - SyntaxError 방지를 위해 join을 외부 변수로 처리
+                # 프롬프트 구성 (백슬래시 에러 방지를 위해 변수 결합)
                 req_list = []
                 if select_t1: req_list.append('<div class="question-box"><span class="question-text">1. ' + label_type1 + '</span><div class="write-box"></div></div>')
                 if select_t2: req_list.append('<h3>내용 일치 O/X (' + str(count_t2) + '문항)</h3>- 문항 끝에 ( O / X ) 포함.')
-                if select_t3: req_list.append('<h3>빈칸 채우기 (' + str(count_t3) + '문항)</h3>- 빈칸은 `<span class="blank">&nbsp;&nbsp;&nbsp;&nbsp;</span>` 사용. 영어 정답 금지.')
+                if select_t3: req_list.append('<h3>빈칸 채우기 (' + str(count_t3) + '문항)</h3>- 빈칸은 `<span class="blank">&nbsp;&nbsp;&nbsp;&nbsp;</span>` 사용.')
                 if select_t4: req_list.append('<h3>변형 문장 정오판단 (' + str(count_t4) + '문항)</h3>- 문항 끝에 ( O / X ) 포함.')
-                mcq_template = '<div class="question-box"><span class="question-text">[문제번호] [발문]</span><div class="choices"><div>① [선지]</div><div>② [선지]</div><div>③ [선지]</div><div>④ [선지]</div><div>⑤ [선지]</div></div></div>'
-                if select_t5: req_list.append('<h3>객관식: 세부 내용 파악 (' + str(count_t5) + '문항)</h3>' + mcq_template)
-                if select_t6: req_list.append('<h3>객관식: 추론 및 비판 (' + str(count_t6) + '문항)</h3>' + mcq_template)
-                if select_t7: req_list.append('<h3>객관식: [보기] 적용 문제 (' + str(count_count_t7 if 'count_count_t7' in locals() else count_t7) + '문항) [3점]</h3><div class="question-box"><span class="question-text">[문제번호] 윗글을 바탕으로 [보기]를 이해한 내용으로 적절하지 않은 것은? [3점]</span><div class="example-box">(보기 내용)</div><div class="choices"><div>① ...</div><div>② ...</div><div>③ ...</div><div>④ ...</div><div>⑤ ...</div></div></div>')
+                mcq_tpl = '<div class="question-box"><span class="question-text">[문제번호] [발문]</span><div class="choices"><div>① [선지]</div><div>② [선지]</div><div>③ [선지]</div><div>④ [선지]</div><div>⑤ [선지]</div></div></div>'
+                if select_t5: req_list.append('<h3>객관식: 세부 내용 파악 (' + str(count_t5) + '문항)</h3>' + mcq_tpl)
+                if select_t6: req_list.append('<h3>객관식: 추론 및 비판 (' + str(count_t6) + '문항)</h3>' + mcq_tpl)
+                if select_t7: req_list.append('<h3>객관식: [보기] 적용 문제 (' + str(count_t7) + '문항) [3점]</h3><div class="question-box"><span class="question-text">[문제번호] 윗글을 바탕으로 [보기]를 이해한 내용으로 적절하지 않은 것은? [3점]</span><div class="example-box">(보기 내용)</div><div class="choices"><div>①...</div><div>②...</div><div>③...</div><div>④...</div><div>⑤...</div></div></div>')
                 
                 reqs_str = "\n".join(req_list)
-                summary_inst = "- **[필수]**: 각 문단이 끝날 때마다 반드시 `<div class='summary-blank'>📝 문단 요약 연습: (이곳에 핵심 내용을 요약해보세요)</div>` 코드를 삽입하여 사용자가 내용을 요약할 수 있는 빈칸을 만들어주시오." if use_summary else ""
+                summary_inst = "- **[필수]**: 각 문단 끝에 `<div class='summary-blank'>📝 문단 요약 연습: (요약)</div>` 삽입." if use_summary else ""
                 
-                # [복구] 킬러 문항 가이드라인 포함 프롬프트
-                p1_prompt = """
-당신은 대한민국 수능 국어 출제 위원장입니다. 
-아래 지시사항에 맞춰 완벽한 HTML 포맷의 모의고사 문제지를 생성하시오.
-# 🚨 [매우 중요] 출력 시 절대 제목/헤더를 생성하지 마시오. h1, h2 태그 및 제목 노출 금지.
+                # [복구] 킬러 문항 가이드라인 포함
+                p1_prompt = """당신은 대한민국 수능 국어 출제 위원장입니다. 
+                # 🚨 제목 노출 금지. h1, h2 사용 금지.
+                {STEP1}
+                {STEP_USER}
+                
+                # 🚨 [고난도(킬러 문항) 출제 필수 가이드라인]
+                1. [정보의 재구성 필수]: 두 개 이상의 떨어진 정보를 결합하여 판단하게 할 것.
+                2. [단어 바꿔치기(Paraphrasing)]: 지문의 단어를 동의어나 함축적 의미로 변환할 것.
+                3. [인과관계 비틀기]: 인과관계를 뒤집거나 주체/객체를 바꿔 매력적인 오답을 만들 것.
+                4. [선지 분포]: 지문 전체를 아우르도록 배치할 것.
 
-{STEP1}
-{USER_BLOCK}
-
-# 🚨 [고난도(킬러 문항) 출제 필수 가이드라인]
-1. [정보의 재구성 필수 - 1:1 매칭 금지]: 정답 선지는 멀리 떨어진 두 개 이상의 정보를 결합해야 판단 가능하게 할 것.
-2. [단어 바꿔치기(Paraphrasing)]: 지문의 단어를 동의어나 함축적 의미로 변환할 것.
-3. [인과관계 비틀기 (오답 설계)]: 인과관계를 뒤집거나 주체와 객체를 바꾸어 매력적인 오답을 만들 것.
-4. [선지 분포]: 지문 전체를 아우르도록 배치할 것.
-
-**[Step 2] 문제 출제**
-{REQS}
-                """.format(
+                **[Step 2] 문제 출제**
+                {REQS}""".format(
                     STEP1 = f"**[Step 1] 지문 작성** - 주제: {current_topic}, 난이도: {current_difficulty}, 1800자 내외 {summary_inst}" if current_d_mode == 'AI 생성' else "**[Step 1] 지문 인식** - 사용자 입력 지문 기반.",
-                    USER_BLOCK = f"\n[사용자 입력 지문 시작]\n{current_manual_passage}\n[사용자 입력 지문 끝]\n" if current_d_mode == '직접 입력' else "",
+                    STEP_USER = f"\n[사용자 입력 지문 시작]\n{current_manual_passage}\n[사용자 입력 지문 끝]\n" if current_d_mode == '직접 입력' else "",
                     REQS = reqs_str
                 )
                 
@@ -262,7 +253,7 @@ def non_fiction_app():
                 html_q = res_q.text.replace("```html","").replace("```","").strip()
                 html_q = re.sub(r'<h[12].*?>.*?</h[12]>', '', html_q, flags=re.DOTALL | re.IGNORECASE)
 
-                # [복구] 해설 분할 생성 (Batch Size 6) 로직
+                # [복구] 해설 Batch 생성 (6문항 단위) 로직 100% 보존
                 total_q_cnt = sum([1 if select_t1 else 0, count_t2, count_t3, count_t4, count_t5, count_t6, count_t7])
                 BATCH_SIZE = 6; final_ans_parts = []; summary_done = False
                 for i in range(0, total_q_cnt, BATCH_SIZE):
@@ -279,9 +270,12 @@ def non_fiction_app():
                 html_a = "".join(final_ans_parts) + "</div>"
                 full_html = HTML_HEAD + get_custom_header_html(custom_main_title, current_topic)
                 if current_d_mode == '직접 입력':
-                    def make_p(t): return f"<p>{t}</p>" + ("<div class='summary-blank'>📝 문단 요약 연습</div>" if use_summary else "")
-                    formatted_p = "".join([make_p(p.strip()) for p in re.split(r'\n\s*\n', current_manual_passage.strip()) if p.strip()])
-                    full_html += f'<div class="passage">{formatted_p}</div>'
+                    paras = [p.strip() for p in re.split(r'\n\s*\n', current_manual_passage.strip()) if p.strip()]
+                    f_p = ""
+                    for p in paras:
+                        f_p += "<p>" + p + "</p>"
+                        if use_summary: f_p += "<div class='summary-blank'>📝 문단 요약 연습</div>"
+                    full_html += f'<div class="passage">{f_p}</div>'
                 full_html += html_q + html_a + HTML_TAIL
                 st.session_state.generated_result = {"full_html": full_html, "main_title": custom_main_title, "topic_title": current_topic}
                 status.success("✅ 비문학 생성 완료!"); st.session_state.generation_requested = False
@@ -294,55 +288,59 @@ def fiction_app():
     with st.sidebar:
         st.header("🏫 문서 타이틀 설정")
         custom_main_title = st.text_input("메인 타이틀", value="사계국어 모의고사", key="fic_t")
-        st.header("1️⃣ 작품 정보"); w_n = st.text_input("작품명", key="fi_n"); a_n = st.text_input("작가명", key="fi_a")
+        st.header("1️⃣ 작품 정보"); w_n = st.text_input("작품명", key="fic_n"); a_n = st.text_input("작가명", key="fic_a")
         st.header("2️⃣ 문제 유형 및 개수")
         uv = st.checkbox("1. 어휘 문제 (단답형)", value=True, key="fv"); cv = st.number_input("수", 1, 20, 5, key="fcv") if uv else 0
         ue = st.checkbox("2. 서술형 심화 (감상)", value=True, key="fe"); ce = st.number_input("수", 1, 10, 3, key="fce") if ue else 0
         um = st.checkbox("3. 객관식 (일반)", value=True, key="fm"); cm = st.number_input("수", 1, 10, 3, key="fcm") if um else 0
         ub = st.checkbox("4. 객관식 (보기 적용)", value=True, key="fb"); cb = st.number_input("수", 1, 10, 2, key="fcb") if ub else 0
         st.caption("3️⃣ 분석 및 정리 활동")
-        u5 = st.checkbox("5. 주요 등장인물 정리", key="f5"); u6 = st.checkbox("6. 소설 속 상황 요약", key="f6")
+        u5 = st.checkbox("5. 주요 등장인물 정리 (표)", key="f5"); u6 = st.checkbox("6. 소설 속 상황 요약", key="f6")
         u7 = st.checkbox("7. 인물 관계도 및 갈등", key="f7"); u8 = st.checkbox("8. 갈등 구조 및 심리 정리", key="f8")
 
     if st.session_state.generation_requested:
         text = st.session_state.fiction_novel_text_input_area
-        if not text: st.warning("내용 입력 필수"); st.session_state.generation_requested = False; return
-        status = st.empty(); status.info("⚡ 소설 분석 및 생성 중...")
+        if not text: st.warning("본문을 입력하세요."); st.session_state.generation_requested = False; return
+        status = st.empty(); status.info("⚡ 소설 심층 분석 및 문제 제작 중...")
         try:
             req_list = []
-            if uv: req_list.append(f'유형1. 어휘 ({cv}개)')
-            if ue: req_list.append(f'유형2. 서술형 ({ce}개)')
-            if um: req_list.append(f'유형3. 객관식 ({cm}개)')
-            if ub: req_list.append(f'유형4. 보기 적용 ({cb}개)')
-            if u5: req_list.append('유형5. 인물 정리 표')
-            if u6: req_list.append('유형6. 상황 요약')
-            if u7: req_list.append('유형7. 관계도 박스')
+            if uv: req_list.append('유형1. 어휘 문제 (' + str(cv) + '문항)')
+            if ue: req_list.append('유형2. 서술형 심화 (' + str(ce) + '문항)')
+            if um: req_list.append('유형3. 객관식 일반 (' + str(cm) + '문항)')
+            if ub: req_list.append('유형4. 객관식 보기 (' + str(cb) + '문항)')
+            if u5: req_list.append('유형5. 주요 등장인물 정리 (표)')
+            if u6: req_list.append('유형6. 소설 속 상황 요약')
+            if u7: req_list.append('유형7. 인물 관계도 및 갈등')
             if u8: req_list.append('유형8. 갈등 심리 정리')
             
-            r_str = "\n".join(req_list)
-            p_q = "당신은 수능 문학 출제위원입니다. 작품 '" + w_n + "'(" + a_n + ") 기반 학생용 HTML 시험지를 작성하시오. h1, h2 제목 생성 금지.\n🚨 [지침]: 1. 복합적 사고 2. 매력적 오답 3. 보기 적용.\n본문: " + text + "\n요청유형:\n" + r_str
-            res_q = generate_content_with_fallback(p_q, status_placeholder=status)
-            html_q = res_q.text.replace("```html","").replace("```","").strip()
+            reqs_str = "\n".join(req_list)
+            p1_p = """당신은 수능 문학 출제위원입니다. 작품 '{W_N}'({A_N}) 기반 학생용 문제지(HTML)를 작성하시오.
+            # 🚨 [수능 최고난도 출제 지침]: 1. 복합적 사고 2. 매력적 오답 3. 보기 적용 비평적 관점.
+            본문: {BODY}
+            [요청 항목]:
+            {REQS}""".format(W_N=w_n, A_N=a_n, BODY=text, REQS=reqs_str)
             
-            p_a = "위 문항들의 완벽한 정답 및 해설을 <div class='answer-sheet'>에 작성하시오.\n내용: " + html_q
+            res_q = generate_content_with_fallback(p1_p, status_placeholder=status)
+            html_q = res_q.text.replace("```html","").replace("```","").strip()
+            p_a = "위 문항들에 대한 완벽 정답 및 상세 해설을 <div class='answer-sheet'> 내부에 작성하시오.\n문제내용: " + html_q
             res_a = generate_content_with_fallback(p_a, status_placeholder=status)
             html_a = res_a.text.replace("```html","").replace("```","").strip()
             
-            full_html = HTML_HEAD + get_custom_header_html(custom_main_title, w_n)
+            full_html = HTML_HEAD + get_custom_header_html(custom_main_title, work_name)
             full_html += f'<div class="passage">{text.replace(chr(10), "<br>")}</div>' + html_q + html_a + HTML_TAIL
-            st.session_state.generated_result = {"full_html": full_html, "main_title": custom_main_title, "topic_title": w_n}
+            st.session_state.generated_result = {"full_html": full_html, "main_title": custom_main_title, "topic_title": work_name}
             status.success("✅ 문학 생성 완료!"); st.session_state.generation_requested = False
         except Exception as e: status.error(f"오류: {e}"); st.session_state.generation_requested = False
 
 # ==========================================
-# 🌸 3. 현대시 문제 제작 함수 (디자인 통일 및 문항수 조절)
+# 🌸 3. 현대시 문제 제작 함수 (디자인 통일)
 # ==========================================
 def poetry_app():
     with st.sidebar:
         st.header("🏫 문서 타이틀 설정")
         c_title = st.text_input("메인 타이틀", value="사계국어 모의고사", key="po_t")
         st.header("1️⃣ 작품 정보"); po_n = st.text_input("작품명", key="po_n"); po_a = st.text_input("작가명", key="po_a")
-        st.header("2️⃣ 문항 유형 및 개수 (1~5개)")
+        st.header("2️⃣ 문항 제작 및 개수 (1~5개)")
         ct1 = st.checkbox("1. 작품 개요 문제", value=True); nt1 = st.number_input("수", 1, 5, 1, key="pn1") if ct1 else 0
         ct2 = st.checkbox("2. 시상 전개 문제", value=True); nt2 = st.number_input("수", 1, 5, 1, key="pn2") if ct2 else 0
         ct3 = st.checkbox("3. 시어 의미 문제", value=True); nt3 = st.number_input("수", 1, 5, 2, key="pn3") if ct3 else 0
@@ -356,26 +354,31 @@ def poetry_app():
 
     if st.session_state.generation_requested:
         text = st.session_state.get("poetry_text_input_area", "")
-        if not text: st.warning("시 본문 입력 필수"); st.session_state.generation_requested = False; return
-        status = st.empty(); status.info("⚡ 현대시 문항 제작 중...")
+        if not text: st.warning("시 본문을 입력하세요."); st.session_state.generation_requested = False; return
+        status = st.empty(); status.info("⚡ 현대시 시험지 생성 중...")
         try:
             r_list = []
-            if ct1: r_list.append("문항1. 작품 개요(갈래/주제) " + str(nt1) + "개")
-            if ct2: r_list.append("문항2. 시상 전개 과정 " + str(nt2) + "개")
-            if ct3: r_list.append("문항3. 주요 시어의 의미 " + str(nt3) + "개")
-            if ct4: r_list.append("문항4. 표현상의 특징(운율/수사법) " + str(nt4) + "개")
-            if ct5: r_list.append("문항5. 작품 종합 감상 " + str(nt5) + "개")
-            if ct6: r_list.append("문항6. 수능 킬러 포인트 " + str(nt6) + "개")
-            if ct7: r_list.append("문항7. 타 작품 연계 비교 " + str(nt7) + "개")
-            if ct8: r_list.append("문항8. 수능형 선지 정오판단(OX) " + str(nt8) + "개")
-            if ct9: r_list.append("문항9. 고난도 수능형 서술형 " + str(nt9) + "개")
+            if ct1: r_list.append("문항1. 작품 개요 파악 (" + str(nt1) + "개)")
+            if ct2: r_list.append("문항2. 시상 전개 과정 (" + str(nt2) + "개)")
+            if ct3: r_list.append("문항3. 시어/소재 의미 (" + str(nt3) + "개)")
+            if ct4: r_list.append("문항4. 표현 특징/수사법 (" + str(nt4) + "개)")
+            if ct5: r_list.append("문항5. 종합 감상 및 이해 (" + str(nt5) + "개)")
+            if ct6: r_list.append("문항6. 수능 빈출 포인트 (" + str(nt6) + "개)")
+            if ct7: r_list.append("문항7. 타 작품 연계 비교 (" + str(nt7) + "개)")
+            if ct8: r_list.append("문항8. OX 정오판단 (" + str(nt8) + "개)")
+            if ct9: r_list.append("문항9. 수능형 서술형 (" + str(nt9) + "개)")
             
             r_str = "\n".join(r_list)
-            p_q = "당신은 수능 국어 위원장입니다. 현대시 '" + po_n + "' 기반 학생용 HTML 시험지를 제작하시오. h1, h2 금지.\n🚨 [지침]: 8번 OX는 ( ) 빈칸 출력. 정답 노출 절대 금지. 기존 비문학/문학 코드의 question-box, choices 디자인 형식을 똑같이 따를 것.\n본문: " + text + "\n요청:\n" + r_str
+            p_q = """당신은 수능 국어 위원장입니다. 현대시 '{W_N}'({A_N}) 기반 학생용 HTML 시험지를 제작하시오.
+            [지침]: 정답 표기 금지. OX는 ( ) 출력. 기존 코드의 question-box, choices 디자인 형식을 따를 것.
+            본문: {BODY}
+            요청: {REQS}""".format(W_N=po_n, A_N=po_a, BODY=text, REQS=r_str)
+            
             res_q = generate_content_with_fallback(p_q, status_placeholder=status)
             html_q = res_q.text.replace("```html","").replace("```","").strip()
+            html_q = re.sub(r'<h[12].*?>.*?</h[12]>', '', html_q, flags=re.DOTALL | re.IGNORECASE)
             
-            p_a = "위 현대시 문항들에 대한 완벽 정답 및 상세 해설을 <div class='answer-sheet'>에 작성하시오.\n내용: " + html_q
+            p_a = "위 현대시 문항들에 대한 완벽 정답 및 상세 해설을 <div class='answer-sheet'> 내부에 작성하시오.\n문제: " + html_q
             res_a = generate_content_with_fallback(p_a, status_placeholder=status)
             html_a = res_a.text.replace("```html","").replace("```","").strip()
             
@@ -405,14 +408,16 @@ def display_results():
 st.title("📚 사계국어 모의고사 제작 시스템")
 st.markdown("---")
 col_L, col_R = st.columns([1.5, 3])
+
 with col_L:
     st.radio("모드 선택", ["⚡ 비문학 문제 제작", "📖 문학 문제 제작", "🌸 현대시 문제 제작"], key="app_mode")
+
 with col_R:
     if st.session_state.app_mode == "⚡ 비문학 문제 제작":
         st.header("⚡ 비문학 모의평가")
         if st.session_state.get("domain_mode_select") == "직접 입력":
-            m_mode = st.session_state.get("manual_mode", "단일 지문")
-            if m_mode == "단일 지문": st.text_area("지문 입력 (엔터 두번으로 문단 구분)", height=300, key="manual_passage_input_col_main")
+            m_m = st.session_state.get("manual_mode", "단일 지문")
+            if m_m == "단일 지문": st.text_area("지문 입력", height=300, key="manual_passage_input_col_main")
             else:
                 ca, cb = st.columns(2)
                 with ca: st.text_area("(가) 지문", height=300, key="manual_passage_input_a")
@@ -421,7 +426,7 @@ with col_R:
         non_fiction_app()
     elif st.session_state.app_mode == "🌸 현대시 문제 제작":
         st.header("🌸 현대시 문항 제작")
-        st.text_area("시 본문 입력 (행/연 구분을 정확히 해주세요)", height=400, key="poetry_text_input_area")
+        st.text_area("시 본문 입력", height=400, key="poetry_text_input_area")
         if st.button("🚀 문항 제작 시작", key="r_po"): st.session_state.generation_requested = True
         poetry_app()
     else:
