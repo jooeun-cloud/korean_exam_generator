@@ -742,7 +742,7 @@ st.title("📚 사계국어 모의고사 제작 시스템")
 st.markdown("---")
 col_L, col_R = st.columns([1.5, 3])
 with col_L:
-    st.radio("모드 선택", ["⚡ 비문학 문제 제작", "📖 문학 문제 제작", "🌸 현대시 문제 제작"], key="app_mode")
+    st.radio("모드 선택", ["⚡ 비문학 문제 제작", "📖 소설 문제 제작", "🌸 현대시 문제 제작"], key="app_mode")
 with col_R:
     if st.session_state.app_mode == "⚡ 비문학 문제 제작":
         st.header("⚡ 비문학 모의평가")
@@ -761,7 +761,7 @@ with col_R:
         if st.button("🚀 분석 및 제작 시작", key="r_po"): st.session_state.generation_requested = True
         poetry_app()
     else:
-        st.header("📖 문학 심층 분석")
+        st.header("📖 소설 심층 분석")
         st.text_area("작품 본문 입력", height=300, key="fiction_novel_text_input_area")
         if st.button("🚀 분석 생성", key="r_fi"): st.session_state.generation_requested = True
         fiction_app()
