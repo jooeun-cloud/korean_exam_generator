@@ -83,7 +83,6 @@ HTML_HEAD = """
         .example-box::before { content: "< 보 기 >"; display: block; text-align: center; font-weight: bold; color: #333; margin-bottom: 10px; }
         .choices { margin-top: 15px; font-size: 1em; margin-left: 15px; }
         .choices div { margin-bottom: 8px; padding-left: 15px; text-indent: -15px; cursor: pointer; }
-        .choices div:hover { background-color: #f8f9fa; }
         .write-box { margin-top: 15px; height: 120px; border: 1px solid #ccc; border-radius: 4px; background: repeating-linear-gradient(transparent, transparent 29px, #eee 30px); line-height: 30px; }
         .summary-blank { border: 1px dashed #aaa; padding: 15px; margin: 15px 0 25px 0; min-height: 100px; color: #666; font-size: 0.9em; background-color: #fcfcfc; font-weight: bold; display: flex; align-items: flex-start; }
         .blank { display: inline-block; min-width: 80px; border-bottom: 1.5px solid #000; margin: 0 5px; height: 1.2em; vertical-align: middle; }
@@ -114,7 +113,7 @@ def get_custom_header_html(main_title, topic_info):
             <h1 class="main-title">{main_title}</h1>
             <div class="time-box">소요 시간: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</div>
         </div>
-        <div class="topic-info">주제: {topic_info}</div>
+        <div class="topic-info">주제/작품: {topic_info}</div>
     </div>
     """
 
@@ -154,7 +153,7 @@ def create_docx(html_content, file_name, main_title, topic_title):
     return fs
 
 # ==========================================
-# 🧩 1. 비문학 문제 제작 함수 (원본 100% 유지)
+# 🧩 1. 비문학 문제 제작 함수 (원본 100% 보존 및 에러 수정)
 # ==========================================
 def non_fiction_app():
     global GOOGLE_API_KEY
@@ -162,34 +161,26 @@ def non_fiction_app():
     with st.sidebar:
         st.header("🏫 문서 타이틀 설정")
         custom_main_title = st.text_input("메인 타이틀 (학원명)", value="사계국어 모의고사", key="nf_title")
-        st.markdown("---") 
         st.header("🛠️ 지문 입력 방식")
         st.selectbox("방식 선택", ["AI 생성", "직접 입력"], key="domain_mode_select")
-        st.markdown("---") 
         st.header("1️⃣ 지문 및 주제 설정")
-        current_topic = ""
-        current_difficulty = ""
-        current_domain = ""
         if current_d_mode == 'AI 생성':
             mode = st.radio("구성", ["단일 지문", "주제 통합"], key="ai_mode")
             if mode == "단일 지문":
-                domain = st.selectbox("영역", ["인문", "사회", "과학", "기술", "예술"], key="domain_select")
-                topic = st.text_input("주제", placeholder="예: 금리 인하", key="topic_input")
-                current_topic = topic; current_domain = domain
+                domain_select = st.selectbox("영역", ["인문", "사회", "과학", "기술", "예술"], key="domain_select")
+                topic_input = st.text_input("주제", placeholder="예: 금리 인하", key="topic_input")
+                current_topic = topic_input
             else:
-                current_domain = "주제 통합"
                 topic_a = st.text_input("주제 (가)", placeholder="예: 공리주의", key="t_a")
                 topic_b = st.text_input("주제 (나)", placeholder="예: 의무론", key="t_b")
                 current_topic = "(가) " + topic_a + " / (나) " + topic_b
             difficulty = st.select_slider("난이도", ["중", "상", "최상"], value="최상")
-            current_difficulty = difficulty
         else: 
             mode = st.radio("지문 구성", ["단일 지문", "주제 통합"], key="manual_mode")
-            current_topic = "사용자 지문"; current_domain = "사용자 입력"; current_difficulty = "사용자 지정"
+            topic_input = "사용자 지문"; current_topic = topic_input; difficulty = "사용자 지정"
 
-        st.markdown("---")
         st.header("2️⃣ 문제 유형 및 개수 선택")
-        label_t1 = "1. 핵심 주장 요약 (서술형)" if (current_d_mode == 'AI 생성' and mode == "단일 지문") or (current_d_mode == '직접 입력' and mode == "단일 지문") else "1. (가),(나) 요약 및 연관성 서술"
+        label_t1 = "1. 핵심 주장 요약 (서술형)" if mode == "단일 지문" else "1. (가),(나) 요약 및 연관성 서술"
         s1 = st.checkbox(label_t1, value=True, key="select_t1")
         s2 = st.checkbox("2. 내용 일치 O/X", key="select_t2"); c2 = st.number_input(" - OX 수", 1, 10, 2, key="t2") if s2 else 0
         s3 = st.checkbox("3. 빈칸 채우기", key="select_t3"); c3 = st.number_input(" - 문항 수", 1, 10, 2, key="t3") if s3 else 0
@@ -211,41 +202,35 @@ def non_fiction_app():
             req_list = []
             if s1: req_list.append('<div class="question-box"><span class="question-text">1. ' + label_t1 + '</span><div class="write-box"></div></div>')
             if s2: req_list.append('<h3>내용 일치 O/X (' + str(c2) + '문항)</h3>- 문항 끝에 ( O / X ) 포함.')
-            if s3: req_list.append('<h3>빈칸 채우기 (' + str(c3) + '문항)</h3>- 빈칸은 `<span class="blank">&nbsp;&nbsp;&nbsp;&nbsp;</span>` 사용. 영어 정답 금지.')
+            if s3: req_list.append('<h3>빈칸 채우기 (' + str(c3) + '문항)</h3>- 빈칸은 `<span class="blank">&nbsp;&nbsp;&nbsp;&nbsp;</span>` 사용.')
             if s4: req_list.append('<h3>변형 문장 정오판단 (' + str(c4) + '문항)</h3>- 문항 끝에 ( O / X ) 포함.')
             mcq_tpl = '<div class="question-box"><span class="question-text">[문제번호] [발문]</span><div class="choices"><div>① [선지]</div><div>② [선지]</div><div>③ [선지]</div><div>④ [선지]</div><div>⑤ [선지]</div></div></div>'
             if s5: req_list.append('<h3>객관식: 세부 내용 파악 (' + str(c5) + '문항)</h3>' + mcq_tpl)
             if s6: req_list.append('<h3>객관식: 추론 및 비판 (' + str(c6) + '문항)</h3>' + mcq_tpl)
-            if s7: req_list.append('<h3>객관식: [보기] 적용 문제 (' + str(c7) + '문항) [3점]</h3><div class="question-box"><span class="question-text">[문제번호] 윗글을 바탕으로 [보기]를 이해한 내용으로 적절하지 않은 것은? [3점]</span><div class="example-box">(보기 내용)</div><div class="choices"><div>① ...</div><div>② ...</div><div>③ ...</div><div>④ ...</div><div>⑤ ...</div></div></div>')
+            if s7: req_list.append('<h3>객관식: [보기] 적용 문제 (' + str(c7) + '문항) [3점]</h3><div class="example-box">(보기 내용)</div>' + mcq_tpl)
             
             reqs_str = "\n".join(req_list)
-            sum_inst = "- **[필수]**: 각 문단이 끝날 때마다 반드시 `<div class='summary-blank'>📝 문단 요약 연습: (이곳에 핵심 내용을 요약해보세요)</div>` 코드를 삽입하여 사용자가 내용을 요약할 수 있는 빈칸을 만들어주시오." if use_summary else ""
+            sum_inst = "- **[필수]**: 각 문단 끝에 `<div class='summary-blank'>📝 문단 요약 연습: (요약)</div>` 삽입." if use_summary else ""
             
             p1_prompt = """
 당신은 대한민국 수능 국어 출제 위원장입니다. 
 아래 지시사항에 맞춰 완벽한 HTML 포맷의 모의고사 문제지를 생성하시오.
-- `<html>`, `<head>` 생략, `<body>` 내용만 출력.
-- 정답 및 해설 제외. 학생용 문제지.
+# 🚨 [매우 중요] h1, h2 태그 및 제목 노출 금지.
 
-# 🚨 [매우 중요] 출력 시 절대 제목/헤더를 생성하지 마시오.
-- `<h1>`, `<h2>` 태그는 절대 사용하지 마시오. 본문 내용(`<h3>` 이하)부터 바로 출력하시오.
+{STEP1}
+{USER_BLOCK}
 
-{P_INFO}
-{U_BLOCK}
-
-# ----------------------------------------------------------------
 # 🚨 [고난도(킬러 문항) 출제 필수 가이드라인]
-# ----------------------------------------------------------------
-1. **[정보의 재구성 필수 - 1:1 매칭 금지]**: 정답 선지는 절대 한 문단이나 한 문장의 내용만으로 판단할 수 없게 하시오.
-2. **[단어 바꿔치기(Paraphrasing)]**: 지문에 있는 단어를 그대로 선지에 쓰지 마시오.
-3. **[인과관계 비틀기 (오답 설계)]**: 인과관계를 뒤집거나 주체와 객체를 서로 바꾸어 매력적인 오답을 만드시오.
-4. **[선지 분포]**: 지문 전체를 아우르도록 배치하시오.
+1. [정보의 재구성 필수 - 1:1 매칭 금지]: 정답 선지는 멀리 떨어진 정보를 결합하여 판단하게 할 것.
+2. [단어 바꿔치기(Paraphrasing)]: 지문의 단어를 동의어나 함축적 의미로 변환할 것.
+3. [인과관계 비틀기 (오답 설계)]: 인과관계를 뒤집거나 주체/객체를 바꿔 매력적인 오답을 만들 것.
+4. [선지 분포]: 지문 전체를 아우르도록 배치할 것.
 
 **[Step 2] 문제 출제**
 {REQS}
             """.format(
-                P_INFO = f"**[Step 1] 지문 작성** - 주제: {current_topic}, 영역: {current_domain}, 난이도: {current_difficulty}, 길이: 1800자 내외 \n{sum_inst}" if current_d_mode == 'AI 생성' else "**[Step 1] 지문 인식** - 사용자 입력 지문 기반.",
-                U_BLOCK = "\n[사용자 입력 지문 시작]\n" + manual_p + "\n[사용자 입력 지문 끝]\n" if current_d_mode == '직접 입력' else "",
+                STEP1 = f"**[Step 1] 지문 작성** - 주제: {current_topic}, 난이도: {difficulty}, 1800자 내외 {sum_inst}" if current_d_mode == 'AI 생성' else "**[Step 1] 지문 인식** - 사용자 입력 지문 기반.",
+                USER_BLOCK = "\n[사용자 입력 지문 시작]\n" + manual_p + "\n[사용자 입력 지문 끝]\n" if current_d_mode == '직접 입력' else "",
                 REQS = reqs_str
             )
             
@@ -253,15 +238,15 @@ def non_fiction_app():
             html_q = res_q.text.replace("```html","").replace("```","").strip()
             html_q = re.sub(r'<h[12].*?>.*?</h[12]>', '', html_q, flags=re.DOTALL | re.IGNORECASE)
 
-            # [원본 보존] 해설 Batch 생성 로직 (Chunking)
+            # [원본 보존] 해설 Batch 생성 (6문항 단위) 로직
             total_q_cnt = sum([1 if s1 else 0, c2, c3, c4, c5, c6, c7])
             BATCH_SIZE = 6; final_ans_parts = []; summary_done = False
             for i in range(0, total_q_cnt, BATCH_SIZE):
                 sn, en = i + 1, min(i + BATCH_SIZE, total_q_cnt)
-                status.info(f"📝 정답 및 해설 생성 중... ({sn}~{en} / {total_q_cnt}문항)")
+                status.info(f"📝 정답 생성 중... ({sn}~{en} / {total_q_cnt})")
                 c_sum_p = "- **[필수 - 최우선 작성]**: 답변 맨 위에 `<div class='summary-ans-box'>`를 열고 문단별 요약 예시 답안 작성." if use_summary and not summary_done else ""
                 summary_done = True
-                p_chunk = "당신은 수능 위원장입니다. " + str(total_q_cnt) + "문제 중 " + str(sn) + "번부터 " + str(en) + "번 해설만 HTML로 작성.\n" + c_sum_p + "\n[해설 규칙]: 객관식은 정답+오답분석 필수. OX/빈칸은 지문 근거 필수.\n문제내용: " + html_q
+                p_chunk = "당신은 수능 위원장입니다. 전체 " + str(total_q_cnt) + "문제 중 " + str(sn) + "번부터 " + str(en) + "번 해설만 HTML로 작성하시오.\n" + c_sum_p + "\n[규칙]: 객관식은 정답+오답분석 필수. OX/빈칸은 지문 근거 필수.\n문제내용: " + html_q
                 res_c = generate_content_with_fallback(p_chunk, status_placeholder=status)
                 chunk_t = res_c.text.replace("```html","").replace("```","").strip()
                 if i == 0: chunk_t = '<div class="answer-sheet"><h2 class="ans-main-title">정답 및 해설</h2>' + chunk_t
@@ -270,11 +255,8 @@ def non_fiction_app():
             html_a = "".join(final_ans_parts) + "</div>"
             full_html = HTML_HEAD + get_custom_header_html(custom_main_title, current_topic)
             if current_d_mode == '직접 입력':
-                raw_paras = [p.strip() for p in re.split(r'\n\s*\n', manual_p.strip()) if p.strip()]
-                formatted_p = ""
-                for p in raw_paras:
-                    formatted_p += "<p>" + p + "</p>"
-                    if use_summary: formatted_p += "<div class='summary-blank'>📝 문단 요약 연습</div>"
+                def m_p(t): return f"<p>{t}</p>" + ("<div class='summary-blank'>📝 문단 요약 연습</div>" if use_summary else "")
+                formatted_p = "".join([m_p(p.strip()) for p in re.split(r'\n\s*\n', manual_p.strip()) if p.strip()])
                 full_html += f'<div class="passage">{formatted_p}</div>'
             full_html += html_q + html_a + HTML_TAIL
             st.session_state.generated_result = {"full_html": full_html, "main_title": custom_main_title, "topic_title": current_topic}
@@ -286,40 +268,49 @@ def non_fiction_app():
 # ==========================================
 def fiction_app():
     with st.sidebar:
-        st.header("🏫 문서 타이틀 설정")
+        st.header("🏫 타이틀 설정")
         custom_main_title = st.text_input("메인 타이틀", value="사계국어 모의고사", key="fic_t")
         st.header("1️⃣ 작품 정보"); w_n = st.text_input("작품명", key="fic_n"); a_n = st.text_input("작가명", key="fic_a")
         st.header("2️⃣ 문제 유형 및 개수")
-        uv = st.checkbox("1. 어휘 문제 (단답형)", value=True, key="fv"); cv = st.number_input("수", 1, 20, 5, key="fcv") if uv else 0
-        ue = st.checkbox("2. 서술형 심화 (감상)", value=True, key="fe"); ce = st.number_input("수", 1, 10, 3, key="fce") if ue else 0
-        um = st.checkbox("3. 객관식 (일반)", value=True, key="fm"); cm = st.number_input("수", 1, 10, 3, key="fcm") if um else 0
-        ub = st.checkbox("4. 객관식 (보기 적용)", value=True, key="fb"); cb = st.number_input("수", 1, 10, 2, key="fcb") if ub else 0
-        st.caption("3️⃣ 분석 및 정리 활동 (서술형/표)")
+        uv = st.checkbox("1. 어휘 문제 (단답형)", value=True, key="fv"); cv = st.number_input("수", 1, 20, 5, key="f_cv") if uv else 0
+        ue = st.checkbox("2. 서술형 심화 (감상)", value=True, key="fe"); ce = st.number_input("수", 1, 10, 3, key="f_ce") if ue else 0
+        um = st.checkbox("3. 객관식 (일반)", value=True, key="fm"); cm = st.number_input("수", 1, 10, 3, key="f_cm") if um else 0
+        ub = st.checkbox("4. 객관식 (보기 적용)", value=True, key="fb"); cb = st.number_input("수", 1, 10, 2, key="f_cb") if ub else 0
+        st.caption("3️⃣ 분석 및 정리 활동 (표/활동지)")
         u5 = st.checkbox("5. 주요 등장인물 정리 (표)", key="f5"); u6 = st.checkbox("6. 소설 속 상황 요약", key="f6")
         u7 = st.checkbox("7. 인물 관계도 및 갈등", key="f7"); u8 = st.checkbox("8. 갈등 구조 및 심리 정리", key="f8")
 
     if st.session_state.generation_requested:
         text = st.session_state.fiction_novel_text_input_area
         if not text: st.warning("본문을 입력하세요."); st.session_state.generation_requested = False; return
-        status = st.empty(); status.info("⚡ 소설 분석 중...")
+        status = st.empty(); status.info("⚡ 소설 심층 분석 및 문제 제작 중...")
         try:
             req_list = []
-            if uv: req_list.append('유형1. 어휘 (' + str(cv) + '개)')
-            if ue: req_list.append('유형2. 서술형 (' + str(ce) + '개)')
-            if um: req_list.append('유형3. 객관식 (' + str(cm) + '개)')
-            if ub: req_list.append('유형4. 보기적용 (' + str(cb) + '개)')
-            if u5: req_list.append('유형5. 인물정리 표')
-            if u6: req_list.append('유형6. 상황 요약')
-            if u7: req_list.append('유형7. 관계도 박스')
-            if u8: req_list.append('유형8. 갈등정리')
+            if uv: req_list.append('유형1. 어휘 문제 (' + str(cv) + '문항)')
+            if ue: req_list.append('유형2. 서술형 심화 (' + str(ce) + '문항)')
+            if um: req_list.append('유형3. 객관식 일반 (' + str(cm) + '문항)')
+            if ub: req_list.append('유형4. 객관식 보기 (' + str(cb) + '문항)')
+            if u5: req_list.append('유형5. 주요 등장인물 정리 (표)')
+            if u6: req_list.append('유형6. 소설 속 상황 요약')
+            if u7: req_list.append('유형7. 인물 관계도 및 갈등')
+            if u8: req_list.append('유형8. 갈등 구조 및 심리 정리')
             
             r_str = "\n".join(req_list)
-            p_q = "당신은 수능 문학 출제위원입니다. 작품 '" + w_n + "'(" + a_n + ") 기반 학생용 HTML 시험지를 작성하시오. h1, h2 금지.\n🚨 [수능 최고난도 지침]: 1. 복합적 사고 2. 매력적 오답 3. 보기 적용 비평적 관점.\n본문: " + text + "\n요청:\n" + r_str
-            res_q = generate_content_with_fallback(p_q, status_placeholder=status)
+            p1_p = """
+당신은 수능 문학 출제위원입니다. 작품 '{W_N}'({A_N}) 기반 학생용 문제지(HTML)를 작성하시오.
+# 🚨 [수능 최고난도 출제 지침]: 1. 복합적 사고 2. 매력적 오답 3. 보기 적용 비평적 관점.
+# 🚨 h1, h2 제목 생성 금지.
+
+본문: {BODY}
+[요청 항목]:
+{REQS}
+            """.format(W_N=w_n, A_N=a_n, BODY=text, REQS=r_str)
+            
+            res_q = generate_content_with_fallback(p1_p, status_placeholder=status)
             html_q = res_q.text.replace("```html","").replace("```","").strip()
             
-            p_a = "위 문항들의 완벽 정답/해설을 <div class='answer-sheet'>에 작성.\n내용: " + html_q
-            res_a = generate_content_with_fallback(p_a, status_placeholder=status)
+            p2_p = "위 문항들에 대한 완벽 정답 및 상세 해설을 <div class='answer-sheet'> 내부에 작성하시오.\n문제내용: " + html_q
+            res_a = generate_content_with_fallback(p2_p, status_placeholder=status)
             html_a = res_a.text.replace("```html","").replace("```","").strip()
             
             full_html = HTML_HEAD + get_custom_header_html(custom_main_title, w_n)
@@ -329,14 +320,14 @@ def fiction_app():
         except Exception as e: status.error(f"오류: {e}"); st.session_state.generation_requested = False
 
 # ==========================================
-# 🌸 3. 현대시 문제 제작 함수 (디자인 통일 및 문항수 조절)
+# 🌸 3. 현대시 고난도 문항 제작 함수 (디자인 통일 및 고도화)
 # ==========================================
 def poetry_app():
     with st.sidebar:
         st.header("🏫 문서 타이틀 설정")
         c_title = st.text_input("메인 타이틀", value="사계국어 모의고사", key="po_t")
         st.header("1️⃣ 작품 정보"); po_n = st.text_input("작품명", key="po_n"); po_a = st.text_input("작가명", key="po_a")
-        st.header("2️⃣ 문항 유형 및 개수 (1~5개)")
+        st.header("2️⃣ 문항 제작 및 개수 (1~5개)")
         ct1 = st.checkbox("1. 작품 개요 문제", value=True); nt1 = st.number_input("수", 1, 5, 1, key="pn1") if ct1 else 0
         ct2 = st.checkbox("2. 시상 전개 문제", value=True); nt2 = st.number_input("수", 1, 5, 1, key="pn2") if ct2 else 0
         ct3 = st.checkbox("3. 시어 의미 문제", value=True); nt3 = st.number_input("수", 1, 5, 2, key="pn3") if ct3 else 0
@@ -351,26 +342,38 @@ def poetry_app():
     if st.session_state.generation_requested:
         text = st.session_state.get("poetry_text_input_area", "")
         if not text: st.warning("시 본문을 입력하세요."); st.session_state.generation_requested = False; return
-        status = st.empty(); status.info("⚡ 현대시 시험지 생성 중...")
+        status = st.empty(); status.info("⚡ 현대시 고난도 문항 제작 중...")
         try:
             r_list = []
-            if ct1: r_list.append("문항1. 작품 개요(갈래/성격/주제) " + str(nt1) + "개")
-            if ct2: r_list.append("문항2. 시상 전개 및 상황 파악 " + str(nt2) + "개")
-            if ct3: r_list.append("문항3. 시어 및 소재의 상징 의미 " + str(nt3) + "개")
-            if ct4: r_list.append("문항4. 표현 특징(운율/심상/수사법) " + str(nt4) + "개")
-            if ct5: r_list.append("문항5. 작품 감상 및 이해 " + str(nt5) + "개")
-            if ct6: r_list.append("문항6. 수능 빈출 킬러 포인트 " + str(nt6) + "개")
-            if ct7: r_list.append("문항7. 타 작품 연계 비교 " + str(nt7) + "개")
-            if ct8: r_list.append("문항8. 정오판단 OX 세트 " + str(nt8) + "개")
-            if ct9: r_list.append("문항9. 고난도 수능형 서술형 " + str(nt9) + "개")
+            if ct1: r_list.append("문항1. 작품 개요 파악 (" + str(nt1) + "개)")
+            if ct2: r_list.append("문항2. 시상 전개 및 상황 파악 (" + str(nt2) + "개)")
+            if ct3: r_list.append("문항3. 시어 및 소재의 상징 의미 (" + str(nt3) + "개)")
+            if ct4: r_list.append("문항4. 표현 특징/수사법 효과 (" + str(nt4) + "개)")
+            if ct5: r_list.append("문항5. 작품 감상 및 이해 (" + str(nt5) + "개)")
+            if ct6: r_list.append("문항6. 수능 빈출 킬러 포인트 적용 (" + str(nt6) + "개)")
+            if ct7: r_list.append("문항7. 타 작품 연계 비교 (" + str(nt7) + "개)")
+            if ct8: r_list.append("문항8. 수능형 OX 정오판단 (" + str(nt8) + "개)")
+            if ct9: r_list.append("문항9. 고난도 수능형 서술형 (" + str(nt9) + "개)")
             
             r_str = "\n".join(r_list)
-            p_q = "당신은 수능 국어 위원장입니다. 현대시 '" + po_n + "' 기반 학생용 HTML 시험지를 제작하시오. h1, h2 금지.\n🚨 [지침]: 8번 OX는 ( ) 빈칸 출력. 정답 노출 절대 금지. 기존 비문학/문학 코드의 question-box, choices 디자인 형식을 똑같이 따를 것.\n본문: " + text + "\n요청:\n" + r_str
+            p_q = """
+당신은 대한민국 수능 국어 출제 위원장입니다. 현대시 '{W_N}'({A_N})를 바탕으로 학생용 시험지(HTML)를 제작하시오.
+
+🚨 [출제 원칙 - 필독]:
+- '이 작품의 킬러 포인트는?' 같은 메타 질문을 절대 던지지 마시오. 
+- 대신, 지문의 특정 구절이나 화자의 어조, 심상 등을 근거로 삼아 학생이 깊이 사고해야 풀 수 있는 '실제 수능형 문항'을 제작하시오.
+- 지침: 정답 표기 금지. OX는 ( ) 빈칸 출력. 모든 문항은 question-box, choices, example-box 클래스를 사용하여 기존 비문학/문학 코드와 완벽히 통일된 디자인을 갖출 것.
+
+본문: {BODY}
+요청 문항 목록:
+{REQS}
+            """.format(W_N=po_n, A_N=po_a, BODY=text, REQS=r_str)
+            
             res_q = generate_content_with_fallback(p_q, status_placeholder=status)
             html_q = res_q.text.replace("```html","").replace("```","").strip()
             html_q = re.sub(r'<h[12].*?>.*?</h[12]>', '', html_q, flags=re.DOTALL | re.IGNORECASE)
             
-            p_a = "위 문항들에 대한 완벽 정답 및 상세 근거 해설을 <div class='answer-sheet'> 내부에 작성하시오.\n내용: " + html_q
+            p_a = "위 문항들에 대한 완벽 정답 및 상세 근거 해설을 <div class='answer-sheet'> 내부에 작성하시오.\n문제: " + html_q
             res_a = generate_content_with_fallback(p_a, status_placeholder=status)
             html_a = res_a.text.replace("```html","").replace("```","").strip()
             
@@ -400,14 +403,16 @@ def display_results():
 st.title("📚 사계국어 모의고사 제작 시스템")
 st.markdown("---")
 col_L, col_R = st.columns([1.5, 3])
+
 with col_L:
     st.radio("모드 선택", ["⚡ 비문학 문제 제작", "📖 문학 문제 제작", "🌸 현대시 문제 제작"], key="app_mode")
+
 with col_R:
     if st.session_state.app_mode == "⚡ 비문학 문제 제작":
         st.header("⚡ 비문학 모의평가")
         if st.session_state.get("domain_mode_select") == "직접 입력":
             m_m = st.session_state.get("manual_mode", "단일 지문")
-            if m_m == "단일 지문": st.text_area("지문 입력", height=300, key="manual_passage_input_col_main")
+            if m_m == "단일 지문": st.text_area("지문 입력 (엔터 두번으로 문단 구분)", height=300, key="manual_passage_input_col_main")
             else:
                 ca, cb = st.columns(2)
                 with ca: st.text_area("(가) 지문", height=300, key="manual_passage_input_a")
@@ -415,7 +420,7 @@ with col_R:
         if st.button("🚀 모의고사 생성", key="r_nf"): st.session_state.generation_requested = True
         non_fiction_app()
     elif st.session_state.app_mode == "🌸 현대시 문제 제작":
-        st.header("🌸 현대시 문항 제작")
+        st.header("🌸 현대시 고난도 문항 제작")
         st.text_area("시 본문 입력 (행/연 구분을 정확히 해주세요)", height=400, key="poetry_text_input_area")
         if st.button("🚀 문항 제작 시작", key="r_po"): st.session_state.generation_requested = True
         poetry_app()
