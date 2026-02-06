@@ -361,16 +361,16 @@ def poetry_app():
         c_title = st.text_input("메인 타이틀", value="사계국어 모의고사", key="po_t")
         st.header("1️⃣ 작품 정보"); po_n = st.text_input("작품명", key="po_n"); po_a = st.text_input("작가명", key="po_a")
         st.header("2️⃣ 문항 제작 및 개수 (1~5개)")
-        ct1 = st.checkbox("1. 작품 개요 문제", value=True); nt1 = st.number_input("수", 1, 5, 1, key="pn1") if ct1 else 0
-        ct2 = st.checkbox("2. 시상 전개 문제", value=True); nt2 = st.number_input("수", 1, 5, 1, key="pn2") if ct2 else 0
-        ct3 = st.checkbox("3. 시어 의미 문제", value=True); nt3 = st.number_input("수", 1, 5, 2, key="pn3") if ct3 else 0
-        ct4 = st.checkbox("4. 표현 특징 문제", value=True); nt4 = st.number_input("수", 1, 5, 2, key="pn4") if ct4 else 0
-        ct5 = st.checkbox("5. 종합 감상 문제", value=True); nt5 = st.number_input("수", 1, 5, 1, key="pn5") if ct5 else 0
-        ct6 = st.checkbox("6. 수능 킬러 포인트", value=True); nt6 = st.number_input("수", 1, 5, 1, key="pn6") if ct6 else 0
-        ct7 = st.checkbox("7. 연계 비교 문제", value=True); nt7 = st.number_input("수", 1, 5, 1, key="pn7") if ct7 else 0
+        ct1 = st.checkbox("1. 작품 개요 문제", value=True); nt1 = st.number_input("문항 수", 1, 5, 1, key="pn1") if ct1 else 0
+        ct2 = st.checkbox("2. 시상 전개 문제", value=True); nt2 = st.number_input("문항 수", 1, 5, 1, key="pn2") if ct2 else 0
+        ct3 = st.checkbox("3. 시어 의미 문제", value=True); nt3 = st.number_input("문항 수", 1, 5, 2, key="pn3") if ct3 else 0
+        ct4 = st.checkbox("4. 표현 특징 문제", value=True); nt4 = st.number_input("문항 수", 1, 5, 2, key="pn4") if ct4 else 0
+        ct5 = st.checkbox("5. 종합 감상 문제", value=True); nt5 = st.number_input("문항 수", 1, 5, 1, key="pn5") if ct5 else 0
+        ct6 = st.checkbox("6. 수능 킬러 포인트", value=True); nt6 = st.number_input("문항 수", 1, 5, 1, key="pn6") if ct6 else 0
+        ct7 = st.checkbox("7. 연계 비교 문제", value=True); nt7 = st.number_input("문항 수", 1, 5, 1, key="pn7") if ct7 else 0
         st.header("3️⃣ 추가 세트")
-        ct8 = st.checkbox("8. OX 세트", value=True); nt8 = st.number_input("OX수", 1, 15, 10, key="pn8") if ct8 else 0
-        ct9 = st.checkbox("9. 서술형 세트", value=True); nt9 = st.number_input("서술수", 1, 10, 3, key="pn9") if ct9 else 0
+        ct8 = st.checkbox("8. OX 세트", value=True); nt8 = st.number_input("문항 수", 1, 15, 10, key="pn8") if ct8 else 0
+        ct9 = st.checkbox("9. 서술형 세트", value=True); nt9 = st.number_input("문항 수", 1, 10, 3, key="pn9") if ct9 else 0
 
     if st.session_state.generation_requested:
         text = st.session_state.get("poetry_text_input_area", "")
