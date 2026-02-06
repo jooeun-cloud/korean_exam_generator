@@ -19,7 +19,6 @@ st.set_page_config(page_title="사계국어 모의고사 시스템", page_icon="
 # ==========================================
 # [설정] API 클라이언트 초기화 (Google + OpenAI 통합)
 # ==========================================
-# 1. Google Gemini 설정
 try:
     GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
     genai.configure(api_key=GOOGLE_API_KEY)
@@ -28,7 +27,6 @@ except (KeyError, AttributeError):
     if GOOGLE_API_KEY:
         genai.configure(api_key=GOOGLE_API_KEY) 
 
-# 2. OpenAI (GPT) 설정
 openai_client = None
 try:
     if "OPENAI_API_KEY" in st.secrets:
@@ -60,7 +58,7 @@ if 'app_mode' not in st.session_state:
     st.session_state.app_mode = "⚡ 비문학 문제 제작" 
 
 # ==========================================
-# [공통 HTML/CSS 정의] - 참고 파일 스타일 적용 (부제목 삭제)
+# [공통 HTML/CSS 정의] - 원본 디자인 보존 및 현대시 차트 최적화
 # ==========================================
 HTML_HEAD = """
 <!DOCTYPE html>
@@ -136,10 +134,18 @@ HTML_HEAD = """
             margin-bottom: 40px; background-color: #fff; text-align: left;
         }
 
-        /* 분석 차트 스타일 */
+        /* 분석 차트 스타일 수정 (너비 조정 및 가독성 향상) */
         .analysis-chart { width: 100%; border-collapse: collapse; margin-bottom: 40px; table-layout: fixed; }
-        .analysis-chart th { background-color: #f8f9fa; border: 1px solid #444; padding: 12px; font-weight: bold; width: 25%; text-align: center; font-size: 10.5pt; }
-        .analysis-chart td { border: 1px solid #444; padding: 12px; text-align: left; vertical-align: top; line-height: 1.7; font-size: 10.5pt; }
+        .analysis-chart th { 
+            background-color: #f8f9fa; border: 1px solid #444; padding: 12px; 
+            font-weight: bold; width: 120px; /* 제목 칸 너비 축소 */
+            text-align: center; font-size: 10pt; 
+        }
+        .analysis-chart td { 
+            border: 1px solid #444; padding: 12px; text-align: left; 
+            vertical-align: top; line-height: 1.7; font-size: 10.5pt;
+            white-space: pre-wrap; /* 줄바꿈 보존 */
+        }
         .analysis-title { font-size: 1.3em; font-weight: bold; margin-top: 30px; margin-bottom: 15px; border-left: 6px solid #000; padding-left: 12px; }
         
         .type-box { margin-bottom: 30px; page-break-inside: avoid; }
@@ -281,7 +287,6 @@ HTML_HEAD = """
 </head>
 <body>
 """ 
-
 HTML_TAIL = """
 </body>
 </html>
@@ -589,7 +594,7 @@ def non_fiction_app():
             except Exception as e: status.error(f"오류: {e}"); st.session_state.generation_requested = False
 
 # ==========================================
-# 📖 2. 문학(소설) 문제 제작 함수 (원본 100% 무삭제 복구)
+# 📖 2. 소설 문제 제작 함수 (원본 100% 무삭제 복구)
 # ==========================================
 def fiction_app():
     with st.sidebar:
@@ -653,7 +658,7 @@ def fiction_app():
         except Exception as e: status.error(f"오류: {e}"); st.session_state.generation_requested = False
 
 # ==========================================
-# 🌸 3. 현대시 차트형 분석 및 고난도 문항 제작 (연계 문제 제외)
+# 🌸 3. 현대시 차트형 분석 및 고난도 문항 제작 (최종 요청 반영)
 # ==========================================
 def poetry_app():
     with st.sidebar:
@@ -671,11 +676,14 @@ def poetry_app():
         if not text: st.warning("시 본문을 입력하세요."); st.session_state.generation_requested = False; return
         status = st.empty(); status.info("⚡ 현대시 차트 분석 및 문항 제작 중...")
         try:
-            # [Step 1] 분석 차트(1~6) 생성
+            # [Step 1] 분석 차트(1~6) 생성 - 차트 형식 및 가독성 개선
             p_chart = """
 당신은 수능 국어 강사입니다. 현대시 '{W_N}'({A_N})를 분석하여 아래 HTML 차트를 제작하시오.
 [포맷 지침]: 반드시 아래 HTML 구조를 엄격히 지켜서 출력할 것.
-<div class="analysis-title">작품 분석 : {W_N}</div>
+1. 각 항목의 내용은 1), 2), 3) 과 같은 순서 표시를 사용하여 요점 위주로 작성하시오.
+2. 내용이 길어질 경우 적절한 줄바꿈을 포함하여 가독성을 높이시오.
+
+<div class="analysis-title">作品 分析 : {W_N}</div>
 <table class="analysis-chart">
   <tr><th>1. 작품 개요</th><td>(갈래, 성격, 주제 등을 상세히 기술)</td></tr>
   <tr><th>2. 핵심 내용 정리</th><td>(시상 전개 과정 및 핵심 상황 요약)</td></tr>
@@ -698,7 +706,7 @@ def poetry_app():
             p_q = """
 당신은 수능 국어 출제 위원장입니다. 현대시 '{W_N}'를 바탕으로 학생용 문제지(HTML)를 제작하시오.
 [중요 지침]: 
-1. 힌트나 가이드를 문제 내에 직접 포함하지 말 것. 
+1. 힌트나 가이드(※ ~를 고려하시오 등)를 문제 내에 직접 포함하지 말 것. 
 2. 기존 비문학/문학 코드의 디자인(type-box, question-box, choices, example-box)을 완벽히 똑같이 따를 것.
 3. 시 본문은 파이썬에서 이미 출력했으므로 **HTML 응답에 절대 시 본문을 포함하지 마시오.** 출제 요청 목록:
 {REQS}
@@ -720,7 +728,7 @@ def poetry_app():
             st.session_state.generated_result = {"full_html": full_html, "main_title": c_title, "topic_title": po_n}
             status.success("✅ 현대시 분석 및 생성 완료!"); st.session_state.generation_requested = False
         except Exception as e: status.error(f"오류: {e}"); st.session_state.generation_requested = False
-            
+
 # ==========================================
 # 🚀 메인 실행 로직
 # ==========================================
