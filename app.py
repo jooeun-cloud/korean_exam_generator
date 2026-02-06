@@ -653,7 +653,7 @@ def fiction_app():
         except Exception as e: status.error(f"오류: {e}"); st.session_state.generation_requested = False
 
 # ==========================================
-# 🌸 3. 현대시 차트형 분석 및 고난도 문항 제작 (최종 통합본)
+# 🌸 3. 현대시 차트형 분석 및 고난도 문항 제작 (연계 문제 제외)
 # ==========================================
 def poetry_app():
     with st.sidebar:
@@ -663,7 +663,6 @@ def poetry_app():
         st.header("2️⃣ 분석 차트 구성 (1~6번 자동생성)")
         st.caption("개요, 내용, 소재, 특징, 감상, 키포인트 포함")
         st.header("3️⃣ 문제 제작 및 개수")
-        ct7 = st.checkbox("7. 다른 작품과의 연계성 문제", value=True); nt7 = st.number_input("연계 문항 수", 1, 5, 1, key="pn7") if ct7 else 0
         ct8 = st.checkbox("8. 수능형 선지 O,X 세트", value=True); nt8 = st.number_input("OX 문항 수", 1, 15, 10, key="pn8") if ct8 else 0
         ct9 = st.checkbox("9. 수능형 서술형 문제", value=True); nt9 = st.number_input("서술형 문항 수", 1, 10, 3, key="pn9") if ct9 else 0
 
@@ -672,11 +671,11 @@ def poetry_app():
         if not text: st.warning("시 본문을 입력하세요."); st.session_state.generation_requested = False; return
         status = st.empty(); status.info("⚡ 현대시 차트 분석 및 문항 제작 중...")
         try:
-            # [Step 1] 분석 차트(1~6) 생성 - 차트 형식 강제
+            # [Step 1] 분석 차트(1~6) 생성
             p_chart = """
 당신은 수능 국어 강사입니다. 현대시 '{W_N}'({A_N})를 분석하여 아래 HTML 차트를 제작하시오.
 [포맷 지침]: 반드시 아래 HTML 구조를 엄격히 지켜서 출력할 것.
-<div class="analysis-title">作品 分析 : {W_N}</div>
+<div class="analysis-title">작품 분석 : {W_N}</div>
 <table class="analysis-chart">
   <tr><th>1. 작품 개요</th><td>(갈래, 성격, 주제 등을 상세히 기술)</td></tr>
   <tr><th>2. 핵심 내용 정리</th><td>(시상 전개 과정 및 핵심 상황 요약)</td></tr>
@@ -690,9 +689,8 @@ def poetry_app():
             res_chart = generate_content_with_fallback(p_chart, status_placeholder=status)
             html_chart = res_chart.text.replace("```html","").replace("```","").strip()
 
-            # [Step 2] 문제(7~9) 생성 - 문제 형식 강제
+            # [Step 2] 문제(8~9) 생성
             r_list = []
-            if ct7: r_list.append("문항 7. 타 작품과의 연계 및 공통점/차이점 비교 (" + str(nt7) + "개)")
             if ct8: r_list.append("문항 8. 수능형 선지 OX 판단 (" + str(nt8) + "개) - 질문 끝에 ( ) 빈칸 출력. 정답 노출 금지.")
             if ct9: r_list.append("문항 9. 고난도 수능형 조건 제시 서술형 (" + str(nt9) + "개)")
             r_str = "\n".join(r_list)
@@ -700,7 +698,7 @@ def poetry_app():
             p_q = """
 당신은 수능 국어 출제 위원장입니다. 현대시 '{W_N}'를 바탕으로 학생용 문제지(HTML)를 제작하시오.
 [중요 지침]: 
-1. 힌트나 가이드(※ ~를 고려하시오 등)를 문제 내에 직접 포함하지 말 것. 
+1. 힌트나 가이드를 문제 내에 직접 포함하지 말 것. 
 2. 기존 비문학/문학 코드의 디자인(type-box, question-box, choices, example-box)을 완벽히 똑같이 따를 것.
 3. 시 본문은 파이썬에서 이미 출력했으므로 **HTML 응답에 절대 시 본문을 포함하지 마시오.** 출제 요청 목록:
 {REQS}
@@ -711,7 +709,7 @@ def poetry_app():
             html_q = re.sub(r'<h[12].*?>.*?</h[12]>', '', html_q, flags=re.DOTALL | re.IGNORECASE)
 
             # [Step 3] 해설 생성
-            p_a = "위 7~9번 문항들에 대해 교사용 완벽 정답 및 상세 해설을 <div class='answer-sheet'> 내부에 작성하시오.\n문제 내용: " + html_q
+            p_a = "위 문항(8~9번)들에 대해 교사용 완벽 정답 및 상세 해설을 <div class='answer-sheet'> 내부에 작성하시오.\n문제 내용: " + html_q
             res_a = generate_content_with_fallback(p_a, status_placeholder=status)
             html_a = res_a.text.replace("```html","").replace("```","").strip()
             
@@ -722,7 +720,7 @@ def poetry_app():
             st.session_state.generated_result = {"full_html": full_html, "main_title": c_title, "topic_title": po_n}
             status.success("✅ 현대시 분석 및 생성 완료!"); st.session_state.generation_requested = False
         except Exception as e: status.error(f"오류: {e}"); st.session_state.generation_requested = False
-
+            
 # ==========================================
 # 🚀 메인 실행 로직
 # ==========================================
