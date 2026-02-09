@@ -593,7 +593,7 @@ def poetry_app():
         po_genre = st.selectbox("작품 갈래", ["현대시", "고대가요", "향가", "고려가요", "시조", "가사", "악장", "잡가", "민요", "한시"], key="po_g")
         
         st.header("2️⃣ 분석 차트 구성 (1~7번)")
-        st.caption("기본 1~6번(개요~키포인트) 자동생성")
+        st.caption("개요~키포인트 자동생성")
         # [추가] 어휘 풀이 선택 옵션
         ct_vocab_analysis = st.checkbox("7. 주요 어휘 및 구절 풀이", value=True, key="po_vocab_opt")
         
