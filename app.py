@@ -83,6 +83,24 @@ HTML_HEAD = """
             text-align: center; 
         }
         
+        .background-box { 
+            border: 2px solid #2c3e50; 
+            padding: 25px; 
+            margin-top: 50px; 
+            background-color: #f8f9fa; 
+            border-radius: 10px; 
+            page-break-inside: avoid;
+        }
+        .background-title { 
+            font-size: 1.2em; 
+            font-weight: bold; 
+            color: #fff; 
+            background-color: #2c3e50; 
+            padding: 5px 15px; 
+            display: inline-block; 
+            border-radius: 5px; 
+            margin-bottom: 15px; 
+        }
         .top-row {
             display: flex;
             justify-content: space-between;
@@ -378,6 +396,7 @@ def non_fiction_app():
         current_topic = ""
         current_domain = ""
         current_mode = "단일 지문"
+        use_background = st.checkbox("🔍 지문 관련 배경지식 설명 추가", value=False, key="select_bg_info")
         
         if current_d_mode == 'AI 생성':
             mode = st.radio("구성", ["단일 지문", "주제 통합"], key="ai_mode")
@@ -453,6 +472,15 @@ def non_fiction_app():
                 - **[필수]**: 각 문단이 끝날 때마다 반드시 `<div class='summary-blank'>📝 문단 요약 연습: (이곳에 핵심 내용을 요약해보세요)</div>` 코드를 삽입하여 사용자가 내용을 요약할 수 있는 빈칸을 만들어주시오.
                 - 이 부분은 사용자가 글을 쓸 공간이므로 절대 내용을 채우지 마시오.
                 """ if use_summary else ""
+
+                # 배경지식 지침 정의
+                bg_instruction = ""
+                if use_background:
+                    bg_instruction = """
+                    - **[배경지식 플러스 서술]**: 모든 문제 출제가 끝난 후, 맨 마지막에 지문의 주제와 관련된 심화 배경지식을 정리하시오.
+                    - 제목은 `<div class="background-title">💡 배경지식 플러스</div>`로 하고, 전체 내용은 `<div class="background-box">`로 감싸시오.
+                    - 지문에서 다룬 원리나 사건의 유래, 현실 세계의 적용 사례 등을 500자 내외로 상세하고 친절하게 설명하시오.
+                    """
 
                 p1_prompt = """
 당신은 대한민국 수능 국어 출제 위원장입니다. 
