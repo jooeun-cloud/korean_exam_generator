@@ -372,6 +372,7 @@ def non_fiction_app():
         custom_main_title = st.text_input("메인 타이틀 (학원명)", value="사계국어 모의고사", key="nf_title")
         st.header("🛠️ 지문 입력 방식")
         st.selectbox("방식 선택", ["AI 생성", "직접 입력"], key="domain_mode_select")
+        show_passage = st.checkbox("문제지에 지문 포함", value=True, key="nf_show_p")
         st.header("1️⃣ 지문 및 주제 설정")
         current_manual_passage = ""
         current_topic = ""
@@ -520,11 +521,27 @@ def non_fiction_app():
 
                 html_answers = "".join(final_ans_parts) + "</div>"
                 full_html = HTML_HEAD + get_custom_header_html(custom_main_title, current_topic)
-                if current_d_mode == '직접 입력':
-                    paras = [p.strip() for p in re.split(r'\n\s*\n', current_manual_passage.strip()) if p.strip()]
-                    formatted_p = "".join(["<p>" + p + "</p>" + ("<div class='summary-blank'>📝 문단 요약 연습: </div>" if use_summary else "") for p in paras])
-                    full_html += f'<div class="passage">{formatted_p}</div>'
-                full_html += html_problems + html_answers + HTML_TAIL
+                
+                if show_passage:
+                    if current_d_mode == '직접 입력':
+                        paras = [p.strip() for p in re.split(r'\n\s*\n', current_manual_passage.strip()) if p.strip()]
+                        formatted_p = ""
+                        for p in paras:
+                            formatted_p += "<p>" + p + "</p>"
+                            if use_summary: formatted_p += "<div class='summary-blank'>📝 문단 요약 연습: </div>"
+                        full_html += f'<div class="passage">{formatted_p}</div>'
+                    # AI 생성 모드일 경우 html_problems 내부에 지문이 포함되어 있으므로 그대로 둡니다.
+                    # (지문 미출력 시 정규식 등으로 제거하는 로직이 필요할 수 있으나, 
+                    # 프롬프트에서 조절하거나 전체 html_problems를 조절하는 방식으로 유지)
+                    full_html += html_problems
+                else:
+                    # 지문을 포함하지 않을 경우, 문제 부분(html_problems)만 추가합니다.
+                    # 만약 AI가 생성한 html_problems에 지문이 포함되어 있다면 
+                    # html_problems = re.sub(r'<div class="passage">.*?</div>', '', html_problems, flags=re.DOTALL) 등을 활용해 제거 가능합니다.
+                    full_html += html_problems
+                
+                full_html += html_answers + HTML_TAIL
+
                 st.session_state.generated_result = {"full_html": full_html, "main_title": custom_main_title, "topic_title": current_topic}
                 status.success("✅ 비문학 생성 완료!"); st.session_state.generation_requested = False
             except Exception as e: status.error(f"오류: {e}"); st.session_state.generation_requested = False
@@ -536,6 +553,7 @@ def fiction_app():
     with st.sidebar:
         st.header("🏫 문서 타이틀 설정")
         custom_main_title = st.text_input("메인 타이틀 (학원명)", value="사계국어 모의고사", key="fic_t")
+        show_passage = st.checkbox("문제지에 지문 포함", value=True, key="fi_show_p")
         st.header("1️⃣ 작품 정보"); work_name = st.text_input("작품명", key="fic_n"); author_name = st.text_input("작가명", key="fic_a")
         st.header("2️⃣ 문제 유형 및 개수")
         uv = st.checkbox("1. 어휘 문제 (단답형)", value=True, key="fv"); cv = st.number_input("문항 수", 1, 20, 5, key="fcv") if uv else 0
@@ -577,7 +595,11 @@ def fiction_app():
             html_a = res_a.text.replace("```html","").replace("```","").strip()
             
             full_html = HTML_HEAD + get_custom_header_html(custom_main_title, work_name)
-            full_html += f'<div class="passage">{text.replace(chr(10), "<br>")}</div>' + html_q + html_a + HTML_TAIL
+            if show_passage:
+                full_html += f'<div class="passage">{text.replace(chr(10), "<br>")}</div>'
+            
+            full_html += html_q + html_a + HTML_TAIL
+
             st.session_state.generated_result = {"full_html": full_html, "main_title": custom_main_title, "topic_title": work_name}
             status.success("✅ 소설 분석 완료!"); st.session_state.generation_requested = False
         except Exception as e: status.error(f"오류: {e}"); st.session_state.generation_requested = False
@@ -589,6 +611,7 @@ def poetry_app():
     with st.sidebar:
         st.header("🏫 문서 타이틀 설정")
         c_title = st.text_input("메인 타이틀", value="사계국어 모의고사", key="po_t")
+        show_passage = st.checkbox("문제지에 지문 포함", value=True, key="po_show_p")
         st.header("1️⃣ 작품 정보"); po_n = st.text_input("작품명", key="po_n"); po_a = st.text_input("작가명", key="po_a")
         po_genre = st.selectbox("작품 갈래", ["현대시", "고대가요", "향가", "고려가요", "시조", "가사", "악장", "잡가", "민요", "한시"], key="po_g")
         
@@ -661,7 +684,9 @@ def poetry_app():
             html_a = res_a.text.replace("```html","").replace("```","").strip()
             
             full_html = HTML_HEAD + get_custom_header_html(c_title, po_n)
-            full_html += '<div class="poetry-passage">' + text + '</div>'
+            if show_passage:
+                full_html += f'<div class="poetry-passage">{text}</div>'
+
             full_html += html_chart + html_q + html_a + HTML_TAIL
             
             st.session_state.generated_result = {"full_html": full_html, "main_title": c_title, "topic_title": po_n}
