@@ -520,6 +520,14 @@ def non_fiction_app():
                                 f"지문의 각 문단별로 다음 지침을 따를 것: {structure_inst}"
                             )
                         summary_done = True
+                    # [추가 요청 사항] 배경지식 지침 정의
+                    bg_instruction = ""
+                    if st.session_state.get("select_bg_info"):
+                        bg_instruction = """
+                        - **[배경지식 플러스 서술]**: 모든 문제 출제가 끝난 후, 맨 마지막에 지문의 주제와 관련된 심화 배경지식을 정리하시오.
+                        - 제목은 `<div class="background-title">💡 배경지식 플러스</div>`로 하고, 전체 내용은 `<div class="background-box">`로 감싸시오.
+                        - 지문에서 다룬 원리나 사건의 유래, 현실 세계의 적용 사례 등을 상세하고 친절하게 설명하시오.
+                        """
                     p_chunk = """
 당신은 대한민국 수능 국어 출제 위원장입니다. {T_CNT}문제 중 **{S_NUM}번부터 {E_NUM}번까지**의 정답 및 해설을 HTML로 작성하시오.
 {CONTEXT}
