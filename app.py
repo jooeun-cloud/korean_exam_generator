@@ -498,14 +498,28 @@ def non_fiction_app():
                     
                     current_summary_prompt = ""
                     if use_summary and not summary_done:
+                        # [수정] AI에게 구조적 요약을 강제하는 상세 지침 정의
+                        structure_inst = (
+                            "단순한 문장 요약이 아니라, 각 문단의 **[핵심 화제]**, **[논리적 전개 방식(정의, 대조, 인과, 예시 등)]**, "
+                            "**[핵심 요지]**가 모두 드러나도록 구조적으로 요약하시오. "
+                            "가능하다면 '주제: [내용] (전개 방식: [방식])'과 같은 형식을 활용하여 가독성을 높이시오."
+                        )
+                    
                         if current_d_mode == '직접 입력':
-                             user_paras = [p for p in re.split(r'\n\s*\n', current_manual_passage.strip()) if p.strip()]
-                             para_count = len(user_paras)
-                             current_summary_prompt = "- **[필수 - 최우선 작성]**: 답변 맨 위에 `<div class='summary-ans-box'>`를 열고 **[문단별 요약 예시 답안]**을 작성하시오. 총 " + str(para_count) + "개의 요약을 제시하시오."
+                            user_paras = [p for p in re.split(r'\n\s*\n', current_manual_passage.strip()) if p.strip()]
+                            para_count = len(user_paras)
+                            current_summary_prompt = (
+                                f"- **[필수 - 최우선 작성]**: 답변 맨 위에 `<div class='summary-ans-box'>`를 열고 "
+                                f"**[문단별 구조적 요약 예시 답안]**을 작성하시오. "
+                                f"총 {para_count}개의 문단에 대해 다음 지침을 따를 것: {structure_inst}"
+                            )
                         else:
-                             current_summary_prompt = "- **[필수 - 최우선 작성]**: 답변 맨 위에 `<div class='summary-ans-box'>`를 열고 **[문단별 요약 예시 답안]**을 작성하시오."
-                        summary_done = True 
-
+                            current_summary_prompt = (
+                                f"- **[필수 - 최우선 작성]**: 답변 맨 위에 `<div class='summary-ans-box'>`를 열고 "
+                                f"**[문단별 구조적 요약 예시 답안]**을 작성하시오. "
+                                f"지문의 각 문단별로 다음 지침을 따를 것: {structure_inst}"
+                            )
+                        summary_done = True
                     p_chunk = """
 당신은 대한민국 수능 국어 출제 위원장입니다. {T_CNT}문제 중 **{S_NUM}번부터 {E_NUM}번까지**의 정답 및 해설을 HTML로 작성하시오.
 {CONTEXT}
