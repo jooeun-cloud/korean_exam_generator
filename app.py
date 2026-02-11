@@ -472,6 +472,7 @@ def non_fiction_app():
                     """
 
                 # [원본 유지] 지문 가이드라인 및 킬러 가이드
+                # [추가] 직접 입력 모드에서 지문을 중복 출력하지 않도록 명시
                 p1_prompt = """
 당신은 대한민국 수능 국어 출제 위원장입니다. 
 아래 지시사항에 맞춰 완벽한 HTML 포맷의 모의고사 문제지를 생성하시오.
@@ -504,7 +505,7 @@ def non_fiction_app():
 **[Step 2] 문제 출제**
 {REQS}
                 """.format(
-                    STEP1 = f"**[Step 1] 지문 작성** - 주제: {current_topic}, 난이도: {difficulty}, 길이: 1800자 내외 \n{summary_inst_passage}" if current_d_mode == 'AI 생성' else "**[Step 1] 지문 인식** - 사용자 입력 지문 기반.",
+                    STEP1 = f"**[Step 1] 지문 작성** - 주제: {current_topic}, 난이도: {difficulty}, 길이: 1800자 내외. 생성된 지문은 반드시 `<div class='passage'>` 태그로 감싸시오. \n{summary_inst_passage}" if current_d_mode == 'AI 생성' else "**[Step 1] 지문 인식** - 사용자 입력 지문 기반. 문제지 본문에는 지문을 다시 출력하지 마시오.",
                     USER_BLOCK = "\n[사용자 입력 지문 시작]\n" + manual_p + "\n[사용자 입력 지문 끝]\n" if current_d_mode == '직접 입력' else "",
                     BG_PROM = bg_instruction,
                     REQS = reqs_str
@@ -525,7 +526,7 @@ def non_fiction_app():
                     
                     current_summary_prompt = ""
                     if use_summary and not summary_done:
-                        # [요청 반영] 구조적 요약 지침
+                        # [수정] AI에게 구조적 개조식 요약을 강제하는 상세 지침 (원본 유지)
                         structure_inst = (
                             "단순한 서술형 문장이 아니라, 정보를 명확히 분류한 **[개조식]** 형태로 요약하시오. "
                             "반드시 **1. 핵심 화제, 2. 논리적 전개 방식(정의, 대조, 인과 등), 3. 핵심 요지** 항목을 명확히 구분하여 "
@@ -554,10 +555,10 @@ def non_fiction_app():
                 html_answers = "".join(final_ans_parts) + "</div>"
                 full_html = HTML_HEAD + get_custom_header_html(custom_main_title, current_topic)
                 
-                # [지문 출력 여부 완벽 제어]
+                # [지문 출력 제어 강화 로직]
                 processed_html_q = html_q
                 if not show_passage:
-                    # AI가 생성한 문자열 내에 passage 클래스가 포함되어 있다면 정규식으로 강제 삭제
+                    # AI가 생성한 문자열 내부에서 passage 클래스를 가진 영역을 정규식으로 완벽 제거
                     processed_html_q = re.sub(r'<div[^>]*class=["\']passage["\'][^>]*>.*?</div>', '', html_q, flags=re.DOTALL | re.IGNORECASE)
                     full_html += processed_html_q
                 else:
@@ -566,6 +567,7 @@ def non_fiction_app():
                         formatted_p = "".join([f"<p>{p}</p>" + ("<div class='summary-blank'>📝 문단 요약 연습: </div>" if use_summary else "") for p in paras])
                         full_html += f'<div class="passage">{formatted_p}</div>' + processed_html_q
                     else:
+                        # AI 생성 모드에서는 AI가 이미 <div class='passage'>를 생성했으므로 그대로 출력
                         full_html += processed_html_q
                 
                 full_html += html_answers + HTML_TAIL
@@ -601,7 +603,7 @@ def fiction_app():
             if uv: req_list.append('<div class="type-box"><h3>유형 1. 어휘 문제 (' + str(cv) + '문항)</h3>- 지문의 어려운 어휘 ' + str(cv) + '개의 의미 묻기 (단답형).<div class="question-box"><span class="question-text">[번호] "____"의 문맥적 의미는?</span><div class="write-box" style="height:50px;"></div></div></div><br><br>')
             if ue: req_list.append('<div class="type-box"><h3>유형 2. 서술형 심화 문제 (' + str(ce) + '문항)</h3>- 작가의 의도, 효과, 이유를 묻는 고난도 서술형.<div class="write-box"></div></div><br><br>')
             if um: req_list.append('<div class="type-box"><h3>유형 3. 객관식 문제 (일반) (' + str(cm) + '문항)</h3>- 수능형 5지 선다 (추론/비판).<div class="question-box"><span class="question-text">[번호] (발문)</span><div class="choices"><div>① ...</div><div>② ...</div><div>③ ...</div><div>④ ...</div><div>⑤ ...</div></div></div></div><br><br>')
-            if ub: req_list.append('<div class="type-box"><h3>유형 4. 객관식 문제 (보기 적용) (' + str(cb) + '문항)</h3>- **<보기>** 박스 필수 포함 (3점 킬러문항).<div class="example-box">(보기 내용)</div><div class="choices"><div>① ...</div><div>② ...</div><div>③ ...</div><div>④ ...</div><div>⑤ ...</div></div></div><br><br>')
+            if ub: req_list.append('<div class="type-box"><h3>유형 4. 객관식 문제 (보기 적용) (' + str(cb) + '문항)</h3>- **<보기>** 박스 필수 포함 (3점 킬러문항).<div class="example-box">(보기 내용)</div><div class="choices"><div>① ...</div><div>② ...</div><div>③ ...</div><div>④ ...</div><div>⑤ ...</div></div></div></div><br><br>')
             if u5: req_list.append('<div class="type-box"><h3>유형 5. 주요 등장인물 정리</h3>- 인물명, 호칭, 역할, 심리 빈칸 표 제공.</div><br><br>')
             if u6: req_list.append('<div class="type-box"><h3>유형 6. 소설 속 상황 요약</h3>- 핵심 갈등 요약 서술.<div class="write-box"></div></div><br><br>')
             if u7: req_list.append('<div class="type-box"><h3>유형 7. 인물 관계도 및 갈등</h3>- 직접 그릴 수 있는 박스.<div class="write-box" style="height:200px;"></div></div><br><br>')
