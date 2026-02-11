@@ -36,10 +36,10 @@ except Exception as e:
 
 # 모델 우선순위 정의
 MODEL_PRIORITY = [
-    "gpt-5.2"
+    "gpt-5.2",
     "gpt-4o",               
-    "gemini-1.5-pro",       
-    "gemini-1.5-flash"      
+    "gemini-1.5-pro"       
+          
 ] 
 
 # ==========================================
